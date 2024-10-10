@@ -108,7 +108,9 @@ adjfunc.adjJustUp = false
 function adjfunc.wakeup()
 
     -- do not run the remaining code
-    if config.adjFunctionAlerts ~= true then return end
+    if config.adjFunctionAlerts == false and config.adjValueAlerts == false then 
+        return 
+    end
 
     if rfsuite.rssiSensor == nil then return end
 
@@ -157,13 +159,21 @@ function adjfunc.wakeup()
                         local tgt = "id" .. tostring(adjfunc.adjFunction)
                         local adjfunction = adjfunc.adjFunctionsTable[tgt]
                         if adjfunction ~= nil and firstRun == false then
-                            for wavi, wavv in ipairs(adjfunction.wavs) do system.playFile(rfsuite.config.suiteDir .. "tasks/adjfunctions/sounds/" .. wavv .. ".wav") end
+                            for wavi, wavv in ipairs(adjfunction.wavs) do 
+                                if config.adjFunctionAlerts == true then
+                                        system.playFile(rfsuite.config.suiteDir .. "tasks/adjfunctions/sounds/" .. wavv .. ".wav") 
+                                end        
+                            end
                         end
                         adjfunc.adjfuncIdChanged = false
                     end
                     if adjfunc.adjfuncValueChanged == true or adjfunc.adjfuncIdChanged == true then
 
-                        if adjfunc.adjValue ~= nil and firstRun == false then system.playNumber(adjfunc.adjValue) end
+                        if adjfunc.adjValue ~= nil and firstRun == false then 
+                                if config.adjValueAlerts == true then
+                                        system.playNumber(adjfunc.adjValue) 
+                                end        
+                        end
 
                         adjfunc.adjfuncValueChanged = false
 
