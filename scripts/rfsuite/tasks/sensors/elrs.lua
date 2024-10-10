@@ -244,7 +244,7 @@ elrs.RFSensors = {
     -- ESC#2 capacity/consumption
     [0x1053] = {name = "Es2C", unit = UNIT_MILLIAMPERE_HOUR, prec = 0, min = 0, max = 65000, dec = decU16},
     -- ESC#2 eRPM
-    [0x1054] = {name = "Es2R", unit = UNIT_RPM, prec = 0, min = 0, max = 65535, dec = decUU24},
+    [0x1054] = {name = "Es2R", unit = UNIT_RPM, prec = 0, min = 0, max = 65535, dec = decU24},
     -- ESC#2 temperature
     [0x1057] = {name = "Es2T", unit = UNIT_CELSIUS, prec = 0, min = 0, max = 255, dec = decU8},
     -- ESC#2 Model Id
