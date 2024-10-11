@@ -14,8 +14,20 @@ function compile.initialise()
 
 end
 
+
+function dir_exists(base,name)
+        list = system.listFiles(base)       
+        for i,v in pairs(list) do
+                if v == 'compiled' then
+                        return true
+                end
+        end
+        return false
+end
+
 local function file_exists(name)
     local f = io.open(name, "r")
+    print(f)
     if f ~= nil then
         io.close(f)
         return true
@@ -42,9 +54,9 @@ end
 function compile.loadScript(script)
 
 
-        if os.mkdir ~= nil and compile.file_exists(moduleDir .. "compiled") == false then
-                        os.mkdir(moduleDir .. "compiled")
-        end
+     if os.mkdir ~= nil and dir_exists(suiteDir , "compiled") == false then
+                        os.mkdir(suiteDir .. "compiled")
+     end
 
     -- we need to add code to stop this reading every time function runs
     local cachefile    
@@ -55,6 +67,11 @@ function compile.loadScript(script)
         if file_exists("/scripts/" .. baseName() .. ".nocompile") == true then config.useCompiler = false end
 
         if file_exists("/scripts/nocompile") == true then config.useCompiler = false end
+    end
+
+    -- do not compile if for some reason the compiler cache folder is missing
+    if dir_exists(suiteDir , "compiled") ~= true then
+        config.useCompiler = false
     end
 
     if config.useCompiler == true then
