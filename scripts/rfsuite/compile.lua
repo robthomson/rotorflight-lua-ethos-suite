@@ -27,7 +27,6 @@ end
 
 local function file_exists(name)
     local f = io.open(name, "r")
-    print(f)
     if f ~= nil then
         io.close(f)
         return true
@@ -81,7 +80,7 @@ function compile.loadScript(script)
             os.rename(script .. 'c', cachefile)
 
             -- if not compiled - we compile; but return non compiled to sort timing issue.
-            print("Loading: " .. cachefile)
+            --print("Loading: " .. cachefile)
             return assert(loadfile(cachefile))
         end
         -- print("Loading: " .. cachefile)
