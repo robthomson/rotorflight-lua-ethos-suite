@@ -18,7 +18,7 @@ end
 function dir_exists(base,name)
         list = system.listFiles(base)       
         for i,v in pairs(list) do
-                if v == 'compiled' then
+                if v == name then
                         return true
                 end
         end
