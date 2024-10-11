@@ -4,7 +4,7 @@ local fields = {}
 local activateWakeup = false
 local currentProfileChecked = false
 
-if rfsuite.RateTable == nil then rfsuite.RateTable = rfsuite.config.defaultRateTable end
+if rfsuite.RateTable == nil then rfsuite.RateTable = rfsuite.config.defaultRateProfile end
 
 fields[#fields + 1] = {
     t = "Rates Type",

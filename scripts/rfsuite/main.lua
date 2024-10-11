@@ -8,7 +8,7 @@ config.icon = lcd.loadMask(config.suiteDir .. "app/gfx/icon.png")   -- icon
 config.Version = "1.0.0"                                            -- version number of this software release
 config.ethosVersion = 1516                                          -- min version of ethos supported by this script
 config.ethosVersionString = "ETHOS < V1.5.16"                       -- string to print if ethos version error occurs
-config.defaultRateTable = 4 -- ACTUAL                               -- default rate table [default = 4]
+config.defaultRateProfile = 4 -- ACTUAL                               -- default rate table [default = 4]
 config.supportedMspApiVersion = {"12.06", "12.07"}                  -- supported msp versions
 config.watchdogParam = 10                                           -- watchdog timeout for progress boxes [default = 10]
 

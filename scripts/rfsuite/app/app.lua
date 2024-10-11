@@ -11,6 +11,7 @@ triggers.noRFMsg = false
 triggers.triggerSave = false
 triggers.triggerReload = false
 triggers.triggerReloadNoPrompt = false
+triggers.reloadFull = false
 triggers.isReady = false
 triggers.isSaving = false
 triggers.isSavingFake = false
@@ -852,10 +853,13 @@ function app.wakeupUI()
     if app.triggers.reload == true then
         app.ui.progessDisplay()
         app.triggers.reload = false
-
-        -- app.ui.openPage(app.lastIdx, app.lastTitle, app.lastScript)
         app.ui.openPageRefresh(app.lastIdx, app.lastTitle, app.lastScript)
+    end
 
+    if app.triggers.reloadFull == true then
+        app.ui.progessDisplay()
+        app.triggers.reloadFull = false
+        app.ui.openPage(app.lastIdx, app.lastTitle, app.lastScript)
     end
 
     -- play audio

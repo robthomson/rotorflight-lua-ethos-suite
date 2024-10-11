@@ -11,24 +11,25 @@ tables[3] = rfsuite.config.suiteDir .. "app/pages/ratetables/kiss.lua"
 tables[4] = rfsuite.config.suiteDir .. "app/pages/ratetables/actual.lua"
 tables[5] = rfsuite.config.suiteDir .. "app/pages/ratetables/quick.lua"
 
-if rfsuite.RateTable == nil then rfsuite.RateTable = rfsuite.config.defaultRateTable end
+if rfsuite.rateProfile == nil then rfsuite.rateProfile = rfsuite.config.defaultRateProfile end
 
-local mytable = assert(compile.loadScript(tables[rfsuite.RateTable]))()
+local mytable = assert(compile.loadScript(tables[rfsuite.rateProfile]))()
 
 local fields = mytable.fields
 
 fields[13] = {t = "Rates Type", hidden = true, ratetype = 1, min = 0, max = 5, vals = {1}}
 
 local function postLoad(self)
-    -- if the activeRateTable is not what we are displaying
+    -- if the activeRateProfile is not what we are displaying
     -- then we need to trigger a reload of the page
     local v = rfsuite.app.Page.values[1]
-    if v ~= nil then rfsuite.activeRateTable = math.floor(v) end
+    if v ~= nil then rfsuite.activeRateProfile = math.floor(v) end
 
-    if rfsuite.activeRateTable ~= nil then
-        if rfsuite.activeRateTable ~= rfsuite.RateTable then
-            rfsuite.RateTable = rfsuite.activeRateTable
-            rfsuite.app.triggers.reload = true
+
+    if rfsuite.activeRateProfile ~= nil then
+        if rfsuite.activeRateProfile ~= rfsuite.rateProfile then
+            rfsuite.rateProfile = rfsuite.activeRateProfile
+            rfsuite.app.triggers.reloadFull = true
             return
         end
     end
@@ -130,7 +131,7 @@ local function openPage(idx, title, script)
 
             rfsuite.app.formFields[i] = form.addNumberField(rateRows[f.row], pos, minValue, maxValue, function()
                 local value
-                if rfsuite.activeRateTable == 0 then
+                if rfsuite.activeRateProfile == 0 then
                     value = 0
                 else
                     value = rfsuite.utils.getFieldValue(rfsuite.app.Page.fields[i])
