@@ -1009,7 +1009,7 @@ end
 -- EVENT:  Called for button presses, scroll events, touch events, etc.
 function app.event(widget, category, value, x, y)
 
-    -- print("Event received:" .. ", " .. category .. "," .. value .. "," .. x .. "," .. y)
+     --print("Event received:" .. ", " .. category .. "," .. value .. "," .. x .. "," .. y)
 
     if value == EVT_VIRTUAL_PREV_LONG then
         print("Forcing exit")
@@ -1027,7 +1027,7 @@ function app.event(widget, category, value, x, y)
 
     if app.uiState == app.uiStatus.pages then
 
-        if category == 5 or value == 35 then
+        if category == EVT_CLOSE and value == 0 then
             if app.dialogs.progressDisplay == true then app.ui.progessDisplayClose() end
             if app.dialogs.saveDisplay == true then app.ui.progessDisplaySaveClose() end
             if app.Page.onNavMenu then app.Page.onNavMenu(app.Page) end
