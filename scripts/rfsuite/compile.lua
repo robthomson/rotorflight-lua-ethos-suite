@@ -41,8 +41,13 @@ end
 
 function compile.loadScript(script)
 
+
+        if os.mkdir ~= nil and compile.file_exists(moduleDir .. "compiled") == false then
+                        os.mkdir(moduleDir .. "compiled")
+        end
+
     -- we need to add code to stop this reading every time function runs
-    local cachefile
+    local cachefile    
     cachefile = suiteDir .. "compiled/" .. script:gsub("/", "_") .. "c"
 
     -- overrides
