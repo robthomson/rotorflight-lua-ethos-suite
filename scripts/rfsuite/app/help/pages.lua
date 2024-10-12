@@ -195,4 +195,12 @@ data["msp_speed"] = {}
 data["msp_speed"]["qrCODE"] = nil
 data["msp_speed"]["TEXT"] = {"This tool attempt to determine the quality of your msp data link by performing as many large Msp queries within 30 seconds as possible."}
 
+-- EXP MSP
+data["msp_exp"] = {}
+data["msp_exp"]["qrCODE"] = nil
+data["msp_exp"]["TEXT"] = {"This tool provides the ability to send a custom byte string to the fbl.  It is usefull for developers when debugging values",
+                           "If you do not understand what you are doing - do not use it as bad things can happen."
+                          }
+
+
 return {data = data}

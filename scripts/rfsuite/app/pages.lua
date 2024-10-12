@@ -46,6 +46,7 @@ pages[#pages + 1] = {title = "Status", section = 5, script = "status.lua", image
 
 sections[#sections + 1] = {title = "Developer", section = 6, developer = true}
 pages[#pages + 1] = {title = "Msp speed", section = 6, script = "msp_speed.lua", image = "msp_speed.png"}
+pages[#pages + 1] = {title = "Experimental", section = 6, script = "msp_exp.lua", image = "msp_exp.png"}
 
 sections[#sections + 1] = {title = "About", section = 7}
 pages[#pages + 1] = {title = "About", section = 7, script = "about.lua", image = "about.png"}
