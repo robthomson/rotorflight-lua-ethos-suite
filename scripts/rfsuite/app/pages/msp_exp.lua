@@ -131,6 +131,7 @@ local function openPage(idx, title, script)
         end
     end
 
+    rfsuite.app.triggers.closeProgressLoader = true
 
 end
 
