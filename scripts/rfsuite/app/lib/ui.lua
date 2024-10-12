@@ -191,53 +191,79 @@ function ui.openMainMenu()
     if rfsuite.app.gfx_buttons["mainmenu"] == nil then rfsuite.app.gfx_buttons["mainmenu"] = {} end
     if rfsuite.app.menuLastSelected["mainmenu"] == nil then rfsuite.app.menuLastSelected["mainmenu"] = 1 end
 
+
+    
+    local hideSection = false
     for idx, value in ipairs(MainMenu.sections) do
+    
+        if (value.ethosversion ~= nil and rfsuite.config.ethosRunningVersion < value.ethosversion) then hideSection = true else hideSection = false end
+    
 
-        local sc = value.section
+        if hideSection == false then
 
-        form.addLine(value.title)
+                local sc = value.section
 
-        lc = 0
-        for pidx, pvalue in ipairs(MainMenu.pages) do
-            if pvalue.section == value.section then
+                form.addLine(value.title)
 
-                if lc == 0 then
-                    if config.iconSize == 0 then y = form.height() + rfsuite.app.radio.buttonPaddingSmall end
-                    if config.iconSize == 1 then y = form.height() + rfsuite.app.radio.buttonPaddingSmall end
-                    if config.iconSize == 2 then y = form.height() + rfsuite.app.radio.buttonPadding end
-                end
+                lc = 0
+                local hideEntry = false
+                
+                for pidx, pvalue in ipairs(MainMenu.pages) do
+                    if pvalue.section == value.section then
 
-                if lc >= 0 then x = (buttonW + padding) * lc end
+                        -- do not show icon if not supported by ethos version
+                        if (pvalue.ethosversion ~= nil and rfsuite.config.ethosRunningVersion < pvalue.ethosversion) then hideEntry = true else hideEntry = false end
+                        
 
-                if config.iconSize ~= 0 then
-                    if rfsuite.app.gfx_buttons["mainmenu"][pidx] == nil then
-                        rfsuite.app.gfx_buttons["mainmenu"][pidx] = lcd.loadMask(config.suiteDir .. "app/gfx/menu/" .. pvalue.image)
+                        if hideEntry == false then
+
+                                if lc == 0 then
+                                    if config.iconSize == 0 then y = form.height() + rfsuite.app.radio.buttonPaddingSmall end
+                                    if config.iconSize == 1 then y = form.height() + rfsuite.app.radio.buttonPaddingSmall end
+                                    if config.iconSize == 2 then y = form.height() + rfsuite.app.radio.buttonPadding end
+                                end
+
+                                if lc >= 0 then x = (buttonW + padding) * lc end
+
+                                if config.iconSize ~= 0 then
+                                    if rfsuite.app.gfx_buttons["mainmenu"][pidx] == nil then
+                                        rfsuite.app.gfx_buttons["mainmenu"][pidx] = lcd.loadMask(config.suiteDir .. "app/gfx/menu/" .. pvalue.image)
+                                    end
+                                else
+                                    rfsuite.app.gfx_buttons["mainmenu"][pidx] = nil
+                                end
+
+
+
+                                rfsuite.app.formFields[pidx] = form.addButton(line, {x = x, y = y, w = buttonW, h = buttonH}, {
+                                    text = pvalue.title,
+                                    icon = rfsuite.app.gfx_buttons["mainmenu"][pidx],
+                                    options = FONT_S,
+                                    paint = function()
+                                    end,
+                                    press = function()
+                                        rfsuite.app.menuLastSelected["mainmenu"] = pidx
+                                        rfsuite.app.ui.progessDisplay()
+                                        rfsuite.app.ui.openPage(pidx, pvalue.title, pvalue.script)
+                                    end
+                                })
+                                
+                                
+
+                                --if pvalue.ethosversion ~= nil and rfsuite.config.ethosRunningVersion < pvalue.ethos then rfsuite.app.formFields[pidx]:enable(false) end
+
+                                if rfsuite.app.menuLastSelected["mainmenu"] == pidx then rfsuite.app.formFields[pidx]:focus() end
+
+                                lc = lc + 1
+
+                                if lc == numPerRow then lc = 0 end
+                        
+                        end
+                            
+             
                     end
-                else
-                    rfsuite.app.gfx_buttons["mainmenu"][pidx] = nil
                 end
-
-                rfsuite.app.formFields[pidx] = form.addButton(line, {x = x, y = y, w = buttonW, h = buttonH}, {
-                    text = pvalue.title,
-                    icon = rfsuite.app.gfx_buttons["mainmenu"][pidx],
-                    options = FONT_S,
-                    paint = function()
-                    end,
-                    press = function()
-                        rfsuite.app.menuLastSelected["mainmenu"] = pidx
-                        rfsuite.app.ui.progessDisplay()
-                        rfsuite.app.ui.openPage(pidx, pvalue.title, pvalue.script)
-                    end
-                })
-
-                if pvalue.ethos ~= nil and rfsuite.config.ethosRunningVersion < pvalue.ethos then rfsuite.app.formFields[pidx]:enable(false) end
-
-                if rfsuite.app.menuLastSelected["mainmenu"] == pidx then rfsuite.app.formFields[pidx]:focus() end
-
-                lc = lc + 1
-
-                if lc == numPerRow then lc = 0 end
-            end
+        
         end
 
     end

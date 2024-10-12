@@ -1,6 +1,19 @@
 local pages = {}
 local sections = {}
--- Rotorflight pages.
+
+
+
+-- pages
+-- title = Page Title
+-- section = int 
+-- script = file.lua
+-- image = image.png
+-- ethosversion = 1516 or other (disables button if less than version)
+-- developer = true or false (hides the whole section or page
+
+-- sections
+-- developer = true or false (hides the whole section or page
+-- ethosversion = 1516 or other (disables section if less than version)
 
 sections[#sections + 1] = {title = "Flight Tuning", section = 1}
 pages[#pages + 1] = {title = "PIDs", section = 1, script = "pids.lua", image = "pids.png"}
@@ -29,9 +42,12 @@ sections[#sections + 1] = {title = "Tools", section = 5}
 pages[#pages + 1] = {title = "Copy profiles", section = 5, script = "copy_profiles.lua", image = "copy.png"}
 pages[#pages + 1] = {title = "Profile", section = 5, script = "select_profile.lua", image = "select_profile.png"}
 pages[#pages + 1] = {title = "Status", section = 5, script = "status.lua", image = "status.png"}
-pages[#pages + 1] = {title = "Msp speed", section = 5, script = "msp_speed.lua", image = "msp_speed.png"}
 
-sections[#sections + 1] = {title = "About", section = 6}
-pages[#pages + 1] = {title = "About", section = 6, script = "about.lua", image = "about.png"}
+
+sections[#sections + 1] = {title = "Developer", section = 6, developer = true}
+pages[#pages + 1] = {title = "Msp speed", section = 6, script = "msp_speed.lua", image = "msp_speed.png"}
+
+sections[#sections + 1] = {title = "About", section = 7}
+pages[#pages + 1] = {title = "About", section = 7, script = "about.lua", image = "about.png"}
 
 return {pages = pages, sections = sections}
