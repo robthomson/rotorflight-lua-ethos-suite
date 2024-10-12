@@ -197,7 +197,7 @@ function ui.openMainMenu()
     for idx, value in ipairs(MainMenu.sections) do
     
         if (value.ethosversion ~= nil and rfsuite.config.ethosRunningVersion < value.ethosversion) then hideSection = true else hideSection = false end
-    
+        if (value.developer ~= nil and rfsuite.config.developerMode == false) then hideSection = true else hideSection = false end
 
         if hideSection == false then
 
@@ -213,7 +213,7 @@ function ui.openMainMenu()
 
                         -- do not show icon if not supported by ethos version
                         if (pvalue.ethosversion ~= nil and rfsuite.config.ethosRunningVersion < pvalue.ethosversion) then hideEntry = true else hideEntry = false end
-                        
+                        if (pvalue.developer ~= nil and rfsuite.config.developerMode == false) then hideEntry = true else hideEntry = false end
 
                         if hideEntry == false then
 
