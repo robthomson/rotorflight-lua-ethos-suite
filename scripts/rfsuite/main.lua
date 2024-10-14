@@ -48,7 +48,7 @@ config.saveWhenArmedWarning = true                                  -- do not di
 config.audioAlerts = 1                                              -- 0 = all, 1 = alerts, 2 = disable [default = 1]
 config.profileSwitching = true                                      -- enable auto profile switching [default = true]
 config.iconSize = 1                                                 -- 0 = text, 1 = small, 2 = large [default = 1]
-config.developerMode = true                                         -- show developer tools on main menu [default = false]
+config.developerMode = false                                         -- show developer tools on main menu [default = false]
 
 -- tasks
 config.bgTaskName = config.toolName .. " [Background Tasks]"                     -- background task name for msp services etc
