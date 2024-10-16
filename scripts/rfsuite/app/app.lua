@@ -992,6 +992,13 @@ function app.create()
 
     app.uiState = app.uiStatus.init
 
+    -- overide developermode if file exists.
+    if rfsuite.config.developerMode ~= true then
+        if rfsuite.utils.file_exists("/scripts/developermode") then
+                rfsuite.config.developerMode = true
+        end
+    end
+
 
     app.ui.openMainMenu()
 

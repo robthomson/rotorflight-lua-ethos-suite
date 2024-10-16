@@ -25,6 +25,26 @@ local arg = {...}
 local config = arg[1]
 local compile = arg[2]
 
+function utils.dir_exists(base,name)
+        list = system.listFiles(base)       
+        for i,v in pairs(list) do
+                if v == name then
+                        return true
+                end
+        end
+        return false
+end
+
+function utils.file_exists(name)
+    local f = io.open(name, "r")
+    if f ~= nil then
+        io.close(f)
+        return true
+    else
+        return false
+    end
+end
+
 function utils.isHeliArmed()
 
     local govmode

@@ -36,7 +36,7 @@ function compile.initialise()
 end
 
 
-function dir_exists(base,name)
+local function dir_exists(base,name)
         list = system.listFiles(base)       
         for i,v in pairs(list) do
                 if v == name then
