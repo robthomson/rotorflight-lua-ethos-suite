@@ -115,13 +115,12 @@ local function renameSensor(physId, primId, appId, frameValue)
         if frsky.renameSensorCache[appId] == nil then
             frsky.renameSensorCache[appId] = system.getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = appId})
 
-            if frsky.renameSensorCache[appId]:name() == v.onlyifname then
 
-                if frsky.renameSensorCache[appId] ~= nil then
+            if frsky.renameSensorCache[appId] ~= nil then
+                if frsky.renameSensorCache[appId]:name() == v.onlyifname then      
                     print("Rename sensor: " .. v.name)
                     frsky.renameSensorCache[appId]:name(v.name)
                 end
-
             end
 
         end
