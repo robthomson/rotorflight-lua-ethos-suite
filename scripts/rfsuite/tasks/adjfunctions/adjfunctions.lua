@@ -182,7 +182,7 @@ function adjfunc.wakeup()
                         if adjfunction ~= nil and firstRun == false then
                             for wavi, wavv in ipairs(adjfunction.wavs) do 
                                 if config.adjFunctionAlerts == true then
-                                        system.playFile(rfsuite.config.suiteDir .. "tasks/adjfunctions/sounds/" .. wavv .. ".wav") 
+                                        rfsuite.utils.playFile("adjfunctions",wavv .. ".wav")
                                 end        
                             end
                         end

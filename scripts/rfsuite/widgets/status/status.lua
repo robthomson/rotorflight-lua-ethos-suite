@@ -3930,7 +3930,7 @@ function status.playLQ(widget)
                         status.lqtime.lqannouncementTimerStart = os.time()
                         status.lqtime.lqaudioannouncementCounter = os.clock()
                         -- print ("Play LQ Alert (first)")
-                        system.playFile(suiteDir .. "widgets/status/sounds/alerts/lq.wav")
+                        rfsuite.utils.playFile("status","alerts/lq.wav")
                         system.playNumber(status.sensors.rssi, UNIT_PERCENT, 2)
                         lqDoneFirst = true
                     end
@@ -3943,7 +3943,7 @@ function status.playLQ(widget)
                         if ((tonumber(os.clock()) - tonumber(status.lqtime.lqaudioannouncementCounter)) >= status.announcementIntervalParam) then
                             status.lqtime.lqaudioannouncementCounter = os.clock()
                             -- print ("Play LQ Alert (repeat)")
-                            system.playFile(suiteDir .. "widgets/status/sounds/alerts/lq.wav")
+                            rfsuite.utils.playFile("status","alerts/lq.wav")
                             system.playNumber(status.sensors.rssi, UNIT_PERCENT, 2)
                         end
                     end
@@ -3974,7 +3974,7 @@ function status.playMCU(widget)
                         status.mcutime.mcuannouncementTimerStart = os.time()
                         status.mcutime.mcuaudioannouncementCounter = os.clock()
                         -- print ("Playing MCU (first)")
-                        system.playFile(suiteDir .. "widgets/status/sounds/alerts/mcu.wav")
+                        rfsuite.utils.playFile("status","alerts/mcu.wav")
                         system.playNumber(status.sensors.temp_mcu / 100, UNIT_DEGREE, 2)
                         mcuDoneFirst = true
                     end
@@ -3987,7 +3987,7 @@ function status.playMCU(widget)
                         if ((tonumber(os.clock()) - tonumber(status.mcutime.mcuaudioannouncementCounter)) >= status.announcementIntervalParam) then
                             status.mcutime.mcuaudioannouncementCounter = os.clock()
                             -- print ("Playing MCU (repeat)")
-                            system.playFile(suiteDir .. "widgets/status/sounds/alerts/mcu.wav")
+                            rfsuite.utils.playFile("status","alerts/mcu.wav")
                             system.playNumber(status.sensors.temp_mcu / 100, UNIT_DEGREE, 2)
                         end
                     end
@@ -4018,7 +4018,7 @@ function status.playESC(widget)
                         status.esctime.escannouncementTimerStart = os.time()
                         status.esctime.escaudioannouncementCounter = os.clock()
                         -- print ("Playing ESC (first)")
-                        system.playFile(suiteDir .. "widgets/status/sounds/alerts/esc.wav")
+                        rfsuite.utils.playFile("status","alerts/esc.wav")
                         system.playNumber(status.sensors.temp_esc / 100, UNIT_DEGREE, 2)
                         escDoneFirst = true
                     end
@@ -4031,7 +4031,7 @@ function status.playESC(widget)
                         if ((tonumber(os.clock()) - tonumber(status.esctime.escaudioannouncementCounter)) >= status.announcementIntervalParam) then
                             status.esctime.escaudioannouncementCounter = os.clock()
                             -- print ("Playing ESC (repeat)")
-                            system.playFile(suiteDir .. "widgets/status/sounds/alerts/esc.wav")
+                            rfsuite.utils.playFile("status","alerts/esc.wav")
                             system.playNumber(status.sensors.temp_esc / 100, UNIT_DEGREE, 2)
                         end
                     end
@@ -4053,13 +4053,13 @@ function status.playTIMERALARM(widget)
         if status.timerAlarmPlay == true then
             if status.theTIME >= status.timeralarmParam and status.theTIME <= status.timeralarmParam + 1 then
 
-                system.playFile(suiteDir .. "widgets/status/sounds/alerts/beep.wav")
+                rfsuite.utils.playFile("status","alerts/beep.wav")
 
                 hours = string.format("%02.f", math.floor(status.theTIME / 3600))
                 mins = string.format("%02.f", math.floor(status.theTIME / 60 - (hours * 60)))
                 secs = string.format("%02.f", math.floor(status.theTIME - hours * 3600 - mins * 60))
 
-                system.playFile(suiteDir .. "widgets/status/sounds/alerts/timer.wav")
+                rfsuite.utils.playFile("status","alerts/timer.wav")
                 if mins ~= "00" then system.playNumber(mins, UNIT_MINUTE, 2) end
                 system.playNumber(secs, UNIT_SECOND, 2)
 
@@ -4149,7 +4149,7 @@ function status.playFuel(widget)
                         status.fueltime.fuelannouncementTimerStart = os.time()
                         status.fueltime.fuelaudioannouncementCounter = os.clock()
                         -- print("Play fuel alert (first)")
-                        system.playFile(suiteDir .. "widgets/status/sounds/alerts/fuel.wav")
+                        rfsuite.utils.playFile("status","alerts/fuel.wav")
                         system.playNumber(status.sensors.fuel, UNIT_PERCENT, 2)
                         fuelDoneFirst = true
                     end
@@ -4162,7 +4162,7 @@ function status.playFuel(widget)
                         if ((tonumber(os.clock()) - tonumber(status.fueltime.fuelaudioannouncementCounter)) >= status.announcementIntervalParam) then
                             status.fueltime.fuelaudioannouncementCounter = os.clock()
                             -- print("Play fuel alert (repeat)")
-                            system.playFile(suiteDir .. "widgets/status/sounds/alerts/fuel.wav")
+                            rfsuite.utils.playFile("status","alerts/fuel.wav")
                             system.playNumber(status.sensors.fuel, UNIT_PERCENT, 2)
 
                         end
@@ -4235,8 +4235,7 @@ function status.playVoltage(widget)
                     if status.lvannouncementTimerStart == nil and voltageDoneFirst == false then
                         status.lvannouncementTimerStart = os.time()
                         status.lvaudioannouncementCounter = os.clock()
-                        -- print("Play voltage alert (first)")
-                        -- system.playFile(suiteDir .. "widgets/status/sounds/alerts/voltage.wav")                        
+                        -- print("Play voltage alert (first)")                       
                         system.playNumber(status.sensors.voltage / 100, 2, 2)
                         voltageDoneFirst = true
                     end
@@ -4249,8 +4248,7 @@ function status.playVoltage(widget)
                         if status.lvaudioannouncementCounter ~= nil and status.announcementIntervalParam ~= nil then
                             if ((tonumber(os.clock()) - tonumber(status.lvaudioannouncementCounter)) >= status.announcementIntervalParam) then
                                 status.lvaudioannouncementCounter = os.clock()
-                                -- print("Play voltage alert (repeat)")
-                                -- system.playFile(suiteDir .. "widgets/status/sounds/alerts/voltage.wav")                                
+                                -- print("Play voltage alert (repeat)")                             
                                 system.playNumber(status.sensors.voltage / 100, 2, 2)
                             end
                         end
@@ -4308,52 +4306,52 @@ function status.playGovernor()
             status.playGovernorCount = 1
 
             if status.sensors.govmode == "UNKNOWN" and status.governorUNKNOWNParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/unknown.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/unknown.wav")
             end
             if status.sensors.govmode == "DISARMED" and status.governorDISARMEDParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/disarmed.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/disarmed.wav")
             end
             if status.sensors.govmode == "DISABLED" and status.governorDISABLEDParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/disabled.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/disabled.wav")
             end
             if status.sensors.govmode == "BAILOUT" and status.governorBAILOUTParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/bailout.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/bailout.wav")
             end
             if status.sensors.govmode == "AUTOROT" and status.governorAUTOROTParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/autorot.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/autorot.wav")
             end
             if status.sensors.govmode == "LOST-HS" and status.governorLOSTHSParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/lost-hs.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/lost-hs.wav")
             end
             if status.sensors.govmode == "THR-OFF" and status.governorTHROFFParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/thr-off.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/thr-off.wav")
             end
             if status.sensors.govmode == "ACTIVE" and status.governorACTIVEParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/active.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/active.wav")
             end
             if status.sensors.govmode == "RECOVERY" and status.governorRECOVERYParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/recovery.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/recovery.wav")
             end
             if status.sensors.govmode == "SPOOLUP" and status.governorSPOOLUPParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/spoolup.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/spoolup.wav")
             end
             if status.sensors.govmode == "IDLE" and status.governorIDLEParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/idle.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/idle.wav")
             end
             if status.sensors.govmode == "OFF" and status.governorOFFParam == true then
-                if status.govmodeParam == 0 then system.playFile(suiteDir .. "widgets/status/sounds/events/governor.wav") end
-                system.playFile(suiteDir .. "widgets/status/sounds/events/off.wav")
+                if status.govmodeParam == 0 then rfsuite.utils.playFile("status","events/governor.wav") end
+                rfsuite.utils.playFile("status","events/off.wav")
             end
 
         end
@@ -4480,7 +4478,7 @@ function status.wakeupUI(widget)
                     -- IDLE
                     if status.switchIdlelowParam ~= nil and status.switchIdlelowParam:state() == true then
                         if status.switchstatus.idlelow == nil or status.switchstatus.idlelow == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/idle-l.wav")
+                            rfsuite.utils.playFile("status","switches/idle-l.wav")
                             status.switchstatus.idlelow = true
                             status.switchstatus.idlemedium = false
                             status.switchstatus.idlehigh = false
@@ -4490,7 +4488,7 @@ function status.wakeupUI(widget)
                     end
                     if status.switchIdlemediumParam ~= nil and status.switchIdlemediumParam:state() == true then
                         if status.switchstatus.idlemedium == nil or status.switchstatus.idlemedium == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/idle-m.wav")
+                            rfsuite.utils.playFile("status","switches/idle-m.wav")
                             status.switchstatus.idlelow = false
                             status.switchstatus.idlemedium = true
                             status.switchstatus.idlehigh = false
@@ -4500,7 +4498,7 @@ function status.wakeupUI(widget)
                     end
                     if status.switchIdlehighParam ~= nil and status.switchIdlehighParam:state() == true then
                         if status.switchstatus.idlehigh == nil or status.switchstatus.idlehigh == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/idle-h.wav")
+                            rfsuite.utils.playFile("status","switches/idle-h.wav")
                             status.switchstatus.idlelow = false
                             status.switchstatus.idlemedium = false
                             status.switchstatus.idlehigh = true
@@ -4512,7 +4510,7 @@ function status.wakeupUI(widget)
                     -- RATES
                     if status.switchrateslowParam ~= nil and status.switchrateslowParam:state() == true then
                         if status.switchstatus.rateslow == nil or status.switchstatus.rateslow == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/rates-l.wav")
+                            rfsuite.utils.playFile("status","switches/rates-l.wav")
                             status.switchstatus.rateslow = true
                             status.switchstatus.ratesmedium = false
                             status.switchstatus.rateshigh = false
@@ -4522,7 +4520,7 @@ function status.wakeupUI(widget)
                     end
                     if status.switchratesmediumParam ~= nil and status.switchratesmediumParam:state() == true then
                         if status.switchstatus.ratesmedium == nil or status.switchstatus.ratesmedium == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/rates-m.wav")
+                            rfsuite.utils.playFile("status","switches/rates-m.wav")
                             status.switchstatus.rateslow = false
                             status.switchstatus.ratesmedium = true
                             status.switchstatus.rateshigh = false
@@ -4532,7 +4530,7 @@ function status.wakeupUI(widget)
                     end
                     if status.switchrateshighParam ~= nil and status.switchrateshighParam:state() == true then
                         if status.switchstatus.rateshigh == nil or status.switchstatus.rateshigh == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/rates-h.wav")
+                            rfsuite.utils.playFile("status","switches/rates-h.wav")
                             status.switchstatus.rateslow = false
                             status.switchstatus.ratesmedium = false
                             status.switchstatus.rateshigh = true
@@ -4544,7 +4542,7 @@ function status.wakeupUI(widget)
                     -- RESCUE
                     if status.switchrescueonParam ~= nil and status.switchrescueonParam:state() == true then
                         if status.switchstatus.rescueon == nil or status.switchstatus.rescueon == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/rescue-on.wav")
+                            rfsuite.utils.playFile("status","switches/rescue-on.wav")
                             status.switchstatus.rescueon = true
                             status.switchstatus.rescueoff = false
                         end
@@ -4553,7 +4551,7 @@ function status.wakeupUI(widget)
                     end
                     if status.switchrescueoffParam ~= nil and status.switchrescueoffParam:state() == true then
                         if status.switchstatus.rescueoff == nil or status.switchstatus.rescueoff == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/rescue-off.wav")
+                            rfsuite.utils.playFile("status","switches/rescue-off.wav")
                             status.switchstatus.rescueon = false
                             status.switchstatus.rescueoff = true
                         end
@@ -4564,7 +4562,7 @@ function status.wakeupUI(widget)
                     -- BBL
                     if status.switchbblonParam ~= nil and status.switchbblonParam:state() == true then
                         if status.switchstatus.bblon == nil or status.switchstatus.bblon == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/bbl-on.wav")
+                            rfsuite.utils.playFile("status","switches/bbl-on.wav")
                             status.switchstatus.bblon = true
                             status.switchstatus.bbloff = false
                         end
@@ -4573,7 +4571,7 @@ function status.wakeupUI(widget)
                     end
                     if status.switchbbloffParam ~= nil and status.switchbbloffParam:state() == true then
                         if status.switchstatus.bbloff == nil or status.switchstatus.bbloff == false then
-                            system.playFile(suiteDir .. "widgets/status/sounds/switches/bbl-off.wav")
+                            rfsuite.utils.playFile("status","switches/bbl-off.wav")
                             status.switchstatus.bblon = false
                             status.switchstatus.bbloff = true
                         end
@@ -4643,7 +4641,7 @@ function status.wakeupUI(widget)
                         status.lfAudioAlertCounter = os.clock()
 
                         if status.sensors.fuel >= 10 then
-                            system.playFile(suiteDir .. "widgets/status/sounds/alerts/lowfuel.wav")
+                            rfsuite.utils.playFile("status","alerts/lowfuel.wav")
 
                             -- system.playNumber(status.sensors.voltage / 100, 2, 2)
                             if alrthptParam == true then system.playHaptic("- . -") end
@@ -4691,7 +4689,7 @@ function status.wakeupUI(widget)
                             status.lvAudioAlertCounter = os.clock()
 
                             if status.lvStickannouncement == false and status.voltageIsLowAlert == true then -- do not play if sticks at high end points
-                                system.playFile(suiteDir .. "widgets/status/sounds/alerts/lowvoltage.wav")
+                                rfsuite.utils.playFile("status","alerts/lowvoltage.wav")
                                 -- system.playNumber(status.sensors.voltage / 100, 2, 2)
                                 if alrthptParam == true then system.playHaptic("- . -") end
                             else

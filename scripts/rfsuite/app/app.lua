@@ -888,72 +888,72 @@ function app.wakeupUI()
     if rfsuite.config.audioAlerts== 0 or rfsuite.config.audioAlerts== 1 then
 
         if app.audio.playEraseFlash == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/eraseflash.wav")
+            rfsuite.utils.playFile("app","eraseflash.wav")
             app.audio.playEraseFlash = false
         end
 
         if app.audio.playConnected == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/connected.wav")
+            rfsuite.utils.playFile("app","connected.wav")
             app.audio.playConnected = false
         end
 
         if app.audio.playConnecting == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/connecting.wav")
+            rfsuite.utils.playFile("app","connecting.wav")
             app.audio.playConnecting = false
         end
 
         if app.audio.playDemo == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/demo.wav")
+            rfsuite.utils.playFile("app","demo.wav")
             app.audio.playDemo = false
         end
 
         if app.audio.playTimeout == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/timeout.wav")
+            rfsuite.utils.playFile("app","timeout.wav")
             app.audio.playTimeout = false
         end
 
         if app.audio.playEscPowerCycle == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/powercycleesc.wav")
+            rfsuite.utils.playFile("app","powercycleesc.wav")
             app.audio.playEscPowerCycle = false
         end
 
         if app.audio.playServoOverideEnable == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/soverideen.wav")
+            rfsuite.utils.playFile("app","soverideen.wav")
             app.audio.playServoOverideEnable = false
         end
 
         if app.audio.playServoOverideDisable == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/soveridedis.wav")
+            rfsuite.utils.playFile("app","soveridedis.wav")
             app.audio.playServoOverideDisable = false
         end
 
         if app.audio.playMixerOverideEnable == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/moverideen.wav")
+            rfsuite.utils.playFile("app","moverideen.wav")
             app.audio.playMixerOverideEnable = false
         end
 
         if app.audio.playMixerOverideDisable == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/moveridedis.wav")
+            rfsuite.utils.playFile("app","moveridedis.wav")
             app.audio.playMixerOverideDisable = false
         end
 
         if app.audio.playSaving == true and rfsuite.config.audioAlerts== 0 then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/saving.wav")
+            rfsuite.utils.playFile("app","saving.wav")
             app.audio.playSaving = false
         end
 
         if app.audio.playLoading == true and rfsuite.config.audioAlerts== 0 then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/loading.wav")
+            rfsuite.utils.playFile("app","loading.wav")
             app.audio.playLoading = false
         end
 
         if app.audio.playSave == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/save.wav")
+            rfsuite.utils.playFile("app","save.wav")
             app.audio.playSave = false
         end
 
         if app.audio.playSaveArmed == true then
-            system.playFile(rfsuite.config.suiteDir .. "app/sounds/savearmed.wav")
+            rfsuite.utils.playFile("app","savearmed.wav")
             app.audio.playSaveArmed = false
         end
 

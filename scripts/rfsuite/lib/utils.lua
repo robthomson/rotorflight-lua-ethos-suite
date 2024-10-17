@@ -25,6 +25,14 @@ local arg = {...}
 local config = arg[1]
 local compile = arg[2]
 
+function utils.playFile(pkg,file)
+
+        local wav = rfsuite.config.suiteDir .. "/audio/" .. rfsuite.config.soundPack .. "/" .. pkg .. "/" .. file
+
+        print(wav)
+        system.playFile(wav)
+end
+
 function utils.dir_exists(base,name)
         list = system.listFiles(base)       
         for i,v in pairs(list) do
