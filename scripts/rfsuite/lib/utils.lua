@@ -29,7 +29,6 @@ function utils.playFile(pkg,file)
 
         local wav = rfsuite.config.suiteDir .. "/audio/" .. rfsuite.config.soundPack .. "/" .. pkg .. "/" .. file
 
-        print(wav)
         system.playFile(wav)
 end
 
