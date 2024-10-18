@@ -13,9 +13,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- 
+
  * Note.  Some icons have been sourced from https://www.flaticon.com/
- * 
+ *
 
 ]]--
 --
@@ -39,12 +39,32 @@ createSensorList[0x5462] = {name = "Arm Status", unit = UNIT_RAW}
 
 -- drop
 local dropSensorList = {}
-dropSensorList[0x0400] = {name = "Temp1", unit = UNIT_RAW}
+dropSensorList[0x0400] = {name = "Temp1"}
+dropSensorList[0x0410] = {name = "Temp1"}
 
 -- rename
 local renameSensorList = {}
-renameSensorList[0x0500] = {name = "Head Speed", onlyifname = "RPM"}
-renameSensorList[0x0501] = {name = "Tail Speed", onlyifname = "RPM"}
+renameSensorList[0x0500] = {name = "Headspeed", onlyifname = "RPM"}
+renameSensorList[0x0501] = {name = "Tailspeed", onlyifname = "RPM"}
+
+renameSensorList[0x0210] = {name = "Voltage", onlyifname = "VFAS"}
+renameSensorList[0x0200] = {name = "Current", onlyifname = "Current"}
+renameSensorList[0x0600] = {name = "Charge Level", onlyifname = "Fuel"}
+renameSensorList[0x0910] = {name = "Cell Voltage", onlyifname = "ADC4"}
+renameSensorList[0x0900] = {name = "BEC Voltage", onlyifname = "ADC3"}
+
+renameSensorList[0x0211] = {name = "ESC Voltage", onlyifname = "VFAS"}
+renameSensorList[0x0201] = {name = "ESC Current", onlyifname = "Current"}
+renameSensorList[0x0502] = {name = "ESC RPM", onlyifname = "RPM"}
+renameSensorList[0x0B70] = {name = "ESC Temp", onlyifname = "ESC temp"}
+
+renameSensorList[0x0212] = {name = "ESC2 Voltage", onlyifname = "VFAS"}
+renameSensorList[0x0202] = {name = "ESC2 Current", onlyifname = "Current"}
+renameSensorList[0x0503] = {name = "ESC2 RPM", onlyifname = "RPM"}
+renameSensorList[0x0B71] = {name = "ESC2 Temp", onlyifname = "ESC temp"}
+
+renameSensorList[0x0401] = {name = "MCU Temp", onlyifname = "Temp1"}
+renameSensorList[0x0840] = {name = "Heading", onlyifname = "GPS course"}
 
 frsky.createSensorCache = {}
 frsky.dropSensorCache = {}
@@ -117,7 +137,7 @@ local function renameSensor(physId, primId, appId, frameValue)
 
 
             if frsky.renameSensorCache[appId] ~= nil then
-                if frsky.renameSensorCache[appId]:name() == v.onlyifname then      
+                if frsky.renameSensorCache[appId]:name() == v.onlyifname then
                     print("Rename sensor: " .. v.name)
                     frsky.renameSensorCache[appId]:name(v.name)
                 end
