@@ -109,7 +109,7 @@ function msp.onConnectBgChecks()
         elseif rfsuite.config.clockSet == true and rfsuite.config.clockSetAlart ~= true then
             -- this is unsual but needed because the clock sync does not return anything usefull
             -- to confirm its done! 
-            rfsuite.utils.playFile("app","beep.wav")
+            rfsuite.utils.playFileCommon("beep.wav")
             rfsuite.config.clockSetAlart = true
         elseif (rfsuite.config.tailMode == nil or rfsuite.config.swashMode == nil) and msp.mspQueue:isProcessed() then
             local message = {

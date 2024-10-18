@@ -49,7 +49,7 @@ config.audioAlerts = 1                                              -- 0 = all, 
 config.profileSwitching = true                                      -- enable auto profile switching [default = true]
 config.iconSize = 1                                                 -- 0 = text, 1 = small, 2 = large [default = 1]
 config.developerMode = false                                        -- show developer tools on main menu [default = false]
-config.soundPack = 'default'                                        -- use an custom sound pack.  This is the folder name [default = default]
+config.soundPack = nil                                              -- use an custom sound pack. [default = nil]
 
 -- tasks
 config.bgTaskName = config.toolName .. " [Background Tasks]"                     -- background task name for msp services etc

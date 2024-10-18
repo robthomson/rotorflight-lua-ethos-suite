@@ -4053,7 +4053,7 @@ function status.playTIMERALARM(widget)
         if status.timerAlarmPlay == true then
             if status.theTIME >= status.timeralarmParam and status.theTIME <= status.timeralarmParam + 1 then
 
-                rfsuite.utils.playFile("status","alerts/beep.wav")
+                rfsuite.utils.playFileCommon("alarm.wav")
 
                 hours = string.format("%02.f", math.floor(status.theTIME / 3600))
                 mins = string.format("%02.f", math.floor(status.theTIME / 60 - (hours * 60)))

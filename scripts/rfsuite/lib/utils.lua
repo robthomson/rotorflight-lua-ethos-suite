@@ -25,12 +25,7 @@ local arg = {...}
 local config = arg[1]
 local compile = arg[2]
 
-function utils.playFile(pkg,file)
 
-        local wav = rfsuite.config.suiteDir .. "/audio/" .. rfsuite.config.soundPack .. "/" .. pkg .. "/" .. file
-
-        system.playFile(wav)
-end
 
 function utils.dir_exists(base,name)
         list = system.listFiles(base)       
@@ -50,6 +45,41 @@ function utils.file_exists(name)
     else
         return false
     end
+end
+
+function utils.playFile(pkg,file)
+
+        local wavLocale
+        local wavDefault
+        
+        -- fix path
+        local av = system.getAudioVoice()
+        av = string.gsub(av, "SD:", "")
+        av = string.gsub(av, "RADIO:", "")
+
+        if rfsuite.config.soundPack == nil then  
+                wavLocale = rfsuite.config.suiteDir ..  av .. "/" .. pkg .. "/" .. file
+                wavDefault = rfsuite.config.suiteDir .. "/audio/en/default/" .. pkg .. "/" .. file                    
+        else
+                wavLocale = rfsuite.config.suiteDir .. "/audio/" .. rfsuite.config.soundPack .. "/" .. pkg .. "/" .. file
+                wavDefault = rfsuite.config.suiteDir .. "/audio/en/default/" .. pkg .. "/" .. file        
+        end
+             
+        if rfsuite.utils.file_exists(wavLocale) then
+                --print("Locale: " .. wavLocale)
+                system.playFile(wavLocale)
+        else
+                --print("Default: " .. wavDefault)
+                system.playFile(wavDefault)
+        end        
+end
+
+function utils.playFileCommon(file)
+
+        local wav = rfsuite.config.suiteDir .. "/audio/" .. file
+
+        system.playFile(wav)
+      
 end
 
 function utils.isHeliArmed()

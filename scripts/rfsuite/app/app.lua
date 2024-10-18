@@ -953,7 +953,7 @@ function app.wakeupUI()
         end
 
         if app.audio.playSaveArmed == true then
-            rfsuite.utils.playFile("app","savearmed.wav")
+            rfsuite.utils.playFileCommon("warn.wav")
             app.audio.playSaveArmed = false
         end
 
