@@ -460,19 +460,10 @@ function utils.log(msg)
 
     if config.logEnable == true then
 
-        if config.logEnableScreen == true then print(msg) end
-        
-        local logfile
-        if utils.ethosVersionToMinor() < 16 then
-            logfile = rfsuite.config.suiteDir .."/logs/rfsuite.log"
-        else
-            logfile = "logs/rfsuite.log"
+        if rfsuite.bg.log_queue ~= nil then
+            table.insert(rfsuite.bg.log_queue, msg)
         end
-
-        local f = io.open(logfile, 'a')
-        io.write(f, tostring(msg) .. "\n")
-        io.close(f)
-
+        
     end
 end
 
