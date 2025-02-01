@@ -133,7 +133,8 @@ local sensorTable = {
         name = "MCU Temperature",
         mandatory = false,          
         sport = {
-            {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0400}
+            {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0400, mspgt=12.08},
+            {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0401, msplt=12.07}
         },
         customCRSF = {
             {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x10A3}
@@ -301,16 +302,32 @@ function telemetry.getSensorSource(name)
 
     if not telemetrySOURCE then telemetrySOURCE = system.getSource("Rx RSSI1") end
 
+    -- Helper function to check if MSP version conditions are met
+    local function checkCondition(sensorEntry)
+        if sensorEntry.mspgt then
+            -- Check if API version exists and meets "greater than" condition
+            return rfsuite.config and rfsuite.config.apiVersion and (rfsuite.config.apiVersion >= sensorEntry.mspgt)
+        elseif sensorEntry.msplt then
+            -- Check if API version exists and meets "less than" condition
+            return rfsuite.config and rfsuite.config.apiVersion and (rfsuite.config.apiVersion <= sensorEntry.msplt)
+        end
+        -- No conditions = always valid
+        return true
+    end
+
     if telemetrySOURCE then
         if not crsfSOURCE then crsfSOURCE = system.getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = 0xEE01}) end
 
         if crsfSOURCE then
             protocol = "customCRSF"
             for _, sensor in ipairs(sensorTable[name].customCRSF or {}) do
-                local source = system.getSource(sensor)
-                if source then
-                    sensors[name] = source
-                    return sensors[name]
+                -- Skip entries with unfulfilled version conditions
+                if checkCondition(sensor) then
+                    local source = system.getSource(sensor)
+                    if source then
+                        sensors[name] = source
+                        return sensors[name]
+                    end
                 end
             end
         else
@@ -326,10 +343,13 @@ function telemetry.getSensorSource(name)
     else
         protocol = "sport"
         for _, sensor in ipairs(sensorTable[name].sport or {}) do
-            local source = system.getSource(sensor)
-            if source then
-                sensors[name] = source
-                return sensors[name]
+            -- Skip entries with unfulfilled version conditions
+            if checkCondition(sensor) then
+                local source = system.getSource(sensor)
+                if source then
+                    sensors[name] = source
+                    return sensors[name]
+                end
             end
         end
     end
@@ -395,6 +415,7 @@ end
 function telemetry.wakeup()
     local now = os.clock()
 
+    -- prioritise msp traffic
     if rfsuite.app.triggers.mspBusy then return end
 
     -- Rate-limited telemetry checks
