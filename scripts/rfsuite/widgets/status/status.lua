@@ -2327,7 +2327,7 @@ function status.paint(widget)
             if status.linkUP == false and environment.simulation == false then
                 status.noTelem()
                 status.initTime = os.clock()
-            elseif (os.clock() - status.initTime) >= 5 and validateSensors and (#rfsuite.bg.telemetry.validateSensors() > 0) then
+            elseif (os.clock() - status.initTime) >= 10 and validateSensors and (#rfsuite.bg.telemetry.validateSensors() > 0) then
                 status.missingSensors()
             elseif status.idleupswitchParam and status.idleupswitchParam:state() then
                 local armSource = rfsuite.bg.telemetry.getSensorSource("armflags")
@@ -2428,7 +2428,7 @@ function status.getSensors()
         adjVALUE = rfsuite.bg.telemetry.getSensorSource("adjV")
         adjvSOURCE = rfsuite.bg.telemetry.getSensorSource("adjV")
         mahSOURCE = rfsuite.bg.telemetry.getSensorSource("capacity")
-        rssiSOURCE = rfsuite.utils.getRssiSensor().sensor
+        rssiSOURCE = rfsuite.bg.telemetry.getSensorSource("rssi") 
         govSOURCE = rfsuite.bg.telemetry.getSensorSource("governor")
 
         if rfsuite.bg.telemetry.getSensorProtocol() == 'customCRSF' then
