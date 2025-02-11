@@ -27,10 +27,14 @@ jobs:
       run: |
         PR_NUMBER=${{ github.event.pull_request.number }}
         ZIP_NAME="rfsuite-lua-ethos-PR-${PR_NUMBER}.zip"
-        zip -r $ZIP_NAME scripts/rfsuite
+
+        # Zip the contents without creating unnecessary nested structure
+        cd scripts
+        zip -r ../${ZIP_NAME} rfsuite
 
     - name: Upload rfsuite-lua-ethos-PR-<number>.zip as Artifact
       uses: actions/upload-artifact@v4
       with:
         name: rfsuite-lua-ethos-PR-${{ github.event.pull_request.number }}
         path: rfsuite-lua-ethos-PR-${{ github.event.pull_request.number }}.zip
+        if-no-files-found: error
