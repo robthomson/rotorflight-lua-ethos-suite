@@ -62,7 +62,7 @@ function utils.playFile(pkg, file)
     av = av:gsub("SD:", ""):gsub("RADIO:", ""):gsub("AUDIO:", ""):gsub("VOICE[1-4]:", "")
 
     -- Pre-define the base directory paths
-    local baseDir = rfsuite.config.suiteDir
+    local baseDir = "./"
     local soundPack = rfsuite.config.soundPack
     local audioPath = soundPack and ("/audio/" .. soundPack) or (av)
 
@@ -70,13 +70,9 @@ function utils.playFile(pkg, file)
     local wavLocale
     local wavDefault
 
-    if utils.ethosVersionToMinor() < 16 then
-        wavLocale = baseDir .. audioPath .. "/" .. pkg .. "/" .. file
-        wavDefault = baseDir .. "/audio/en/default/" .. pkg .. "/" .. file
-    else
-        wavLocale = audioPath .. "/" .. pkg .. "/" .. file
-        wavDefault = "audio/en/default/" .. pkg .. "/" .. file
-    end
+    wavLocale = audioPath .. "/" .. pkg .. "/" .. file
+    wavDefault = "audio/en/default/" .. pkg .. "/" .. file
+
 
     -- Check if locale file exists, else use the default
     if rfsuite.utils.file_exists(wavLocale) then
@@ -88,12 +84,7 @@ end
 
 function utils.playFileCommon(file)
 
-    local wav
-    if utils.ethosVersionToMinor() < 16 then
-        wav = rfsuite.config.suiteDir .. "/audio/" .. file
-    else
-        wav = "audio/" .. file
-    end
+    local wav = "audio/" .. file
     system.playFile(wav)
 
 end
@@ -197,44 +188,53 @@ function utils.getCurrentProfile()
     end
 end
 
-function utils.ethosVersion()
-    local environment = system.getVersion()
-    local v = tonumber(environment.major .. environment.minor .. environment.revision)
+-- Function to compare the current system version with a target version
+-- Function to compare the current system version with a target version
+function utils.ethosVersionAtLeast(targetVersion)
+    local env = system.getVersion()
+    local currentVersion = {env.major, env.minor, env.revision}
 
-    if environment.revision == 0 then v = v * 10 end
+    -- Fallback to default config if targetVersion is not provided
+    if targetVersion == nil then 
+        if rfsuite and rfsuite.config and rfsuite.config.ethosVersion then
+            targetVersion = rfsuite.config.ethosVersion
+        else
+            -- Fail-safe: if no targetVersion is provided and config is missing
+            return false
+        end
+    elseif type(targetVersion) == "number" then
+        print("WARNING: utils.ethosVersionAtLeast() called with a number instead of a table (" .. targetVersion .. ")")
+        return false    
+    end
 
-    -- Check if v is a 3-digit number, and if so, multiply it by 10
-    if v < 1000 then v = v * 10 end
+    -- Ensure the targetVersion has three components (major, minor, revision)
+    for i = 1, 3 do
+        targetVersion[i] = targetVersion[i] or 0  -- Default to 0 if not provided
+    end
 
-    return v
+    -- Compare major, minor, and revision explicitly
+    for i = 1, 3 do
+        if currentVersion[i] > targetVersion[i] then
+            return true  -- Current version is higher
+        elseif currentVersion[i] < targetVersion[i] then
+            return false -- Current version is lower
+        end
+    end
+
+    return true  -- Versions are equal (>= condition met)
 end
 
-function utils.ethosVersionToMinor()
-    local environment = system.getVersion()
-    local v = tonumber(environment.major .. environment.minor)
-    return v
-end
+
 
 -- this function is only uised on init connect to verify presense of a link
 -- it should not be used once bgtasks are running
 -- you can use rssiSOURCE = rfsuite.bg.telemetry.getSensorSource("rssi") 
 function utils.getRssiSensor()
-    -- Try to find the sport sensor
-    local rssiSensor = system.getSource({appId = 0xF101})
-    if rssiSensor then
-        return rssiSensor
-    end
+    local rssiSensor
 
-    -- Try to find the ELRS sensor
-    --system.getSource({crsfId=0x14, subIdStart=0, subIdEnd=1})  -- this will replace below loop once 1.6.2 is out
-
-    local rssiNames = {"Rx RSSI1", "Rx RSSI2"}
-    for _, name in ipairs(rssiNames) do
-        rssiSensor = system.getSource(name)
-        if rssiSensor then
-            return rssiSensor
-        end
-    end
+    -- look for sport (0xF101) or elrs (0x14) rssi sensor
+    rssiSensor = system.getSource({appId = 0xF101}) or system.getSource({crsfId=0x14, subIdStart=0, subIdEnd=1}) 
+    if rssiSensor then return rssiSensor end
 
     return nil
 end
@@ -609,7 +609,7 @@ function utils.findModules()
     local modulesList = {}
 
     local moduledir = "app/modules/"
-    local modules_path = (rfsuite.utils.ethosVersionToMinor() >= 16) and moduledir or (config.suiteDir .. moduledir)
+    local modules_path = moduledir
 
     for _, v in pairs(system.listFiles(modules_path)) do
 
@@ -639,7 +639,7 @@ function utils.findWidgets()
     local widgetsList = {}
 
     local widgetdir = "widgets/"
-    local widgets_path = (rfsuite.utils.ethosVersionToMinor() >= 16) and widgetdir or (config.suiteDir .. widgetdir)
+    local widgets_path = widgetdir
 
     for _, v in pairs(system.listFiles(widgets_path)) do
 
