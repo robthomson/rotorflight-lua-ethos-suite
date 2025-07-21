@@ -249,6 +249,11 @@ return {
     ["PILOT_CONFIG"] = {
       ["model_param1_value"] = "Stel deze in op de verwachtte flight tijd in seconds. De zender zal piepen als de tijd bereikt is."
     },
+    ["BATTERY_FUELCALC_INI"] = {
+      ["calcfuel_local"] = "Calculate fuel using",
+      ["tbl_off"] = "Current sensor",
+      ["tbl_on"] = "Voltage sensor"
+    },
     ["BATTERY_CONFIG"] = {
       ["vbatmincellvoltage"] = "Het minimale voltage wanneer laag voltage alarm wordt getriggerd.",
       ["vbatmaxcellvoltage"] = "Het maximale voltage per cel wanneer hoog voltage alarm wordt getriggerd.",
@@ -796,6 +801,7 @@ return {
         ["help_logs_p3"] = "- arm status, voltage, headspeed, current, esc temperature"
       },
       ["battery"] = {
+        ["calcfuel_local"] = "Calculate fuel using",
         ["max_cell_voltage"] = "Max Cel Spanning",
         ["full_cell_voltage"] = "Volle Cell Spanning",
         ["name"] = "Batterij",
@@ -805,7 +811,8 @@ return {
         ["warn_cell_voltage"] = "Waarschuwing Cel Spanning",
         ["cell_count"] = "Aantal cellen",
         ["consumption_warning_percentage"] = "Verbruik Waarschuwing %",
-        ["timer"] = "Flight Tijd"
+        ["timer"] = "Flight Tijd",
+        ["voltage_multiplier"] = "Voltage Multiplier"
       },
       ["profile_mainrotor"] = {
         ["gain"] = "Gain",

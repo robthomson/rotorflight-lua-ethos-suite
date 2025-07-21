@@ -25,7 +25,6 @@ local i18n = rfsuite.i18n.get
 local arg = {...}
 local config = arg[1]
 
-
 -- sets up the initial session var state.
 -- function is called on startup of the script  and
 -- whenever the tasks.lua detects the heli has been disconnected

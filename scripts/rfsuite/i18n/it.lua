@@ -249,6 +249,11 @@ return {
     ["PILOT_CONFIG"] = {
       ["model_param1_value"] = "Reglez cette valeur sur la duree de vol prevue, en secondes. La radiocommande emettra un bip lorsque cette duree sera atteinte."
     },
+    ["BATTERY_FUELCALC_INI"] = {
+      ["calcfuel_local"] = "Calculate fuel using",
+      ["tbl_off"] = "Current sensor",
+      ["tbl_on"] = "Voltage sensor"
+    },
     ["BATTERY_CONFIG"] = {
       ["vbatmincellvoltage"] = "La tensione minima per cella prima che scatti l'allarme di bassa tensione.",
       ["vbatmaxcellvoltage"] = "La tensione massima per cella prima che scatti l'allarme di alta tensione.",
@@ -796,6 +801,7 @@ return {
         ["help_logs_p3"] = "- stato armo, voltaggio, Vel.Rotore, corrente, esc temperatura"
       },
       ["battery"] = {
+        ["calcfuel_local"] = "Calculate fuel using",
         ["max_cell_voltage"] = "Voltaggio Max Cella",
         ["full_cell_voltage"] = "Voltaggio Cella pieno",
         ["name"] = "Batteria",
@@ -805,7 +811,8 @@ return {
         ["warn_cell_voltage"] = "Avviso tensione cella",
         ["cell_count"] = "Conto Celle",
         ["consumption_warning_percentage"] = "Avviso Consumo %",
-        ["timer"] = "Tempo Volo"
+        ["timer"] = "Tempo Volo",
+        ["voltage_multiplier"] = "Voltage Multiplier"
       },
       ["profile_mainrotor"] = {
         ["gain"] = "Guadagno",
