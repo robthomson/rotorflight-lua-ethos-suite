@@ -249,6 +249,11 @@ return {
     ["PILOT_CONFIG"] = {
       ["model_param1_value"] = "Setzen Sie die erwartete Flugzeit in Sekunden. Die Fernsteuerung biept sobald die Flugzeit erreicht wurde."
     },
+    ["BATTERY_FUELCALC_INI"] = {
+      ["calcfuel_local"] = "Calculate fuel using",
+      ["tbl_off"] = "Current sensor",
+      ["tbl_on"] = "Voltage sensor"
+    },
     ["BATTERY_CONFIG"] = {
       ["vbatmincellvoltage"] = "Die minimale Spannung pro Zelle, bevor der Niederspannungsalarm ausgeloest wird.",
       ["vbatmaxcellvoltage"] = "Die maximale Spannung pro Zelle, bevor der Hochspannungsalarm ausgeloest wird.",
@@ -796,6 +801,7 @@ return {
         ["help_logs_p3"] = "- Arm-Status, Spannung, Drehzahl, Strom, ESC-Temperatur"
       },
       ["battery"] = {
+        ["calcfuel_local"] = "Calculate fuel using",
         ["max_cell_voltage"] = "Maximale Zellenspannung",
         ["full_cell_voltage"] = "Volle Zellenspannung",
         ["name"] = "Batterie",
@@ -805,7 +811,8 @@ return {
         ["warn_cell_voltage"] = "Warnung Zellenspannung",
         ["cell_count"] = "Zellenanzahl",
         ["consumption_warning_percentage"] = "Verbrauchswarnung %",
-        ["timer"] = "Flugzeitalarm"
+        ["timer"] = "Flugzeitalarm",
+        ["voltage_multiplier"] = "Voltage Multiplier"
       },
       ["profile_mainrotor"] = {
         ["gain"] = "Verstaerkung",

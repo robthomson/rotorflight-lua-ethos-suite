@@ -23,11 +23,12 @@ function modelid.wakeup()
     -- quick exit if no apiVersion
     if rfsuite.session.apiVersion == nil then return end    
 
-    if (rfsuite.session.modelID == nil) then
+    if (rfsuite.session.modelID == nil) then 
         local API = rfsuite.tasks.msp.api.load("PILOT_CONFIG")
         API.setCompleteHandler(function(self, buf)
             local model_id = API.readValue("model_id")
             local model_param1_value = API.readValue("model_param1_value")
+            local model_param1_type = API.readValue("model_param1_type") / 10
             if model_id ~= nil or model_param1_value ~= nil then
                 rfsuite.utils.log("Model id: " .. model_id, "info")
                 rfsuite.utils.log("Model Flight Time: " .. model_param1_value, "info")
