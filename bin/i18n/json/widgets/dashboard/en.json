@@ -24,11 +24,6 @@
     "translation": "CONNECTING",
     "needs_translation": "false"
   },
-  "identifying_fbl": {
-    "english": "IDENTIFYING",
-    "translation": "IDENTIFYING",
-    "needs_translation": "false"
-  },
   "check_bg_task": {
     "english": "BG TASK",
     "translation": "BG TASK",
@@ -287,6 +282,11 @@
   "tx_batt": {
     "english": "TX Battery",
     "translation": "TX Battery",
+    "needs_translation": "false"
+  },
+  "link_max": {
+    "english": "Link Max",
+    "translation": "Link Max",
     "needs_translation": "false"
   }
 }

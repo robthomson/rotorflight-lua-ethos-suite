@@ -971,6 +971,7 @@ return {
         ["help_p1"] = "This page provides some useful information that you may be asked for when requesting support.",
         ["msgbox_credits"] = "Credits",
         ["ethos_version"] = "Ethos Version",
+        ["fc_version"] = "Rotorflight Version",
         ["name"] = "About",
         ["supported_versions"] = "Supported MSP Versions",
         ["license"] = "You may copy, distribute, and modify the software as long as you track changes/dates in source files. Any modifications to or software including (via compiler) GPL-licensed code must also be made available under the GPL along with build & install instructions.",
@@ -1226,7 +1227,6 @@ return {
       ["unsupported_resolution"] = "TO SMALL",
       ["loading"] = "ROTORFLIGHT",
       ["waiting_for_connection"] = "CONNECTING",
-      ["identifying_fbl"] = "IDENTIFYING",
       ["check_bg_task"] = "BG TASK",
       ["check_rf_module_on"] = "RF MODULE",
       ["check_discovered_sensors"] = "SENSORS",
@@ -1278,7 +1278,8 @@ return {
       ["cell_voltage"] = "Cell Voltage",
       ["volts_per_cell"] = "Volts per cell",
       ["warning"] = "Warning",
-      ["tx_batt"] = "TX Battery"
+      ["tx_batt"] = "TX Battery",
+      ["link_max"] = "Link Max"
     },
     ["governor"] = {
       ["UNKNOWN"] = "UNKNOWN",

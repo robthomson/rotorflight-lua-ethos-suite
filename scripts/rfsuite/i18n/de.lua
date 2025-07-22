@@ -971,6 +971,7 @@ return {
         ["help_p1"] = "Diese Seite bietet einige nuetzliche Informationen, die Sie moeglicherweise angeben muessen, wenn Sie Unterstuetzung anfordern.",
         ["msgbox_credits"] = "Danksagungen",
         ["ethos_version"] = "Ethos-Version",
+        ["fc_version"] = "Rotorflight-Version",
         ["name"] = "Ueber",
         ["supported_versions"] = "MSP-Versionen",
         ["license"] = "Sie duerfen die Software kopieren, verbreiten und modifizieren, solange Sie Aenderungen und Daten in den Quelldateien nachverfolgen. Jegliche Aenderungen oder Software, die GPL-lizenzierte Codebestandteile enthaelt (ueber den Compiler), muessen ebenfalls unter der GPL verfuegbar gemacht werden, zusammen mit Anleitungen zur Erstellung und Installation.",
@@ -1226,7 +1227,6 @@ return {
       ["unsupported_resolution"] = "ZU KLEIN",
       ["loading"] = "ROTORFLIGHT",
       ["waiting_for_connection"] = "VERBINDEN",
-      ["identifying_fbl"] = "IDENTIFIZIEREN",
       ["check_bg_task"] = "HINTERGRUNDTASK",
       ["check_rf_module_on"] = "HF MODUL",
       ["check_discovered_sensors"] = "SENSOREN",
@@ -1278,7 +1278,8 @@ return {
       ["cell_voltage"] = "Zellenspannung",
       ["volts_per_cell"] = "Volt pro Zelle",
       ["warning"] = "Warnung",
-      ["tx_batt"] = "TX Battery"
+      ["tx_batt"] = "TX Battery",
+      ["link_max"] = "Link Max"
     },
     ["governor"] = {
       ["UNKNOWN"] = "UNBEKANNT",
