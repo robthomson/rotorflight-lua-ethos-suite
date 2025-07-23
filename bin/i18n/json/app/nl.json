@@ -2009,9 +2009,9 @@
         "needs_translation": "false"
       },
       "voltage_multiplier": {
-        "english": "Voltage Multiplier",
-        "translation": "Voltage Multiplier",
-        "needs_translation": "true"
+        "english": "Sag compensation",
+        "translation": "Sag compensatie",
+        "needs_translation": "false"
       }
     },
     "profile_mainrotor": {
@@ -2731,9 +2731,14 @@
         "translation": "Ethos Versie",
         "needs_translation": "false"
       },
-      "fc_version": {
+      "rf_version": {
         "english": "Rotorflight Version",
         "translation": "Rotorflight Versie",
+        "needs_translation": "false"
+      },
+      "fc_version": {
+        "english": "FC Version",
+        "translation": "FC Versie",
         "needs_translation": "false"
       },
       "name": {

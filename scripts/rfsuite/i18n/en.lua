@@ -252,7 +252,8 @@ return {
     ["BATTERY_FUELCALC_INI"] = {
       ["calcfuel_local"] = "Calculate fuel using",
       ["tbl_off"] = "Current sensor",
-      ["tbl_on"] = "Voltage sensor"
+      ["tbl_on"] = "Voltage sensor",
+      ["sag_multiplier"] = "Raise or lower to adjust for the amount of voltage sag you see in flight."
     },
     ["BATTERY_CONFIG"] = {
       ["vbatmincellvoltage"] = "The minimum voltage per cell before the low voltage alarm is triggered.",
@@ -816,7 +817,7 @@ return {
         ["cell_count"] = "Cell Count",
         ["consumption_warning_percentage"] = "Consumption Warning %",
         ["timer"] = "Flight Time Alarm",
-        ["voltage_multiplier"] = "Voltage Multiplier"
+        ["voltage_multiplier"] = "Sag compensation"
       },
       ["profile_mainrotor"] = {
         ["gain"] = "Gain",
@@ -975,7 +976,8 @@ return {
         ["help_p1"] = "This page provides some useful information that you may be asked for when requesting support.",
         ["msgbox_credits"] = "Credits",
         ["ethos_version"] = "Ethos Version",
-        ["fc_version"] = "Rotorflight Version",
+        ["rf_version"] = "Rotorflight Version",
+        ["fc_version"] = "FC Version",
         ["name"] = "About",
         ["supported_versions"] = "Supported MSP Versions",
         ["license"] = "You may copy, distribute, and modify the software as long as you track changes/dates in source files. Any modifications to or software including (via compiler) GPL-licensed code must also be made available under the GPL along with build & install instructions.",

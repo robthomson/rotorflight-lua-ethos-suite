@@ -252,7 +252,8 @@ return {
     ["BATTERY_FUELCALC_INI"] = {
       ["calcfuel_local"] = "Calculate fuel using",
       ["tbl_off"] = "Current sensor",
-      ["tbl_on"] = "Voltage sensor"
+      ["tbl_on"] = "Voltage sensor",
+      ["sag_multiplier"] = "Raise or lower to adjust for the amount of voltage sag you see in flight."
     },
     ["BATTERY_CONFIG"] = {
       ["vbatmincellvoltage"] = "Die minimale Spannung pro Zelle, bevor der Niederspannungsalarm ausgeloest wird.",
@@ -816,7 +817,7 @@ return {
         ["cell_count"] = "Zellenanzahl",
         ["consumption_warning_percentage"] = "Verbrauchswarnung %",
         ["timer"] = "Flugzeitalarm",
-        ["voltage_multiplier"] = "Voltage Multiplier"
+        ["voltage_multiplier"] = "Spannungsausgleich"
       },
       ["profile_mainrotor"] = {
         ["gain"] = "Verstaerkung",
@@ -975,7 +976,8 @@ return {
         ["help_p1"] = "Diese Seite bietet einige nuetzliche Informationen, die Sie moeglicherweise angeben muessen, wenn Sie Unterstuetzung anfordern.",
         ["msgbox_credits"] = "Danksagungen",
         ["ethos_version"] = "Ethos-Version",
-        ["fc_version"] = "Rotorflight-Version",
+        ["rf_version"] = "Rotorflight-Version",
+        ["fc_version"] = "FC-Version",
         ["name"] = "Ueber",
         ["supported_versions"] = "MSP-Versionen",
         ["license"] = "Sie duerfen die Software kopieren, verbreiten und modifizieren, solange Sie Aenderungen und Daten in den Quelldateien nachverfolgen. Jegliche Aenderungen oder Software, die GPL-lizenzierte Codebestandteile enthaelt (ueber den Compiler), muessen ebenfalls unter der GPL verfuegbar gemacht werden, zusammen mit Anleitungen zur Erstellung und Installation.",
