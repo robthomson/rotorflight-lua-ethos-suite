@@ -88,16 +88,16 @@ local themeOptions = {
     },
 
     ms_std  = { 
-        font = "FONT_XL", 
+        font = "FONT_XXL", 
     },
 
     -- Small screens - (X14 / X14S) Full/Standard
     ss_full = { 
-        font = "FONT_XL", 
+        font = "FONT_XXL", 
     },
 
     ss_std  = { 
-        font = "FONT_XL", 
+        font = "FONT_XXL", 
     },
 }
 
@@ -106,7 +106,7 @@ local lastScreenW = nil
 local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
-local last_txbatt_min, last_txbatt_max
+local last_txbatt_type = nil
 
 -- Theme Layout
 local layout = {
@@ -120,18 +120,16 @@ local layout = {
 local header_layout = utils.standardHeaderLayout(headeropts)
 
 -- Header Boxes
-local last_header_pref = {}
-
 local function header_boxes()
-    local txbatt_min, txbatt_max = utils.getTxBatteryVoltageRange()
+    local txbatt_type = 0
+    if rfsuite and rfsuite.preferences and rfsuite.preferences.general then
+        txbatt_type = rfsuite.preferences.general.txbatt_type or 0
+    end
 
-    if not header_boxes_cache
-       or last_txbatt_min ~= txbatt_min
-       or last_txbatt_max ~= txbatt_max
-    then
-        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts)
-        last_txbatt_min = txbatt_min
-        last_txbatt_max = txbatt_max
+    -- Rebuild cache if type changed
+    if header_boxes_cache == nil or last_txbatt_type ~= txbatt_type then
+        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts, txbatt_type)
+        last_txbatt_type = txbatt_type
     end
     return header_boxes_cache
 end
@@ -275,6 +273,7 @@ return {
     title = i18n("widgets.dashboard.current"):upper(),
     unit = "A",
     titlepos = "bottom",
+    font = opts.font,
     titlecolor = colorMode.textcolor,
     textcolor = colorMode.textcolor,    
   },
@@ -290,6 +289,7 @@ return {
     title = i18n("widgets.dashboard.fuel"):upper(),
     unit = "%",
     titlepos = "bottom",
+    font = opts.font,
     transform = "floor",
     thresholds = {
       { value = 30, textcolor = colorMode.fillcritcolor },
@@ -311,6 +311,7 @@ return {
     title = i18n("widgets.dashboard.rpm"):upper(),
     unit = "rpm",
     titlepos = "bottom",
+    font = opts.font,
     transform = "floor",
     titlecolor = colorMode.textcolor,
     textcolor = colorMode.textcolor,    

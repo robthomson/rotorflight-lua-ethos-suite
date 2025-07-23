@@ -75,13 +75,15 @@ local themeOptions = {
     -- Large screens - (X20 / X20RS / X18RS etc) Full/Standard
     ls_full = { 
         font = "FONT_XXL", 
-        thickness = 35, 
-        gaugepadding = 20
+        thickness = 60,
+        valuepaddingtop = 45, 
+        gaugepadding = 10
     },
 
     ls_std  = {
-        font = "FONT_XL", 
-        thickness = 35, 
+        font = "FONT_XXL", 
+        thickness = 40,
+        valuepaddingtop = 35, 
         gaugepadding = 10,
     },
 
@@ -89,27 +91,31 @@ local themeOptions = {
     -- Medium screens (X18 / X18S / TWXLITE) - Full/Standard
     ms_full = { 
         font = "FONT_XXL",
-        thickness = 27, 
+        thickness = 40,
+        valuepaddingtop = 35,
         gaugepadding = 10,
     },
 
     ms_std  = {
-        font = "FONT_XL", 
-        thickness = 20, 
-        gaugepadding = 5,
+        font = "FONT_XXL", 
+        thickness = 30,
+        valuepaddingtop = 30, 
+        gaugepadding = 0,
     },
 
     -- Small screens - (X14 / X14S) Full/Standard
     ss_full = {
         font = "FONT_XL", 
-        thickness = 25,  
-        gaugepadding = 10,
+        thickness = 50,
+        valuepaddingtop = 40,  
+        gaugepadding = 5,
     },
 
     ss_std  = {
         font = "FONT_XL", 
-        thickness = 22,  
-        gaugepadding = 10,
+        thickness = 40,
+        valuepaddingtop = 35,  
+        gaugepadding = 5,
     },
 }
 
@@ -118,7 +124,7 @@ local lastScreenW = nil
 local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
-local last_txbatt_min, last_txbatt_max
+local last_txbatt_type = nil
 
 -- Theme Layout
 local layout = {
@@ -132,18 +138,16 @@ local layout = {
 local header_layout = utils.standardHeaderLayout(headeropts)
 
 -- Header Boxes
-local last_header_pref = {}
-
 local function header_boxes()
-    local txbatt_min, txbatt_max = utils.getTxBatteryVoltageRange()
+    local txbatt_type = 0
+    if rfsuite and rfsuite.preferences and rfsuite.preferences.general then
+        txbatt_type = rfsuite.preferences.general.txbatt_type or 0
+    end
 
-    if not header_boxes_cache
-       or last_txbatt_min ~= txbatt_min
-       or last_txbatt_max ~= txbatt_max
-    then
-        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts)
-        last_txbatt_min = txbatt_min
-        last_txbatt_max = txbatt_max
+    -- Rebuild cache if type changed
+    if header_boxes_cache == nil or last_txbatt_type ~= txbatt_type then
+        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts, txbatt_type)
+        last_txbatt_type = txbatt_type
     end
     return header_boxes_cache
 end
@@ -186,6 +190,7 @@ return {
         subtype = "blackbox",
         title   = i18n("widgets.dashboard.blackbox"):upper(),
         titlepos= "bottom",
+        decimals = 0,
         titlecolor = colorMode.titlecolor,
         textcolor = colorMode.titlecolor,
         bgcolor = colorMode.bgcolor,
@@ -263,6 +268,7 @@ return {
         font     = opts.font,
         thickness= opts.thickness,
         gaugepadding = opts.gaugepadding,
+        valuepaddingtop = opts.valuepaddingtop,
         titlepos = "bottom",
         fillcolor= colorMode.fillcolor,
         titlecolor = colorMode.titlecolor,

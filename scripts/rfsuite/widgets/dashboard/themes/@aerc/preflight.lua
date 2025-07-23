@@ -67,88 +67,100 @@ local themeOptions = {
     -- Large screens - (X20 / X20RS / X18RS etc) Full/Standard
     ls_full = { 
         font = "FONT_XXL", 
-        advfont = "FONT_M", 
-        thickness = 25, 
+        advfont = "FONT_M",
+        titlefont = "FONT_XXS", 
+        thickness = 32, 
         batteryframethickness = 4, 
-        titlepaddingbottom = 15, 
+        titlepaddingbottom = 5, 
         valuepaddingleft = 25, 
         valuepaddingtop = 20, 
-        valuepaddingbottom = 25, 
+        valuepaddingbottom = 25,
+        brvaluepaddingbottom = 0,
         gaugepaddingtop = 20, 
-        battadvpaddingtop = 20, 
-        brvaluepaddingtop = 25
+        battadvpaddingtop = 20,
+        cappaddingright = 4 
     },
 
     ls_std  = { 
         font = "FONT_XL", 
-        advfont = "FONT_M", 
-        thickness = 15, 
-        batteryframethickness = 4, 
-        titlepaddingbottom = 0, 
-        valuepaddingleft = 75, 
+        advfont = "FONT_M",
+        titlefont = "FONT_XXS",  
+        thickness = 20, 
+        batteryframethickness = 3, 
+        titlepaddingbottom = 10, 
+        valuepaddingleft = 55, 
         valuepaddingtop = 5, 
-        valuepaddingbottom = 25, 
+        valuepaddingbottom = 25,
+        brvaluepaddingbottom = 15, 
         gaugepaddingtop = 5, 
-        battadvpaddingtop = 5, 
-        brvaluepaddingtop = 10
+        battadvpaddingtop = 8,
+        cappaddingright = 5 
     },
 
     -- Medium screens (X18 / X18S / TWXLITE) - Full/Standard
     ms_full = { 
         font = "FONT_XXL", 
-        advfont = "FONT_M", 
-        thickness = 17, 
-        batteryframethickness = 4, 
-        titlepaddingbottom = 0, 
+        advfont = "FONT_M",
+        titlefont = "FONT_XXS", 
+        thickness = 19, 
+        batteryframethickness = 3, 
+        titlepaddingbottom = 10, 
         valuepaddingleft = 20, 
-        valuepaddingtop = 5, 
+        valuepaddingtop = 10, 
         valuepaddingbottom = 15, 
+        brvaluepaddingbottom = 0,
         gaugepaddingtop = 5, 
-        battadvpaddingtop = 5, 
-        brvaluepaddingtop = 20
+        battadvpaddingtop = 2,
+        cappaddingright = 2 
     },
 
     ms_std  = { 
         font = "FONT_XL", 
-        advfont = "FONT_S", 
-        thickness = 10, 
+        advfont = "FONT_S",
+        titlefont = "FONT_XXS", 
+        thickness = 14, 
         batteryframethickness = 2, 
-        titlepaddingbottom = 0, 
+        titlepaddingbottom = 10, 
         valuepaddingleft = 20, 
         valuepaddingtop = 10, 
-        valuepaddingbottom = 25, 
+        valuepaddingbottom = 25,
+        brvaluepaddingbottom = 5,
         gaugepaddingtop = 5, 
-        battadvpaddingtop = 0, 
-        brvaluepaddingtop = 10
+        battadvpaddingtop = 3,
+        cappaddingright = 3
     },
 
     -- Small screens - (X14 / X14S) Full/Standard
     ss_full = { 
         font = "FONT_XL", 
-        advfont = "FONT_M", 
-        thickness = 20,  
-        batteryframethickness = 4, 
-        titlepaddingbottom = 0, 
+        advfont = "FONT_M",
+        titlefont = "FONT_XXS",  
+        thickness = 25,  
+        batteryframethickness = 3, 
+        titlepaddingbottom = 10, 
         valuepaddingleft = 20, 
-        valuepaddingtop = 5, 
-        valuepaddingbottom = 15, 
+        valuepaddingtop = 10, 
+        valuepaddingbottom = 15,
+        brvaluepaddingbottom = 10, 
         gaugepaddingtop = 5, 
-        battadvpaddingtop = 5, 
-        brvaluepaddingtop = 10
+        battadvpaddingtop = 5,
+        cappaddingright = 3
     },
 
     ss_std  = { 
         font = "FONT_XL", 
-        advfont = "FONT_S", 
-        thickness = 12,  
+        advfont = "FONT_S",
+        titlefont = "FONT_XXS", 
+        thickness = 15,  
         batteryframethickness = 2, 
-        titlepaddingbottom = 0, 
+        titlepaddingbottom = 10, 
         valuepaddingleft = 20, 
         valuepaddingtop = 10, 
-        valuepaddingbottom = 25, 
+        valuepaddingbottom = 25,
+        brvaluepaddingbottom = 15, 
         gaugepaddingtop = 5, 
-        battadvpaddingtop = 0, 
-        brvaluepaddingtop = 10
+        battadvpaddingtop = 0,
+        cappaddingright = 3 
     },
 }
 
@@ -157,7 +169,7 @@ local lastScreenW = nil
 local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
-local last_txbatt_min, last_txbatt_max
+local last_txbatt_type = nil
 
 -- Theme Layout
 local layout = {
@@ -169,18 +181,16 @@ local layout = {
 local header_layout = utils.standardHeaderLayout(headeropts)
 
 -- Header Boxes
-local last_header_pref = {}
-
 local function header_boxes()
-    local txbatt_min, txbatt_max = utils.getTxBatteryVoltageRange()
+    local txbatt_type = 0
+    if rfsuite and rfsuite.preferences and rfsuite.preferences.general then
+        txbatt_type = rfsuite.preferences.general.txbatt_type or 0
+    end
 
-    if not header_boxes_cache
-       or last_txbatt_min ~= txbatt_min
-       or last_txbatt_max ~= txbatt_max
-    then
-        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts)
-        last_txbatt_min = txbatt_min
-        last_txbatt_max = txbatt_max
+    -- Rebuild cache if type changed
+    if header_boxes_cache == nil or last_txbatt_type ~= txbatt_type then
+        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts, txbatt_type)
+        last_txbatt_type = txbatt_type
     end
     return header_boxes_cache
 end
@@ -197,7 +207,7 @@ local function buildBoxes(W)
             col = 1, 
             row = 1, 
             colspan = 3, 
-            rowspan = 9, 
+            rowspan = 10, 
             type = "image", 
             subtype = "model", 
             bgcolor = colorMode.bgcolor
@@ -206,15 +216,16 @@ local function buildBoxes(W)
         -- Rates
         {
             col = 1, 
-            row = 10, 
-            rowspan = 3,
+            row = 11, 
+            rowspan = 2,
             type = "text", 
             subtype = "telemetry", 
             source = "rate_profile",
             title = i18n("widgets.dashboard.rates"):upper(), 
             titlepos = "bottom",
             font = "FONT_XL",
-            valuepaddingtop = opts.brvaluepaddingtop,
+            titlefont = opts.titlefont,
+            valuepaddingbottom = opts.brvaluepaddingbottom,
             bgcolor = colorMode.bgcolor, 
             titlecolor = colorMode.titlecolor,
             transform = "floor",
@@ -228,15 +239,16 @@ local function buildBoxes(W)
         -- PID
         {
             col = 2, 
-            row = 10, 
-            rowspan = 3,
+            row = 11, 
+            rowspan = 2,
             type = "text", 
             subtype = "telemetry", 
             source = "pid_profile",
             title = i18n("widgets.dashboard.profile"):upper(), 
             titlepos = "bottom",
             font = "FONT_XL",
-            valuepaddingtop = opts.brvaluepaddingtop,
+            titlefont = opts.titlefont,
+            valuepaddingbottom = opts.brvaluepaddingbottom,
             bgcolor = colorMode.bgcolor, 
             titlecolor = colorMode.titlecolor,
             transform = "floor",
@@ -250,14 +262,15 @@ local function buildBoxes(W)
         -- Flights
         {
             col = 3, 
-            row = 10, 
-            rowspan = 3,
+            row = 11, 
+            rowspan = 2,
             type = "time", 
             subtype = "count",
             title = i18n("widgets.dashboard.flights"):upper(), 
             titlepos = "bottom",
             font = "FONT_XL",
-            valuepaddingtop = opts.brvaluepaddingtop,
+            titlefont = opts.titlefont,
+            valuepaddingbottom = opts.brvaluepaddingbottom,
             bgcolor = colorMode.bgcolor, 
             titlecolor = colorMode.titlecolor, 
             textcolor = colorMode.textcolor,
@@ -285,7 +298,8 @@ local function buildBoxes(W)
             valuepaddingtop = opts.valuepaddingtop,
             gaugepaddingtop = opts.gaugepaddingtop, 
             battadvfont = opts.advfont, 
-            battadvpaddingtop = opts.battadvpaddingtop, 
+            battadvpaddingtop = opts.battadvpaddingtop,
+            cappaddingright = opts.cappaddingright, 
             fillcolor = colorMode.fillcolor,
             bgcolor = colorMode.bgcolor,
             titlecolor = colorMode.titlecolor, 
@@ -303,7 +317,7 @@ local function buildBoxes(W)
             col = 4, 
             colspan = 2, 
             row = 4, 
-            rowspan = 6,
+            rowspan = 7,
             type = "gauge", 
             subtype = "arc", 
             source = "bec_voltage",
@@ -328,18 +342,19 @@ local function buildBoxes(W)
         -- Blackbox
         {
             col = 4, 
-            row = 10, 
+            row = 11, 
             colspan = 2, 
-            rowspan = 3,
+            rowspan = 2,
             type = "text", 
             subtype = "blackbox",
             title = i18n("widgets.dashboard.blackbox"):upper(), 
             titlepos = "bottom",
-            font = "FONT_XL", 
+            font = "FONT_XL",
+            titlefont = opts.titlefont, 
+            valuepaddingbottom = opts.brvaluepaddingbottom,
             decimals = 0,
             bgcolor = colorMode.bgcolor, 
             titlecolor = colorMode.titlecolor,
-            valuepaddingtop = opts.brvaluepaddingtop,
             transform = "floor", 
             thresholds = {
                 { value = 80, textcolor = colorMode.textcolor },
@@ -353,7 +368,7 @@ local function buildBoxes(W)
             col = 6, 
             colspan = 2, 
             row = 4, 
-            rowspan = 6,
+            rowspan = 7,
             type = "gauge", 
             subtype = "arc", 
             source = "temp_esc",
@@ -380,15 +395,16 @@ local function buildBoxes(W)
         -- Governor
         {
             col = 6, 
-            row = 10, 
+            row = 11, 
             colspan = 2, 
-            rowspan = 3,
+            rowspan = 2,
             type = "text", 
             subtype = "governor",
             title = i18n("widgets.dashboard.governor"):upper(), 
             titlepos = "bottom",
             font = "FONT_XL",
-            valuepaddingtop = opts.brvaluepaddingtop,
+            titlefont = opts.titlefont,
+            valuepaddingbottom = opts.brvaluepaddingbottom,
             bgcolor = colorMode.bgcolor, 
             titlecolor = colorMode.titlecolor,
             thresholds = {

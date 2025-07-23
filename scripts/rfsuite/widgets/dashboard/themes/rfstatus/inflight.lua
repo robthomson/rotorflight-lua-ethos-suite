@@ -74,36 +74,42 @@ end
 local themeOptions = {
     -- Large screens - (X20 / X20RS / X18RS etc) Full/Standard
     ls_full = { 
-        font = "FONT_XXL", 
+        font = "FONT_XXL",
+        valuepaddingtop = 35, 
         thickness = 50, 
     },
 
     ls_std  = { 
-        font = "FONT_XL", 
-        thickness = 25, 
+        font = "FONT_XXL",
+        valuepaddingtop = 20,  
+        thickness = 28, 
     },
 
 
     -- Medium screens (X18 / X18S / TWXLITE) - Full/Standard
     ms_full = { 
-        font = "FONT_XXL", 
-        thickness = 25, 
+        font = "FONT_XXL",
+        valuepaddingtop = 30,
+        thickness = 35, 
     },
 
     ms_std  = { 
-        font = "FONT_XL", 
-        thickness = 25, 
+        font = "FONT_XXL",
+        valuepaddingtop = 20, 
+        thickness = 20, 
     },
 
     -- Small screens - (X14 / X14S) Full/Standard
     ss_full = { 
-        font = "FONT_XL", 
-        thickness = 25,  
+        font = "FONT_XXL",
+        valuepaddingtop = 25, 
+        thickness = 40,  
     },
 
     ss_std  = { 
-        font = "FONT_XL", 
-        thickness = 22,  
+        font = "FONT_XXL",
+        valuepaddingtop = 25, 
+        thickness = 24,  
     },
 }
 
@@ -112,7 +118,7 @@ local lastScreenW = nil
 local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
-local last_txbatt_min, last_txbatt_max
+local last_txbatt_type = nil
 
 -- Theme Layout
 local layout = {
@@ -126,18 +132,16 @@ local layout = {
 local header_layout = utils.standardHeaderLayout(headeropts)
 
 -- Header Boxes
-local last_header_pref = {}
-
 local function header_boxes()
-    local txbatt_min, txbatt_max = utils.getTxBatteryVoltageRange()
+    local txbatt_type = 0
+    if rfsuite and rfsuite.preferences and rfsuite.preferences.general then
+        txbatt_type = rfsuite.preferences.general.txbatt_type or 0
+    end
 
-    if not header_boxes_cache
-       or last_txbatt_min ~= txbatt_min
-       or last_txbatt_max ~= txbatt_max
-    then
-        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts)
-        last_txbatt_min = txbatt_min
-        last_txbatt_max = txbatt_max
+    -- Rebuild cache if type changed
+    if header_boxes_cache == nil or last_txbatt_type ~= txbatt_type then
+        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts, txbatt_type)
+        last_txbatt_type = txbatt_type
     end
     return header_boxes_cache
 end
@@ -159,6 +163,7 @@ return {
         thickness = opts.thickness,
         font = "FONT_XXL",
         fillbgcolor = colorMode.fillbgcolor,
+        valuepaddingtop = opts.valuepaddingtop,
         title = i18n("widgets.dashboard.voltage"):upper(),
         titlepos = "bottom",
         min = function()
@@ -218,6 +223,7 @@ return {
         col = 3, row = 1,
         rowspan = 12,
         thickness = opts.thickness,
+        valuepaddingtop = opts.valuepaddingtop,
         colspan = 2,
         source = "smartfuel",
         transform = "floor",
