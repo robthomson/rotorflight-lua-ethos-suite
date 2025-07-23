@@ -61,35 +61,41 @@ end
 local themeOptions = {
     -- Large screens - (X20 / X20RS / X18RS etc) Full/Standard
     ls_full = { 
-        thickness = 45, 
-        gaugepadding = 20
+        thickness = 60, 
+        gaugepadding = 0,
+        valuepaddingtop = 40
     },
 
     ls_std  = { 
-        thickness = 25, 
-        gaugepadding = 10
+        thickness = 35, 
+        gaugepadding = 0,
+        valuepaddingtop = 25
     },
 
     -- Medium screens (X18 / X18S / TWXLITE) - Full/Standard
     ms_full = { 
-        thickness = 17, 
-        gaugepadding = 5
+        thickness = 35, 
+        gaugepadding = 5,
+        valuepaddingtop = 35
     },
 
     ms_std  = { 
-        thickness = 15, 
+        thickness = 20,
+        valuepaddingtop = 25, 
         gaugepadding = 0
     },
 
     -- Small screens - (X14 / X14S) Full/Standard
     ss_full = { 
-        thickness = 20,  
-        gaugepadding = 5
+        thickness = 40,
+        gaugepadding = 5,
+        valuepaddingtop = 35
     },
 
     ss_std  = { 
-        thickness = 12,  
-        gaugepadding = 0
+        thickness = 25,  
+        gaugepadding = 0,
+        valuepaddingtop = 25 
     },
 }
 
@@ -98,7 +104,7 @@ local lastScreenW = nil
 local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
-local last_txbatt_min, last_txbatt_max
+local last_txbatt_type = nil
 
 
 -- Theme Layout
@@ -113,18 +119,16 @@ local layout = {
 local header_layout = utils.standardHeaderLayout(headeropts)
 
 -- Header Boxes
-local last_header_pref = {}
-
 local function header_boxes()
-    local txbatt_min, txbatt_max = utils.getTxBatteryVoltageRange()
+    local txbatt_type = 0
+    if rfsuite and rfsuite.preferences and rfsuite.preferences.general then
+        txbatt_type = rfsuite.preferences.general.txbatt_type or 0
+    end
 
-    if not header_boxes_cache
-       or last_txbatt_min ~= txbatt_min
-       or last_txbatt_max ~= txbatt_max
-    then
-        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts)
-        last_txbatt_min = txbatt_min
-        last_txbatt_max = txbatt_max
+    -- Rebuild cache if type changed
+    if header_boxes_cache == nil or last_txbatt_type ~= txbatt_type then
+        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts, txbatt_type)
+        last_txbatt_type = txbatt_type
     end
     return header_boxes_cache
 end
@@ -148,6 +152,7 @@ local function buildBoxes(W)
             title    = i18n("widgets.dashboard.voltage"):upper(),
             font     = "FONT_XXL",
             gaugepadding = opts.gaugepadding,
+            valuepaddingtop = opts.valuepaddingtop,
             thickness= opts.thickness,
             titlepos = "bottom",
             fillbgcolor= colorMode.fillbgcolor,
@@ -169,6 +174,7 @@ local function buildBoxes(W)
             rowspan = 12,
             thickness = opts.thickness,
             gaugepadding = opts.gaugepadding,
+            valuepaddingtop = opts.valuepaddingtop,
             colspan = 2,
             source = "throttle_percent",
             transform = "floor",

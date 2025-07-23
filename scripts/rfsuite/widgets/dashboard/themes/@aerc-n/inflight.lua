@@ -71,9 +71,9 @@ local themeOptions = {
         maxpaddingtop = 60, 
         maxpaddingleft = 20, 
         valuepaddingbottom = 25,
-        vgaugepaddingbottom = 3, 
+        vgaugepaddingbottom = 10, 
         maxfont = "FONT_L", 
-        batteryspacing = 3
+        batteryspacing = 2
     },
 
     ls_std  = {
@@ -81,10 +81,10 @@ local themeOptions = {
         thickness = 25, 
         gaugepadding = 0, 
         gaugepaddingbottom = 0, 
-        maxpaddingtop = 30, 
+        maxpaddingtop = 40, 
         maxpaddingleft = 10, 
         valuepaddingbottom = 0,
-        vgaugepaddingbottom = 2, 
+        vgaugepaddingbottom = 4, 
         maxfont = "FONT_M", 
         batteryspacing = 1
     },
@@ -132,10 +132,10 @@ local themeOptions = {
 
     ss_std  = {
         font = "FONT_XL", 
-        thickness = 17, 
+        thickness = 18, 
         gaugepadding = 5, 
         gaugepaddingbottom = 0, 
-        maxpaddingtop = 20, 
+        maxpaddingtop = 30, 
         maxpaddingleft = 10, 
         valuepaddingbottom = 0,
         vgaugepaddingbottom = 3, 
@@ -149,7 +149,7 @@ local lastScreenW = nil
 local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
-local last_txbatt_min, last_txbatt_max
+local last_txbatt_type = nil
 
 -- Theme Layout
 local layout = {
@@ -161,21 +161,20 @@ local layout = {
 local header_layout = utils.standardHeaderLayout(headeropts)
 
 -- Header Boxes
-local last_header_pref = {}
-
 local function header_boxes()
-    local txbatt_min, txbatt_max = utils.getTxBatteryVoltageRange()
+    local txbatt_type = 0
+    if rfsuite and rfsuite.preferences and rfsuite.preferences.general then
+        txbatt_type = rfsuite.preferences.general.txbatt_type or 0
+    end
 
-    if not header_boxes_cache
-       or last_txbatt_min ~= txbatt_min
-       or last_txbatt_max ~= txbatt_max
-    then
-        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts)
-        last_txbatt_min = txbatt_min
-        last_txbatt_max = txbatt_max
+    -- Rebuild cache if type changed
+    if header_boxes_cache == nil or last_txbatt_type ~= txbatt_type then
+        header_boxes_cache = utils.standardHeaderBoxes(i18n, colorMode, headeropts, txbatt_type)
+        last_txbatt_type = txbatt_type
     end
     return header_boxes_cache
 end
+
 
 -- Boxes
 local function buildBoxes(W)
