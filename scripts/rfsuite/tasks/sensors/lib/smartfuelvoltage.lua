@@ -36,8 +36,10 @@ local lastFuelTimestamp = nil
 -- Very stable, slow decline	    1–5
 -- Moderate responsiveness	        6–10
 -- Fast decay (minimal clamping)	12+
-local maxFuelDropPerSecond = 1      -- percent per second 
+local   maxFuelDropPerSecond  = 0.65   -- percent per second 
 
+-- Very slow rise per second to avoid false positives (fuel technically can only go down )
+local maxFuelRisePerSecond = 0.2   -- maximum rise in percent per second
 
 --
 local minQ, maxQ   = 0.002, 0.02
@@ -111,13 +113,6 @@ local function isVoltageStable()
     return (vmax - vmin) <= voltageThreshold
 end
 
-local function indexOf(t, value)
-    for i = 1, #t do
-        if t[i] == value then return i end
-    end
-    return nil
-end
-
 local function getStickLoadFactor()
     local rx = rfsuite.session.rx.values
     if not rx then return 0 end
@@ -125,15 +120,26 @@ local function getStickLoadFactor()
     return math.min(1.0, sumAbs / 4000) -- scale from 0.0 to 1.0
 end
 
+local lastRpm = nil
+local function getRpmDropFactor()
+    local rpm = telemetry and telemetry.getSensor and telemetry.getSensor("rpm") or nil
+    if not rpm or rpm < 100 then return 0 end
+    if not lastRpm then lastRpm = rpm; return 0 end
+    local drop = (lastRpm - rpm) / lastRpm
+    lastRpm = rpm
+    return math.max(0, drop)
+
+end
+
 local function applySagCompensation(voltage)
     if rfsuite.flightmode.current ~= "inflight" then
         return voltage -- no sag compensation unless we're flying
     end
     local multiplier = rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.battery and rfsuite.session.modelPreferences.battery.sag_multiplier or 0.5
-    local sagFactor = getStickLoadFactor()
+    local sagFactor = math.max(getStickLoadFactor(), getRpmDropFactor())
     -- nonlinear curve that *increases* with multiplier:
     local compensationScale = multiplier ^ 1.5
-    local compensatedVoltage = voltage + (compensationScale * sagFactor * 0.4)    
+    local compensatedVoltage = voltage + (compensationScale * sagFactor * 0.6)
     return compensatedVoltage
 end
 
@@ -160,7 +166,6 @@ local function fuelPercentageCalcByVoltage(voltage, cellCount)
 
     return dischargeCurveTable[tableIndex]
 end
-
 
 local function smartFuelCalc()
     if not telemetry then
@@ -249,7 +254,7 @@ local function smartFuelCalc()
 
     -- Only apply Kalman while actually flying; otherwise reset it and use raw voltage
     local filteredVoltage
-    if rfsuite.flightmode.current == "inflight" then
+    if rfsuite.flightmode.current == "inflight" or rfsuite.flightmode.current == "postflight"  then
         filteredVoltage = kalmanFilterVoltage(voltage)
     else
         -- mode isn’t inflight: wipe out any past filter state
@@ -260,27 +265,27 @@ local function smartFuelCalc()
     local compensatedVoltage = applySagCompensation(filteredVoltage)
     local percent = fuelPercentageCalcByVoltage(compensatedVoltage, bc.batteryCellCount)
 
-
     local now = os.clock()
-    -- only apply the per‑second drop limit while actually flying
-    if rfsuite.flightmode.current == "inflight" and lastFuelPercent and lastFuelTimestamp then
+    if (rfsuite.flightmode.current == "inflight" or rfsuite.flightmode.current == "postflight")
+    and lastFuelPercent and lastFuelTimestamp then
+
         local dt = now - lastFuelTimestamp
         local maxDrop = dt * maxFuelDropPerSecond
+        local maxRise = dt * maxFuelRisePerSecond
+
         if percent < lastFuelPercent then
             percent = math.max(percent, lastFuelPercent - maxDrop)
         elseif percent > lastFuelPercent then
-            -- Optional: clamp upward movement too (if voltage jumps)
-            percent = math.min(percent, lastFuelPercent + maxDrop)
+            percent = math.min(percent, lastFuelPercent + maxRise)
         end
     end
 
     -- always update the last‑seen values so that when you enter flight mode
     -- the timer resets correctly
-    lastFuelPercent    = percent
-    lastFuelTimestamp  = now
+    lastFuelPercent   = percent
+    lastFuelTimestamp = now
 
     return percent
-
 end
 
 return {

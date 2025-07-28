@@ -93,7 +93,7 @@ local themeOptions = {
         valuepaddingtop = 5,
         gvaluepaddingtop = 20, 
         valuepaddingbottom = 25,
-        brvaluepaddingbottom = 25, 
+        brvaluepaddingbottom = 15, 
         gaugepaddingtop = 5, 
         battadvpaddingtop = 8,
         cappaddingright = 5 
@@ -314,7 +314,7 @@ local function buildBoxes(W)
             transform = "floor",
             thresholds = {
                 { value = 10, fillcolor = colorMode.fillcritcolor },
-                { value = 30, fillcolor = colorMode.fillwarncolor }
+                { value = 45, fillcolor = colorMode.fillwarncolor }
             }
         },
 
