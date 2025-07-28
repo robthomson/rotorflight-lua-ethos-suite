@@ -1096,6 +1096,9 @@ end
 -- @param widget The widget instance to update.
 function dashboard.wakeup(widget)
 
+    -- Check if MSP is allow msp to be prioritized
+    if rfsuite.app.triggers.mspBusy and not (rfsuite.session and rfsuite.session.isConnected) then return end
+
     local telemetry = tasks.telemetry
     local W, H = lcd.getWindowSize()
 
@@ -1157,10 +1160,11 @@ function dashboard.wakeup(widget)
     local now = os.clock()
     local visible = lcd.isVisible()
 
-    -- slow down if not visible to give priority to other tasks
-    if not visible then
+    -- Throttle CPU usage based on connection and visibility
+    if not rfsuite.session.isConnected then
+        if (now - lastWakeup) < 0.5 then return end
+    elseif not visible then
         if (now - lastWakeup) < 2 then return end
-        lastWakeup = now  
     end
 
     local currentFlightMode = rfsuite.flightmode.current or "preflight"
@@ -1208,7 +1212,7 @@ function dashboard.wakeup(widget)
             -- Wake up all boxes regardless of scheduler flag
             for i, rect in ipairs(dashboard.boxRects) do
                 local obj = dashboard.objectsByType[rect.box.type]
-                if obj and obj.wakeup then
+                if obj and obj.wakeup and not obj.scheduler then
                     obj.wakeup(rect.box)
                 end
                 if not needsFullInvalidate then
