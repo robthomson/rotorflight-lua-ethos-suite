@@ -170,32 +170,16 @@ end
     Returns:
         number - The size in bytes of the given data type. Defaults to 1 if the data type is unknown.
 ]]
-local function get_type_size(data_type)
-    local type_sizes = {
-        U8 = 1,   S8 = 1,
-        U16 = 2,  S16 = 2,
-        U24 = 3,  S24 = 3,
-        U32 = 4,  S32 = 4,
-        U40 = 5,  S40 = 5,
-        U48 = 6,  S48 = 6,
-        U56 = 7,  S56 = 7,
-        U64 = 8,  S64 = 8,
-        U72 = 9,  S72 = 9,
-        U80 = 10, S80 = 10,
-        U88 = 11, S88 = 11,
-        U96 = 12, S96 = 12,
-        U104 = 13, S104 = 13,
-        U112 = 14, S112 = 14,
-        U120 = 15, S120 = 15,
-        U128 = 16, S128 = 16
-    }
-
-    if data_type then
-        return type_sizes[data_type] or 1 -- Default to U8 if unknown
-    else
-        return type_sizes  -- Return the whole table if no type provided
-    end
+local TYPE_SIZES = {
+  U8=1,S8=1, U16=2,S16=2, U24=3,S24=3, U32=4,S32=4, U40=5,S40=5, U48=6,S48=6,
+  U56=7,S56=7, U64=8,S64=8, U72=9,S72=9, U80=10,S80=10, U88=11,S88=11,
+  U96=12,S96=12, U104=13,S104=13, U112=14,S112=14, U120=15,S120=15, U128=16,S128=16
+}
+function get_type_size(data_type)
+  if data_type == nil then return TYPE_SIZES end
+  return TYPE_SIZES[data_type] or 1
 end
+
 
 
 --[[
@@ -309,10 +293,7 @@ function apiLoader.parseMSPData(buf, structure, processed, other, options)
                 local size = get_type_size(field.type)
                 local startByte = state.currentByte
                 local endByte = startByte + size - 1
-                state.positionmap[field.field] = {}
-                for b = startByte, endByte do
-                    table.insert(state.positionmap[field.field], b)
-                end
+                state.positionmap[field.field] = { start = startByte, size = size }
                 state.currentByte = endByte + 1
 
                 processedFields = processedFields + 1
@@ -380,11 +361,7 @@ function apiLoader.parseMSPData(buf, structure, processed, other, options)
             local size = typeSizes[field.type]
             local start_pos = current_byte
             local end_pos = start_pos + size - 1
-            position_map[field.field] = {}
-
-            for i = start_pos, end_pos do
-                table.insert(position_map[field.field], i)
-            end
+            position_map[field.field] = { start = start_pos, size = size }
 
             current_byte = end_pos + 1
 
@@ -651,7 +628,7 @@ function apiLoader.buildDeltaPayload(apiname, payload, api_structure, positionma
     local actual_fields = {}
     if rfsuite.app.Page and rfsuite.app.Page.apidata then
         for _, field in ipairs(rfsuite.app.Page.apidata.formdata.fields) do
-            if actual_fields[field.apikey] then -- we check this because its possible a field may not be there is mspgt or msplt is used on page.
+            if not actual_fields[field.apikey] then -- we check this because its possible a field may not be there is mspgt or msplt is used on page.
                 actual_fields[field.apikey] = field
             end
         end
@@ -689,7 +666,6 @@ function apiLoader.buildDeltaPayload(apiname, payload, api_structure, positionma
 
         -- Handle delta update (patching existing data)
         if positionmap[field_name] then
-            local field_positions = positionmap[field_name]
             local tmpStream = {}
 
             if field_def.byteorder then
@@ -697,17 +673,31 @@ function apiLoader.buildDeltaPayload(apiname, payload, api_structure, positionma
             else
                 writeFunction(tmpStream, value)
             end
+            local pm = positionmap[field_name]
 
-            for idx, pos in ipairs(field_positions) do
-                if pos <= receivedBytesCount then
-                    byte_stream[pos] = tmpStream[idx]
+            if type(pm) == "table" and pm.start and pm.size then
+                local maxBytes = math.min(pm.size, #tmpStream)
+                for i = 1, maxBytes do
+                    local pos = pm.start + i - 1
+                    if pos <= receivedBytesCount then
+                        byte_stream[pos] = tmpStream[i]
+                    end
                 end
+                utils.log(string.format(
+                    "[buildDeltaPayload] Patched field '%s' into range start=%d size=%d",
+                    field_name, pm.start, pm.size
+                ), "debug")
+            else
+                for idx, pos in ipairs(pm) do
+                    if pos <= receivedBytesCount then
+                        byte_stream[pos] = tmpStream[idx]
+                    end
+                end
+                utils.log(string.format(
+                    "[buildDeltaPayload] (legacy) Patched field '%s' into positions [%s]",
+                    field_name, table.concat(pm, ",")
+                ), "debug")
             end
-
-            utils.log(string.format(
-                "[buildDeltaPayload] Patched field '%s' into positions [%s]",
-                field_name, table.concat(field_positions, ",")
-            ), "debug")
         end
 
         ::continue::
