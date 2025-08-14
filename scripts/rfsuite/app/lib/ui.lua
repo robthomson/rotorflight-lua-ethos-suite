@@ -24,31 +24,6 @@ local arg = {...}
 local config = arg[1]
 local i18n = rfsuite.i18n.get
 
--- Global icon mask cache
-ui._iconCache = ui._iconCache or {}
-
--- Cached lcd.loadMask (no bitmap fallback)
-local function cachedLoadMask(path)
-    if not path or path == "" then return nil end
-    local v = ui._iconCache[path]
-    if v ~= nil then return v or nil end
-    local ok, mask = pcall(lcd.loadMask, path)
-    ui._iconCache[path] = ok and mask or false
-    return ok and mask or nil
-end
-
--- Cache compiled Lua chunks so we don't recompile on every menu/page open
-ui._chunkCache = ui._chunkCache or {}
-
-local function cachedLoadChunk(path)
-    local f = ui._chunkCache[path]
-    if not f then
-        f = assert(rfsuite.compiler.loadfile(path))
-        ui._chunkCache[path] = f
-    end
-    return f
-end
-
 -- Displays a progress dialog with a title and message.
 -- @param title The title of the progress dialog (optional, default is "Loading").
 -- @param message The message of the progress dialog (optional, default is "Loading data from flight controller...").
@@ -59,15 +34,49 @@ function ui.progressDisplay(title, message)
     message = message or i18n("app.msg_loading_from_fbl")
 
     rfsuite.app.dialogs.progressDisplay = true
-    rfsuite.app.dialogs.progressWatchDog = os.clock()
-    rfsuite.app.dialogs.progress = form.openProgressDialog(title, message)
-    rfsuite.app.dialogs.progressCounter = 0
+    rfsuite.app.dialogs.progressWatchDog = rfsuite.clock
+    rfsuite.app.dialogs.progress = form.openProgressDialog(
+                                {
+                                title = title, 
+                                message = message,
+                                close = function()
+                                end,
+                                wakeup = function()
+                                        local app = rfsuite.app
 
-    local progress = rfsuite.app.dialogs.progress
-    if progress then
-        progress:value(0)
-        progress:closeAllowed(false)
-    end
+                                        app.dialogs.progress:value(app.dialogs.progressCounter)
+                                        if not app.triggers.closeProgressLoader then
+                                            app.dialogs.progressCounter = app.dialogs.progressCounter + 2
+                                        elseif app.triggers.closeProgressLoader and rfsuite.tasks.msp.mspQueue:isProcessed() then
+                                            app.dialogs.progressCounter = app.dialogs.progressCounter + 15
+                                            if app.dialogs.progressCounter >= 100 then
+                                                app.dialogs.progress:close()
+                                                app.dialogs.progressDisplay = false
+                                                app.dialogs.progressCounter = 0
+                                                app.triggers.closeProgressLoader = false
+                                            end
+                                        end
+
+                                        -- Check for timeout
+                                        if app.dialogs.progressWatchDog and (os.clock() - app.dialogs.progressWatchDog) > tonumber(rfsuite.tasks.msp.protocol.pageReqTimeout) then
+                                            app.audio.playTimeout = true
+                                            app.ui.progressDisplayMessage(i18n("app.error_timed_out"))
+                                            app.dialogs.progress:closeAllowed(true)
+                                            app.Page = app.PageTmp
+                                            app.PageTmp = nil
+                                            app.dialogs.progressCounter = 0
+                                            app.dialogs.progressDisplay = false
+                                        end
+
+
+                                end     
+                                }
+                                )
+
+    rfsuite.app.dialogs.progressCounter = 0
+    rfsuite.app.dialogs.progress:value(0)
+    rfsuite.app.dialogs.progress:closeAllowed(false)
+
 end
 
 --[[
@@ -89,164 +98,74 @@ end
                  Sets the save display flag, initializes the save watchdog timer, 
                  and configures the progress dialog with initial values.
 ]]
-function ui.progressDisplaySave(msg)
+function ui.progressDisplaySave(message)
+    local app = rfsuite.app
+
     rfsuite.app.dialogs.saveDisplay = true
-    rfsuite.app.dialogs.saveWatchDog = os.clock()
-    if msg then
-                 rfsuite.app.dialogs.save = form.openProgressDialog(i18n("app.msg_saving"),msg)   
-    else
-         rfsuite.app.dialogs.save = form.openProgressDialog(i18n("app.msg_saving"), i18n("app.msg_saving_to_fbl"))       
-    end
+    rfsuite.app.dialogs.saveWatchDog = rfsuite.clock
+
+    local msg = ({[app.pageStatus.saving] = "app.msg_saving_settings",
+                    [app.pageStatus.eepromWrite] = "app.msg_saving_settings",
+                    [app.pageStatus.rebooting]   = "app.msg_rebooting"})[app.pageState]
+    if not message then                
+        message = i18n(msg)
+    end    
+
+    local title = i18n("app.msg_saving")
+
+
+    rfsuite.app.dialogs.save = form.openProgressDialog(
+                                {
+                                title = title, 
+                                message = message,
+                                close = function()
+                                end,
+                                wakeup = function()
+                                        local app = rfsuite.app
+                                        app.dialogs.save:value(app.dialogs.saveProgressCounter)
+                                        if not app.dialogs.saveProgressCounter then                  
+                                            app.dialogs.saveProgressCounter = app.dialogs.saveProgressCounter + 1
+                                        elseif app.triggers.closeSaveFake then
+                                            app.dialogs.saveProgressCounter = app.dialogs.saveProgressCounter + 5
+                                            if app.dialogs.saveProgressCounter >= 100 then
+                                            app.triggers.closeSaveFake          = false
+                                            app.dialogs.saveProgressCounter     = 0
+                                            app.dialogs.saveDisplay             = false
+                                            app.dialogs.saveWatchDog            = nil
+                                            app.dialogs.save:close()
+                                            end                                            
+                                        elseif rfsuite.tasks.msp.mspQueue:isProcessed() then
+                                            app.dialogs.saveProgressCounter = app.dialogs.saveProgressCounter + 15
+                                            if app.dialogs.saveProgressCounter >= 100 then
+                                                app.dialogs.save:close()
+                                                app.dialogs.saveDisplay = false
+                                                app.dialogs.saveProgressCounter = 0
+                                                app.triggers.closeSave = false
+                                                app.triggers.isSaving = false
+                                            end
+                                        else
+                                            app.dialogs.saveProgressCounter = app.dialogs.saveProgressCounter + 2    
+                                        end
+
+                                        local timeout = tonumber(rfsuite.tasks.msp.protocol.saveTimeout + 5)
+                                        if app.dialogs.saveWatchDog and (os.clock() - app.dialogs.saveWatchDog) > timeout or (app.dialogs.saveProgressCounter > 120 and rfsuite.tasks.msp.mspQueue:isProcessed()) then
+                                            app.audio.playTimeout = true
+                                            app.dialogs.save:message(i18n("app.error_timed_out"))
+                                            app.dialogs.save:closeAllowed(true)
+                                            app.dialogs.save:value(100)
+                                            app.dialogs.saveProgressCounter = 0
+                                            app.dialogs.saveDisplay = false
+                                            app.triggers.isSaving = false
+                                            app.Page = app.PageTmp
+                                            app.PageTmp = nil
+                                        end
+
+                                end     
+                                }
+                                )
+
     rfsuite.app.dialogs.save:value(0)
     rfsuite.app.dialogs.save:closeAllowed(false)
-end
-
-
---[[
-    Updates the progress display with the given value and optional message.
-    
-    @param value (number) - The progress value to display. If the value is 100 or more, the progress is updated immediately.
-    @param message (string, optional) - An optional message to display along with the progress value.
-    
-    The function ensures that the progress display is updated at a rate limited by `rfsuite.app.dialogs.progressRate`.
-]]
-function ui.progressDisplayValue(value, message)
-    if value >= 100 then
-        rfsuite.app.dialogs.progress:value(value)
-        if message then rfsuite.app.dialogs.progress:message(message) end
-        return
-    end
-
-    local now = os.clock()
-    if (now - rfsuite.app.dialogs.progressRateLimit) >= rfsuite.app.dialogs.progressRate then
-        rfsuite.app.dialogs.progressRateLimit = now
-        rfsuite.app.dialogs.progress:value(value)
-        if message then rfsuite.app.dialogs.progress:message(message) end
-    end
-end
-
-
---[[
-    Updates the progress display with a given value and optional message.
-    
-    @param value number: The progress value to display. If the value is 100 or more, the display is updated immediately.
-    @param message string (optional): An optional message to display along with the progress value.
-]]
-function ui.progressDisplaySaveValue(value, message)
-    if value >= 100 then
-        if rfsuite.app.dialogs.save then
-            rfsuite.app.dialogs.save:value(value)
-        end    
-        if message then rfsuite.app.dialogs.save:message(message) end
-        return
-    end
-
-    local now = os.clock()
-    if (now - rfsuite.app.dialogs.saveRateLimit) >= rfsuite.app.dialogs.saveRate then
-        rfsuite.app.dialogs.saveRateLimit = now
-        if rfsuite.app.dialogs.save then
-            rfsuite.app.dialogs.save:value(value)
-        end    
-        if message then rfsuite.app.dialogs.save:message(message) end
-    end
-end
-
--- Closes the progress display dialog if it is currently open.
--- This function checks if the progress dialog exists, closes it, 
--- and updates the progress display status to false.
-function ui.progressDisplayClose()
-    local progress = rfsuite.app.dialogs.progress
-    if progress then
-        progress:close()
-        rfsuite.app.dialogs.progressDisplay = false
-    end
-end
-
--- Closes the progress display if allowed by the given status.
--- @param status A boolean indicating whether closing the progress display is allowed.
-function ui.progressDisplayCloseAllowed(status)
-    local progress = rfsuite.app.dialogs.progress
-    if progress then
-        progress:closeAllowed(status)
-    end
-end
-
--- Displays a progress message in the UI.
--- @param message The message to be displayed in the progress dialog.
-function ui.progressDisplayMessage(message)
-    local progress = rfsuite.app.dialogs.progress
-    if progress then
-        progress:message(message)
-    end
-end
-
--- Closes the save dialog if it is open and updates the save display status.
--- This function checks if the save dialog exists, closes it if it does,
--- and then sets the save display status to false.
-function ui.progressDisplaySaveClose()
-    local saveDialog = rfsuite.app.dialogs.save
-    if saveDialog then saveDialog:close() end
-    rfsuite.app.dialogs.saveDisplay = false
-end
-
---- Displays a save message in the progress dialog.
--- @param message The message to be displayed in the save dialog.
-function ui.progressDisplaySaveMessage(message)
-    local saveDialog = rfsuite.app.dialogs.save
-    if saveDialog then saveDialog:message(message) end
-end
-
---[[
-    Function: ui.progressDisplaySaveCloseAllowed
-
-    Description:
-    This function updates the closeAllowed status of the save dialog in the rfsuite application.
-
-    Parameters:
-    status (boolean) - The status to set for allowing the save dialog to close.
-
-    Usage:
-    ui.progressDisplaySaveCloseAllowed(true) -- Allows the save dialog to close.
-    ui.progressDisplaySaveCloseAllowed(false) -- Prevents the save dialog from closing.
-]]
-function ui.progressDisplaySaveCloseAllowed(status)
-    local saveDialog = rfsuite.app.dialogs.save
-    if saveDialog then saveDialog:closeAllowed(status) end
-end
-
--- Closes the "no link" dialog in the rfsuite application.
--- This function is used to close the dialog that indicates there is no link.
-function ui.progressNolinkDisplayClose()
-    rfsuite.app.dialogs.noLink:close()
-end
-
---[[
-    Function: ui.progressDisplayNoLinkValue
-
-    Updates the progress display for a "no link" scenario.
-
-    Parameters:
-    - value (number): The progress value to display. If the value is 100 or more, the display is updated immediately.
-    - message (string, optional): An optional message to display along with the progress value.
-
-    Behavior:
-    - If the value is 100 or more, the progress display is updated immediately with the provided value and message.
-    - If the value is less than 100, the progress display is updated only if a certain rate limit has been exceeded.
-    - The rate limit is controlled by `rfsuite.app.dialogs.nolinkRate` and `rfsuite.app.dialogs.nolinkRateLimit`.
-]]
-function ui.progressDisplayNoLinkValue(value, message)
-    if value >= 100 then
-        rfsuite.app.dialogs.noLink:value(value)
-        if message then rfsuite.app.dialogs.noLink:message(message) end
-        return
-    end
-
-    local now = os.clock()
-    if (now - rfsuite.app.dialogs.nolinkRateLimit) >= rfsuite.app.dialogs.nolinkRate then
-        rfsuite.app.dialogs.nolinkRateLimit = now
-        rfsuite.app.dialogs.noLink:value(value)
-        if message then rfsuite.app.dialogs.noLink:message(message) end
-    end
 end
 
 -- Disables all form fields in the rfsuite application.
@@ -406,8 +325,7 @@ function ui.openMainMenu()
     rfsuite.app.gfx_buttons["mainmenu"] = rfsuite.app.gfx_buttons["mainmenu"] or {}
     rfsuite.preferences.menulastselected["mainmenu"] = rfsuite.preferences.menulastselected["mainmenu"] or 1
 
-    local Menu = cachedLoadChunk("app/modules/sections.lua")()
-
+    local Menu = assert(rfsuite.compiler.loadfile("app/modules/sections.lua"))()
     local lc, bx, y = 0, 0, 0
 
     local header = form.addLine("Configuration")
@@ -430,7 +348,7 @@ function ui.openMainMenu()
 
             if rfsuite.preferences.general.iconsize ~= 0 then
                 rfsuite.app.gfx_buttons["mainmenu"][pidx] = rfsuite.app.gfx_buttons["mainmenu"][pidx]
-                    or cachedLoadMask(pvalue.image)
+                    or lcd.loadMask(pvalue.image)
             else
                 rfsuite.app.gfx_buttons["mainmenu"][pidx] = nil
             end
@@ -594,7 +512,7 @@ function ui.openMainMenuSub(activesection)
 
                         if rfsuite.preferences.general.iconsize ~= 0 then
                             rfsuite.app.gfx_buttons[activesection][pidx] = rfsuite.app.gfx_buttons[activesection][pidx]
-                                or cachedLoadMask("app/modules/" .. page.folder .. "/" .. page.image)
+                                or lcd.loadMask("app/modules/" .. page.folder .. "/" .. page.image)
                         else
                             rfsuite.app.gfx_buttons[activesection][pidx] = nil
                         end
@@ -1142,9 +1060,8 @@ function ui.openPage(idx, title, script, extra1, extra2, extra3, extra5, extra6)
 
     -- Load the module
     local modulePath = "app/modules/" .. script
-    local chunk = cachedLoadChunk(modulePath)
-    assert(type(chunk) == "function", "Module chunk is not a function: "..tostring(modulePath))
-    rfsuite.app.Page = chunk(idx)
+
+    rfsuite.app.Page = assert(rfsuite.compiler.loadfile(modulePath))(idx)
 
     -- Load the help file if it exists
     local section = script:match("([^/]+)")
@@ -1354,31 +1271,43 @@ function ui.navigationButtons(x, y, w, h)
         })
     end
 
-    -- HELP BUTTON (only create if help exists)
+    -- HELP BUTTON
     if navButtons.help ~= nil and navButtons.help == true then
         local section = rfsuite.app.lastScript:match("([^/]+)")
-        local script  = rfsuite.app.lastScript:match("/([^/]+)%.lua$")
-        local help    = getHelpData(section)
-
+        local script = rfsuite.app.lastScript:match("/([^/]+)%.lua$")
+        -- Load help module with caching
+        local help = getHelpData(section)
         if help then
+
+            -- Execution of the file succeeded
             rfsuite.app.formNavigationFields['help'] = form.addButton(line, {x = helpOffset, y = y, w = wS, h = h}, {
                 text = i18n("app.navigation_help"),
                 icon = nil,
                 options = FONT_S,
-                paint = function() end,
+                paint = function()
+                end,
                 press = function()
                     if rfsuite.app.Page and rfsuite.app.Page.onHelpMenu then
                         rfsuite.app.Page.onHelpMenu(rfsuite.app.Page)
                     else
-                        local pageHelp = help.help[script] or help.help['default']
-                        if pageHelp then
-                            rfsuite.app.ui.openPageHelp(pageHelp, section)
+                        -- choose default or custom
+                        if help.help[script] then
+                            rfsuite.app.ui.openPageHelp(help.help[script], section)
+                        else
+                            rfsuite.app.ui.openPageHelp(help.help['default'], section)
                         end
                     end
                 end
             })
+
+        else
+            -- No help available
+            rfsuite.app.formNavigationFields['help'] = form.addButton(line, {x = helpOffset, y = y, w = wS, h = h}, {
+                text = i18n("app.navigation_help"),
+                icon = nil, options = FONT_S, paint = function() end, press = function() end
+            })
+            rfsuite.app.formNavigationFields['help']:enable(false)
         end
-        -- If no help, we deliberately do nothing (no disabled button).
     end
 
 end
