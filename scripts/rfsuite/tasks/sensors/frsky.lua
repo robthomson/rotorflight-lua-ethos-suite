@@ -23,16 +23,10 @@ local arg = {...}
 local config = arg[1]
 
 local frsky = {}
--- local cacheExpireTime = 10 -- Time in seconds to expire the caches (disabled)
--- local lastCacheFlushTime = os.clock() -- Store the initial time (disabled)
--- (Periodic cache flush disabled; using event-driven clears)
+local cacheExpireTime = 10 -- Time in seconds to expire the caches
+local lastCacheFlushTime = os.clock() -- Store the initial time
 
 frsky.name = "frsky"
-
--- Bounded drain controls (tune as needed)
-local MAX_FRAMES_PER_WAKEUP = 32
-local MAX_TIME_BUDGET      = 0.004
-
 
 --[[
 createSensorList:
@@ -176,11 +170,6 @@ frsky.createSensorCache = {}
 frsky.dropSensorCache = {}
 frsky.renameSensorCache = {}
 
--- Track once-only ops to avoid repeated work
-frsky.renamed = {}
-frsky.dropped = {}
-
-
 --[[
     createSensor - Creates a custom sensor if it doesn't already exist.
 
@@ -263,18 +252,14 @@ local function dropSensor(physId, primId, appId, frameValue)
     if dropSensorList[appId] ~= nil then
         local v = dropSensorList[appId]
 
-        -- Negative cache and once-only drop
         if frsky.dropSensorCache[appId] == nil then
-            local src = system.getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = appId})
-            frsky.dropSensorCache[appId] = src or false
-        end
-        local src = frsky.dropSensorCache[appId]
-        if src and src ~= false then
-            if not frsky.dropped[appId] then
+            frsky.dropSensorCache[appId] = system.getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = appId})
+
+            if frsky.dropSensorCache[appId] ~= nil then
                 log("Drop sensor: " .. v.name, "info")
-                src:drop()
-                frsky.dropped[appId] = true
+                frsky.dropSensorCache[appId]:drop()
             end
+
         end
 
     end
@@ -303,21 +288,16 @@ local function renameSensor(physId, primId, appId, frameValue)
     if renameSensorList[appId] ~= nil then
         local v = renameSensorList[appId]
 
-        -- Skip if already renamed
-        if frsky.renamed[appId] then return end
-
-        -- Negative cache for missing sources
         if frsky.renameSensorCache[appId] == nil then
-            local src = system.getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = appId})
-            frsky.renameSensorCache[appId] = src or false
-        end
-        local src = frsky.renameSensorCache[appId]
-        if src and src ~= false then
-            if src:name() == v.onlyifname then
-                log("Rename sensor: " .. v.name, "info")
-                src:name(v.name)
-                frsky.renamed[appId] = true
+            frsky.renameSensorCache[appId] = system.getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = appId})
+
+            if frsky.renameSensorCache[appId] ~= nil then
+                if frsky.renameSensorCache[appId]:name() == v.onlyifname then
+                    log("Rename sensor: " .. v.name, "info")
+                    frsky.renameSensorCache[appId]:name(v.name)
+                end
             end
+
         end
 
     end
@@ -369,24 +349,17 @@ function frsky.wakeup()
         frsky.dropSensorCache = {}
     end
 
-    -- Periodic cache expiry removed (was causing bursts). Use event-driven clears only.
+    -- Check if it's time to expire the caches
+    if os.clock() - lastCacheFlushTime >= cacheExpireTime then
+        clearCaches()
+        lastCacheFlushTime = os.clock() -- Reset the timer
+    end
 
-    -- Flush sensor list if telemetry is inactive
+    -- Flush sensor list if we kill the sensors
     if not rfsuite.session.telemetryState or not rfsuite.session.telemetrySensor then clearCaches() end
 
-    -- If GUI idle and MSP queue processed, drain with a budget
-    if rfsuite.tasks and rfsuite.tasks.telemetry and rfsuite.session.telemetryState and rfsuite.session.telemetrySensor then
-        if rfsuite.app.guiIsRunning == false and rfsuite.tasks.msp.mspQueue:isProcessed() then
-            local start = os.clock()
-            local count = 0
-            while count < MAX_FRAMES_PER_WAKEUP do
-                if (os.clock() - start) > MAX_TIME_BUDGET then break end
-                local ok = telemetryPop()
-                if not ok then break end
-                count = count + 1
-            end
-        end
-    end
+    -- If GUI or queue is busy.. do not do this!
+    if rfsuite.tasks and rfsuite.tasks.telemetry and rfsuite.session.telemetryState and rfsuite.session.telemetrySensor then if rfsuite.app.guiIsRunning == false and rfsuite.tasks.msp.mspQueue:isProcessed() then while telemetryPop() do end end end
 
 end
 
@@ -394,8 +367,6 @@ function frsky.reset()
     frsky.createSensorCache = {}
     frsky.dropSensorCache = {}
     frsky.renameSensorCache = {}
-    frsky.renamed = {}
-    frsky.dropped = {}
 end
 
 return frsky
