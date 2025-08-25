@@ -54,8 +54,12 @@ function ui.progressDisplay(title, message, speed)
                 mult = 2
             end
 
+            local isProcessing = (app.Page and app.Page.apidata and app.Page.apidata.apiState and app.Page.apidata.apiState.isProcessing) or false
+
             if not app.triggers.closeProgressLoader then
                 app.dialogs.progressCounter = app.dialogs.progressCounter + (2 * mult)
+            elseif isProcessing then    
+                app.dialogs.progressCounter = app.dialogs.progressCounter + (3 * mult)
             elseif app.triggers.closeProgressLoader and rfsuite.tasks.msp.mspQueue:isProcessed() then   -- this is the one we normally catch
                 app.dialogs.progressCounter = app.dialogs.progressCounter + (15 * mult)
                 if app.dialogs.progressCounter >= 100 then
@@ -129,7 +133,7 @@ function ui.progressNolinkDisplay()
             app.triggers.invalidConnectionSetup = invalid
 
             -- Progress the dialog (bigger steps when invalid so the user gets feedback faster)
-            local step = invalid and 20 or 40
+            local step = invalid and 15 or 30
             app.dialogs.nolinkValueCounter = app.dialogs.nolinkValueCounter + step
 
             if rfsuite.app.dialogs.noLink then
