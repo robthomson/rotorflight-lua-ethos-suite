@@ -17,12 +17,15 @@
  * 
 
 ]] --
-local data = {}
-local i18n = rfsuite.i18n.get
-data['help'] = {}
+local init = {
+    title = rfsuite.i18n.get("app.modules.diagnostics.name"), -- title of the page
+    section = "system", -- do not run if busy with msp
+    script = "diagnostics.lua", -- run this script
+    image = "diagnostics.png", -- image for the page
+    order = 10, -- order in the section
+    bgtask = true, -- enable button if bgtask not active
+    offline = true, -- run this script offline
+    ethosversion = {1, 6, 2} -- disable button if ethos version is less than this
+}
 
-data['help']['default'] = {i18n("app.modules.msp_speed.help_p1")}
-
-data['fields'] = {}
-
-return data
+return init
