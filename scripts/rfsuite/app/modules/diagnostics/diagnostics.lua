@@ -4,6 +4,13 @@ local log = rfsuite.utils.log
 
 local S_PAGES = {
     {
+        name = i18n("app.modules.rfstatus.name"),
+        script = "rfstatus.lua",
+        image = "rfstatus.png",
+        bgtask = false,  -- requires background tasks for icon to be enabled
+        offline = false  -- requires connection to fbl to run
+    }, 
+    {
         name = i18n("app.modules.msp_speed.name"),
         script = "msp_speed.lua",
         image = "msp_speed.png",
@@ -18,12 +25,19 @@ local S_PAGES = {
         offline = true  -- requires connection to fbl to run
     }, 
     {
-        name = i18n("app.modules.status.name"),
-        script = "status.lua",
-        image = "status.png",
+        name = i18n("app.modules.fblstatus.name"),
+        script = "fblstatus.lua",
+        image = "fblstatus.png",
         bgtask = true,  -- requires background tasks for icon to be enabled
         offline = true  -- requires connection to fbl to run
     },     
+    {
+        name = i18n("app.modules.info.name"),
+        script = "info.lua",
+        image = "info.png",
+        bgtask = true,  -- requires background tasks for icon to be enabled
+        offline = true  -- requires connection to fbl to run
+    },      
 }
 
 local function openPage(pidx, title, script)
