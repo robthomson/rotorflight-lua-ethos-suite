@@ -1196,7 +1196,17 @@ return {
         ["min_cutoff"] = "Min cutoff",
         ["center"] = "Center"
       },
-      ["status"] = {
+      ["rfstatus"] = {
+        ["name"] = "Status",
+        ["error"] = "ERROR",
+        ["ok"] = "OK",
+        ["unknown"] = "UNKNOWN",
+        ["mspsensor"] = "MSP Sensor",
+        ["rfmodule"] = "RF Module",
+        ["bgtask"] = "Background Task",
+        ["telemetrysensors"] = "Telemetry Sensors"
+      },
+      ["fblstatus"] = {
         ["arming_disable_flag_3"] = "Bad RX Recovery",
         ["arming_disable_flag_20"] = "RPM Filter",
         ["arming_disable_flag_11"] = "Load",
@@ -1229,7 +1239,7 @@ return {
         ["erase"] = "Erase",
         ["arming_disable_flag_10"] = "No Pre Arm",
         ["arming_disable_flag_21"] = "Reboot Required",
-        ["name"] = "Status",
+        ["name"] = "FBL Status",
         ["arming_disable_flag_13"] = "CLI",
         ["arming_disable_flag_14"] = "CMS Menu",
         ["arming_disable_flag_16"] = "MSP",

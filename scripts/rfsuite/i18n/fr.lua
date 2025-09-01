@@ -1196,7 +1196,17 @@ return {
         ["min_cutoff"] = "Coupure min",
         ["center"] = "Centre"
       },
-      ["status"] = {
+      ["rfstatus"] = {
+        ["name"] = "Status",
+        ["error"] = "ERROR",
+        ["ok"] = "OK",
+        ["unknown"] = "UNKNOWN",
+        ["mspsensor"] = "MSP Sensor",
+        ["rfmodule"] = "RF Module",
+        ["bgtask"] = "Background Task",
+        ["telemetrysensors"] = "Telemetry Sensors"
+      },
+      ["fblstatus"] = {
         ["arming_disable_flag_3"] = "Mauvaise recuperation RX",
         ["arming_disable_flag_20"] = "Filtre RPM",
         ["arming_disable_flag_11"] = "Charge",
@@ -1229,7 +1239,7 @@ return {
         ["erase"] = "Effacer",
         ["arming_disable_flag_10"] = "Pas de pre-armement",
         ["arming_disable_flag_21"] = "Redemarrage requis",
-        ["name"] = "Statut",
+        ["name"] = "Statut FBL",
         ["arming_disable_flag_13"] = "CLI",
         ["arming_disable_flag_14"] = "Menu CMS",
         ["arming_disable_flag_16"] = "MSP",
