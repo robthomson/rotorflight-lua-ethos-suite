@@ -1196,7 +1196,17 @@ return {
         ["min_cutoff"] = "Min. Grenzfreq.",
         ["center"] = "Mitte"
       },
-      ["status"] = {
+      ["rfstatus"] = {
+        ["name"] = "Status",
+        ["error"] = "ERROR",
+        ["ok"] = "OK",
+        ["unknown"] = "UNKNOWN",
+        ["mspsensor"] = "MSP Sensor",
+        ["rfmodule"] = "RF Module",
+        ["bgtask"] = "Background Task",
+        ["telemetrysensors"] = "Telemetry Sensors"
+      },
+      ["fblstatus"] = {
         ["arming_disable_flag_3"] = "RX-Wiederherstellung fehlgeschlagen",
         ["arming_disable_flag_20"] = "RPM-Filter",
         ["arming_disable_flag_11"] = "Auslastung",
@@ -1229,7 +1239,7 @@ return {
         ["erase"] = "Loeschen",
         ["arming_disable_flag_10"] = "Kein Pre-Arm",
         ["arming_disable_flag_21"] = "Neustart erforderlich",
-        ["name"] = "Status",
+        ["name"] = "FBL Status",
         ["arming_disable_flag_13"] = "CLI",
         ["arming_disable_flag_14"] = "CMS-Menue",
         ["arming_disable_flag_16"] = "MSP",
