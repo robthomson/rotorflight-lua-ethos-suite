@@ -46,6 +46,7 @@ function utils.session()
 
         -- Versions / IDs
         apiVersion          = nil,
+        apiVersionInvalid   = nil,
         fcVersion           = nil,
         rfVersion           = nil,
         ethosRunningVersion = nil,
@@ -301,22 +302,17 @@ end
 
 function utils.dir_exists(base, name)
     base = base or "./"
-    rfsuite.utils.log("Checking if directory exists: " .. base .. name, "debug")
-    local list = system.listFiles(base)
-    if list == nil then return false end
-    for i = 1, #list do
-        if list[i] == name then
-            return true
-        end
-    end
+    if not name then return false end
+
+    local tgt = base .. name
+    local exists = os.stat(tgt)
+    if exists then return true end
     return false
 end
 
 function utils.file_exists(name)
-    rfsuite.utils.log("Checking if file exists: " .. name, "debug")
-    local f = io.open(name, "r")
-    if f then
-        io.close(f)
+    local tgt = os.stat(name)
+    if tgt then
         return true
     end
     return false
@@ -731,5 +727,28 @@ function utils.apiVersionCompare(op, req)
     return false -- unknown operator
 end
 
+function utils.muteSensorLostWarnings()
+    if rfsuite.session.telemetryModule then
+        local module = rfsuite.session.telemetryModule
+        if module and module.muteSensorLost then
+            module:muteSensorLost(2.0)
+        end
+    end
+end
+
+--[[
+    Checks whether a string exists within an array.
+
+    @param array (table) List of strings.
+    @param s (string)    String to find.
+
+    @return (boolean) True if found; otherwise false.
+]]
+function utils.stringInArray(array, s)
+    for i, value in ipairs(array) do
+        if value == s then return true end
+    end
+    return false
+end
 
 return utils
