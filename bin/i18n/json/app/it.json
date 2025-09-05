@@ -536,6 +536,28 @@
         "needs_translation": false
       }
     },
+    "telemetry": {
+      "name": {
+        "english": "Telemetry",
+        "translation": "Telemetria",
+        "needs_translation": false
+      },
+      "invalid_version": {
+        "english": "RF2.2 or later required",
+        "translation": "RF2.2 o successivo richiesto",
+        "needs_translation": false
+      },
+      "msg_set_defaults": {
+        "english": "Apply default sensors?",
+        "translation": "Applicare i sensori predefiniti?",
+        "needs_translation": false
+      },
+      "no_more_than_40": {
+        "english": "No more than 40 sensors can be enabled at once",
+        "translation": "Non è possibile abilitare più di 40 sensori contemporaneamente",
+        "needs_translation": false
+      }
+    },
     "validate_sensors": {
       "help_p1": {
         "english": "This tool attempts to list all the sensors that you are not receiving in a concise list.",
