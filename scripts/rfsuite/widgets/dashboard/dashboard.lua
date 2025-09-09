@@ -141,6 +141,48 @@ dashboard._hg_cycles = 0
 dashboard._loader_min_duration = 1.5
 dashboard._loader_start_time = nil
 
+-- ===== Repaint governor ==== ------
+dashboard._minPaintInterval   = 0.1   -- 50ms ≈ 20 FPS; tune between 0.033–0.1
+dashboard._lastInvalidateTime = 0
+dashboard._pendingInvalidates = {}     -- queued rects to invalidate
+
+local function _queueInvalidateRect(x, y, w, h)
+    local r = { x = x, y = y, w = w, h = h }
+    dashboard._pendingInvalidates[#dashboard._pendingInvalidates+1] = r
+end
+
+-- Very cheap “union or fallback” coalescing:
+local function _flushInvalidatesRespectingBudget()
+    local now = os.clock()
+    if (now - dashboard._lastInvalidateTime) < dashboard._minPaintInterval then
+        return false  -- skip this cycle; keep queue
+    end
+
+    if #dashboard._pendingInvalidates == 0 then
+        return false
+    end
+
+    -- if many rects, full invalidate is cheaper
+    if #dashboard._pendingInvalidates > 6 then
+        lcd.invalidate()
+        dashboard._pendingInvalidates = {}
+        dashboard._lastInvalidateTime = now
+        return true
+    end
+
+    -- simple union
+    local x1, y1, x2, y2 = 1e9, 1e9, -1e9, -1e9
+    for _, r in ipairs(dashboard._pendingInvalidates) do
+        if r.x < x1 then x1 = r.x end
+        if r.y < y1 then y1 = r.y end
+        if (r.x + r.w) > x2 then x2 = r.x + r.w end
+        if (r.y + r.h) > y2 then y2 = r.y + r.h end
+    end
+    lcd.invalidate(x1, y1, x2 - x1, y2 - y1)
+    dashboard._pendingInvalidates = {}
+    dashboard._lastInvalidateTime = now
+    return true
+end
 
 -- === Simple per-object *instance* profiler ================================
 dashboard.prof = dashboard.prof or {
@@ -233,17 +275,19 @@ dashboard.loaders = assert(
 )()
 
 function dashboard.loader(x, y, w, h)
-        dashboard.loaders.staticLoader(dashboard, x, y, w, h)
-        lcd.invalidate()
+    dashboard.loaders.staticLoader(dashboard, x, y, w, h)
+    _queueInvalidateRect(x, y, w, h)
+    _flushInvalidatesRespectingBudget()
 end
 
 local function forceInvalidateAllObjects()
-    for i, rect in ipairs(dashboard.boxRects) do
+    for _, rect in ipairs(dashboard.boxRects) do
         local obj = dashboard.objectsByType[rect.box.type]
         if obj and obj.dirty and obj.dirty(rect.box) then
-            lcd.invalidate(rect.x, rect.y, rect.w, rect.h)
+            _queueInvalidateRect(rect.x, rect.y, rect.w, rect.h)
         end
     end
+    _flushInvalidatesRespectingBudget()
 end
 
 function dashboard.overlaymessage(x, y, w, h, txt)
@@ -581,7 +625,8 @@ function dashboard.renderLayout(widget, config)
     if objectsThreadedWakeupCount < 1 or loaderElapsed < dashboard._loader_min_duration then
         local loaderY = (isFullScreen and headerLayout.height) or 0
         dashboard.loader(0, loaderY, W, H - loaderY)
-        lcd.invalidate()
+        _queueInvalidateRect(0, loaderY, W, H - loaderY)
+        _flushInvalidatesRespectingBudget()
         return
     end
 
@@ -754,7 +799,8 @@ function dashboard.renderLayout(widget, config)
         local loaderY = (isFullScreen and headerLayout.height) or 0
         dashboard.overlaymessage(0, loaderY, W, H - loaderY, dashboard.overlayMessage)
         dashboard._hg_cycles = dashboard._hg_cycles - 1
-        lcd.invalidate()
+        _queueInvalidateRect(0, loaderY, W, H - loaderY)
+        _flushInvalidatesRespectingBudget()
         return
     end
 
@@ -1395,15 +1441,20 @@ function dashboard.wakeup(widget)
         -- Force repaint
         if dashboard._useSpreadSchedulingPaint then
             if needsFullInvalidate then
-                lcd.invalidate()
+                -- queue a full repaint
+                _queueInvalidateRect(0, 0, W, H)
+                dashboard._forceFullRepaint = false  -- reset once consumed
             else
                 for _, r in ipairs(dirtyRects) do
-                    lcd.invalidate(r.x, r.y, r.w, r.h)
+                    _queueInvalidateRect(r.x, r.y, r.w, r.h)
                 end
             end
         else
-            lcd.invalidate()
+            _queueInvalidateRect(0, 0, W, H)
         end
+
+        -- try to flush; if budget says "too soon", it’ll wait until a later wakeup
+        _flushInvalidatesRespectingBudget()
     end
 
 
