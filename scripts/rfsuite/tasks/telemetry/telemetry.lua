@@ -16,6 +16,8 @@ local round = rfsuite.utils.round
 
 local telemetry = {}
 
+local telemetryTypeChanged = false
+
 -- ========= Fast locals for frequently used globals (cuts table lookups) =========
 local os_clock       = os.clock
 local sys_getSource  = system.getSource
@@ -38,15 +40,31 @@ local cache_hits, cache_misses = 0, 0
 local HOT_SIZE  = 20
 local hot_list, hot_index = {}, {}
 
+local function rebuild_hot_index()
+  hot_index = {}
+  for i, k in t_ipairs(hot_list) do
+    hot_index[k] = i
+  end
+end
+
 local function mark_hot(key)
   local idx = hot_index[key]
-  if idx then
+
+  -- If the key is already in the list, remove it safely
+  if idx and idx >= 1 and idx <= #hot_list then
     t_remove(hot_list, idx)
+    rebuild_hot_index()
+  -- Otherwise, evict the LRU if at capacity
   elseif #hot_list >= HOT_SIZE then
     local old = t_remove(hot_list, 1)
-    hot_index[old] = nil
-    sensors[old] = nil -- evict the old sensor so cache size ≤ HOT_SIZE
+    if old ~= nil then
+      hot_index[old] = nil
+      sensors[old] = nil -- evict the old sensor so cache size ≤ HOT_SIZE
+    end
+    rebuild_hot_index()
   end
+
+  -- Push 'key' to MRU position
   t_insert(hot_list, key)
   hot_index[key] = #hot_list
 end
@@ -999,7 +1017,7 @@ function telemetry.wakeup()
     end
 
     -- Reset if telemetry is inactive or telemetry type changed
-    if (not rfsuite.session.telemetryState) or rfsuite.session.telemetryTypeChanged then
+    if (not rfsuite.session.telemetryState)  then
         telemetry.reset()
     end
 end
@@ -1008,6 +1026,12 @@ end
 function telemetry.getSensorStats(sensorKey)
     return telemetry.sensorStats[sensorKey] or { min = nil, max = nil }
 end
+
+function telemetry.setTelemetryTypeChanged()
+    telemetryTypeChanged = true
+    telemetry.reset()
+end
+
 
 telemetry.sensorTable = sensorTable
 
