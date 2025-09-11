@@ -18,10 +18,6 @@ function wrapper.wakeup(box)
         utils.resetBoxCache(box)
     end
 
-    if rfsuite.session.cpuload >= 50 then
-        return
-    end
-
     -- Wakeup interval control using optional parameter (wakeupinterval)
     if box.wakeupinterval ~= nil then
         local now      = os.clock()
