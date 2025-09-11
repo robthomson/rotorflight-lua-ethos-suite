@@ -10,6 +10,8 @@ local tasks = {}
 local tasksList = {}
 local tasksLoaded = false
 
+local telemetryTypeChanged = false
+
 local TASK_TIMEOUT_SECONDS = 10
 
 
@@ -83,9 +85,8 @@ end
 function tasks.wakeup()
     local telemetryActive = rfsuite.tasks.msp.onConnectChecksInit and rfsuite.session.telemetryState
 
-    if rfsuite.session.telemetryTypeChanged then
-        rfsuite.utils.logRotorFlightBanner()
-        rfsuite.session.telemetryTypeChanged = false
+    if telemetryTypeChanged then
+        telemetryTypeChanged = false
         tasks.resetAllTasks()
         tasksLoaded = false
         return
@@ -133,6 +134,7 @@ function tasks.wakeup()
                     rfsuite.utils.log("Completed " .. name, "debug")
                 elseif task.startTime and (now - task.startTime) > TASK_TIMEOUT_SECONDS then
                     rfsuite.utils.log("Task '" .. name .. "' timed out.", "info")
+                    tasks.resetAllTasks()
                     task.startTime = nil
                 end
             end
@@ -168,6 +170,11 @@ function tasks.wakeup()
             return
         end
     end
+end
+
+function tasks.setTelemetryTypeChanged()
+    telemetryTypeChanged = true
+    lastTypeChangeAt = os.clock()
 end
 
 
