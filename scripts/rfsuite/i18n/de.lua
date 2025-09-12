@@ -1343,7 +1343,7 @@ return {
     ["group_esc1"] = "Regler 1",
     ["group_esc2"] = "Regler 2",
     ["group_current"] = "Strom",
-    ["group_temperatures"] = "Temperaturen",
+    ["group_temps"] = "Temperaturen",
     ["group_barometer"] = "Barometer",
     ["group_rpm"] = "U/min",
     ["group_attitude"] = "Lage",

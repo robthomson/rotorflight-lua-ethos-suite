@@ -1343,7 +1343,7 @@ return {
     ["group_esc1"] = "ESC 1",
     ["group_esc2"] = "ESC 2",
     ["group_current"] = "Courant",
-    ["group_temperatures"] = "Températures",
+    ["group_temps"] = "Températures",
     ["group_barometer"] = "Baromètre",
     ["group_rpm"] = "RPM",
     ["group_attitude"] = "Attitude",
