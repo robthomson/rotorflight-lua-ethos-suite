@@ -22,7 +22,7 @@ local data = {}
 data['help'] = {}
 
 data['help']['default'] = {
-    "@i18n(app.modules.battery.help_p1)@"
+    rfsuite.i18n.get("app.modules.battery.help_p1")
 }
 
 data['fields'] = {}

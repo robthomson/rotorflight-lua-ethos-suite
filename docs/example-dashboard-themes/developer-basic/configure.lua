@@ -44,7 +44,7 @@ local function event(widget, category, value, x, y)
     if category == EVT_CLOSE and value == 0 or value == 35 then
         rfsuite.app.ui.openPage(
             pageIdx,
-            "@i18n(app.modules.settings.dashboard)@",
+            rfsuite.i18n.get("app.modules.settings.dashboard"),
             "settings/tools/dashboard.lua"
         )
         return true

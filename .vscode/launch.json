@@ -8,8 +8,7 @@
       "program": "${workspaceFolder}/.vscode/scripts/deploy.py",
       "args": [
         "--config-env", "RFSUITE_CONFIG",
-        "--launch",
-        "--lang", "en",
+        "--launch"
       ],
       "console": "integratedTerminal",
       "subProcess": false, // prevents auto-attach to child procs
@@ -25,15 +24,14 @@
       "args": [
         "--config-env", "RFSUITE_CONFIG",
         "--fileext", "fast",
-        "--launch",
-        "--lang", "en",
+        "--launch"
       ],
       "console": "integratedTerminal",
       "subProcess": false,
       "justMyCode": true,
       "stopOnEntry": false,
       "preLaunchTask": "kill deploy"
-    },   
+    },
     {
       "name": "Deploy & Choose",
       "type": "debugpy",
@@ -42,8 +40,7 @@
       "args": [
         "--config-env", "RFSUITE_CONFIG",
         "--choose",
-        "--launch",
-        "--lang", "en",
+        "--launch"
       ],
       "console": "integratedTerminal",
       "subProcess": false,
@@ -60,8 +57,7 @@
         "--config-env", "RFSUITE_CONFIG",
         "--fileext", "fast",
         "--choose",
-        "--launch",
-        "--lang", "en",
+        "--launch"
       ],
       "console": "integratedTerminal",
       "subProcess": false,
@@ -69,39 +65,6 @@
       "stopOnEntry": false,
       "preLaunchTask": "kill deploy"
     },
-    {
-      "name": "Deploy & Launch [choose lang]",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/.vscode/scripts/deploy.py",
-      "args": [
-        "--config-env", "RFSUITE_CONFIG",
-        "--launch",
-        "--lang", "${input:i18nLocale}",
-      ],
-      "console": "integratedTerminal",
-      "subProcess": false, // prevents auto-attach to child procs
-      "justMyCode": true,
-      "stopOnEntry": false,
-      "preLaunchTask": "kill deploy"
-    },
-    {
-      "name": "Deploy & Choose [choose lang]",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/.vscode/scripts/deploy.py",
-      "args": [
-        "--config-env", "RFSUITE_CONFIG",
-        "--choose",
-        "--launch",
-        "--lang", "${input:i18nLocale}",
-      ],
-      "console": "integratedTerminal",
-      "subProcess": false,
-      "justMyCode": true,
-      "stopOnEntry": false,
-      "preLaunchTask": "kill deploy"
-    },         
     {
       "name": "Deploy Radio",
       "type": "debugpy",
@@ -109,8 +72,7 @@
       "program": "${workspaceFolder}/.vscode/scripts/deploy.py",
       "args": [
         "--config-env", "RFSUITE_CONFIG",
-        "--radio",
-        "--lang", "en",
+        "--radio"
       ],
       "console": "integratedTerminal",
       "subProcess": false,
@@ -126,8 +88,7 @@
       "args": [
         "--config-env", "RFSUITE_CONFIG",
         "--fileext", "fast",
-        "--radio",
-        "--lang", "en",
+        "--radio"
       ],
       "console": "integratedTerminal",
       "subProcess": false,
@@ -143,8 +104,7 @@
       "args": [
         "--config-env", "RFSUITE_CONFIG",
         "--radio",
-        "--radio-debug",
-        "--lang", "en",
+        "--radio-debug"
       ],
       "console": "integratedTerminal",
       "subProcess": false,
@@ -161,8 +121,7 @@
         "--config-env", "RFSUITE_CONFIG",
         "--fileext", "fast",
         "--radio",
-        "--radio-debug",
-        "--lang", "en",
+        "--radio-debug"
       ],
       "console": "integratedTerminal",
       "subProcess": false,
@@ -178,26 +137,9 @@
       "args": [
         "--config-env", "RFSUITE_CONFIG",
         "--radio",
-        "--connect-only",
-        "--lang", "en",
+        "--connect-only"
       ],
       "console": "integratedTerminal"
-    }
-  ],
-  "inputs": [
-    {
-      "id": "i18nLocale",
-      "type": "pickString",
-      "description": "Choose language",
-      "options": [
-        "en",
-        "de",
-        "fr",
-        "es",
-        "it",
-        "nl",
-      ],
-      "default": "en"
     }
   ]
 }

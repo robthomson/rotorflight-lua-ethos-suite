@@ -18,7 +18,7 @@
 
 ]] --
 local init = {
-    title = "@i18n(app.modules.profile_mainrotor.name)@", -- title of the page
+    title = rfsuite.i18n.get("app.modules.profile_mainrotor.name"), -- title of the page
     section = "advanced", -- do not run if busy with msp
     script = "mainrotor.lua", -- run this script
     image = "mainrotor.png", -- image for the page

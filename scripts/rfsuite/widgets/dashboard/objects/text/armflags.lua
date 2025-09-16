@@ -121,9 +121,9 @@ function render.wakeup(box)
     if not showReason then
         if value ~= nil then
             if value == 1 or value == 3 then
-                displayValue = "@i18n(ARMED)@"
+                displayValue = rfsuite.i18n.get("ARMED")
             else
-                displayValue = "@i18n(DISARMED)@"
+                displayValue = rfsuite.i18n.get("DISARMED")
             end
         end
     end
