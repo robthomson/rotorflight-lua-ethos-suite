@@ -1,3 +1,7 @@
+# 2.3.0-20250916
+
+Test snapshot
+
 # 2.3.0-20250731
 
 Snapshot release of the new Ethos Suite dashboard system.
