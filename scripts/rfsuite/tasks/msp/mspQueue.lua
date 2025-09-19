@@ -129,7 +129,7 @@ function MspQueueController:processQueue()
         self._nextProcessAt = now + self.loopInterval
     end
 
-    local mspBusyTimeout = 2.0
+    local mspBusyTimeout = 5.0  -- unblock the busy flag to stop msp stalling other tasks
     self.mspBusyStart = self.mspBusyStart or os.clock()
 
     -- lightweight, guarded logging
@@ -142,7 +142,7 @@ function MspQueueController:processQueue()
     end
 
     if self:isProcessed() then
-        rfsuite.app.triggers.mspBusy = false
+        rfsuite.session.mspBusy = false
         self.mspBusyStart = nil
         return
     end
@@ -150,13 +150,14 @@ function MspQueueController:processQueue()
     -- Timeout watchdog for global MSP busy state
     -- This aims to simply unblock the queue if something goes wrong
     if self.mspBusyStart and (os.clock() - self.mspBusyStart) > mspBusyTimeout then
-        --rfsuite.utils.log("MSP busy timeout exceeded. Forcing clear.", "info")
-        rfsuite.app.triggers.mspBusy = false
+        rfsuite.utils.log("MSP blocked for more than " .. mspBusyTimeout .. " seconds", "info")
+        rfsuite.utils.log(" - Unblocking by setting rfsuite.session.mspBusy = false", "info")
+        rfsuite.session.mspBusy = false
         self.mspBusyStart = nil
         return
     end
 
-    rfsuite.app.triggers.mspBusy = true
+    rfsuite.session.mspBusy = true
 
     rfsuite.utils.muteSensorLostWarnings()
 
@@ -170,7 +171,7 @@ function MspQueueController:processQueue()
     local cmd, buf, err
 
     -- Sending cadence controlled by protocol override or default 1s
-    local lastTimeInterval = rfsuite.tasks.msp.protocol.mspIntervalOveride or 0.5
+    local lastTimeInterval = rfsuite.tasks.msp.protocol.mspIntervalOveride or 0.25
     if lastTimeInterval == nil then lastTimeInterval = 1 end
 
     if not system:getVersion().simulation then
@@ -244,7 +245,7 @@ end
 --============================--
 
 function MspQueueController:clear()
-    rfsuite.app.triggers.mspBusy = false
+    rfsuite.session.mspBusy = false
     self.mspBusyStart = nil
     -- Reset FIFO quickly
     self.queue = newQueue()

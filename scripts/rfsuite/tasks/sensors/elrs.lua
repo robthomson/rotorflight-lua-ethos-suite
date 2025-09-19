@@ -13,6 +13,7 @@ if crsf.getSensor ~= nil then
   elrs.pushFrame = function(x, y) return sensor:pushFrame(x, y) end
 else
   elrs.popFrame = function() return crsf.popFrame() end
+if not elrs.crossfirePush then elrs.crossfirePush = elrs.pushFrame end
   elrs.pushFrame = function(x, y) return crsf.pushFrame(x, y) end
 end
 
@@ -174,17 +175,33 @@ local function ensureElrsMap()
   local sidList = getSidList()
   if not sidList then return end
 
+  -- Build ELRS lookup keyed by *every* sidElrs value
   for _, s in pairs(sidList) do
-    if s.sidElrs then
+    local sid = s.sidElrs
+    if sid then
       local decFn = DECODERS[s.dec] or decNil
-      elrs.RFSensors[s.sidElrs] = {
-        name = s.name,
-        unit = s.unit,
-        prec = s.prec,
-        min  = s.min,
-        max  = s.max,
-        dec  = decFn,
-      }
+      if type(sid) == "table" then
+        for i = 1, #sid do
+          elrs.RFSensors[sid[i]] = {
+            name = s.name,
+            unit = s.unit,
+            prec = s.prec,
+            min  = s.min,
+            max  = s.max,
+            dec  = decFn,
+            -- idx = i,        -- uncomment if any decoder wants to know which sub-SID it is
+          }
+        end
+      else
+        elrs.RFSensors[sid] = {
+          name = s.name,
+          unit = s.unit,
+          prec = s.prec,
+          min  = s.min,
+          max  = s.max,
+          dec  = decFn,
+        }
+      end
     end
   end
 
@@ -210,7 +227,13 @@ function elrs.setFblSensors(list)
   if sidList then
     for _, id in ipairs(list or {}) do
       local s = sidList[id]
-      if s and s.sidElrs then enabledSidElrs[s.sidElrs] = true end
+      if s and s.sidElrs then
+      if type(s.sidElrs) == "table" then
+        for i=1,#s.sidElrs do enabledSidElrs[s.sidElrs[i]] = true end
+      else
+        enabledSidElrs[s.sidElrs] = true
+      end
+      end
     end
     -- free again after use
     if rfsuite and rfsuite.tasks and rfsuite.tasks.sensors then
@@ -325,7 +348,7 @@ end
 function elrs.crossfirePop()
   ensureElrsMap()
 
-  if (CRSF_PAUSE_TELEMETRY == true or rfsuite.app.triggers.mspBusy == true or not telemetryActive()) then
+  if (CRSF_PAUSE_TELEMETRY == true or rfsuite.session.mspBusy == true or not telemetryActive()) then
     if not telemetryActive() then resetSensors() end
     return false
   end
@@ -372,6 +395,13 @@ function elrs.crossfirePop()
 end
 
 function elrs.wakeup()
+
+  -- we cannot do anything until connected
+  if not rfsuite.session.isConnected then return end
+    if rfsuite.tasks and rfsuite.tasks.onconnect and rfsuite.tasks.onconnect.active and rfsuite.tasks.onconnect.active() then
+        return
+    end 
+
   -- Rebuild whitelist if MSP changed the selection
   local fp = slotsFingerprint()
   if fp ~= _lastSlotsFp then
@@ -381,12 +411,14 @@ function elrs.wakeup()
   end
 
   if telemetryActive() and rfsuite.session.telemetrySensor then
-    local n = 0
-    while elrs.crossfirePop() do
-      n = n + 1
-      if n >= 50 then break end
-      if CRSF_PAUSE_TELEMETRY == true or rfsuite.app.triggers.mspBusy == true then break end
-    end
+    if not rfsuite.session.mspBusy then 
+      local n = 0
+      while elrs.crossfirePop() do
+        n = n + 1
+        if n >= 50 then break end
+        if CRSF_PAUSE_TELEMETRY == true or rfsuite.session.mspBusy == true then break end
+      end
+    end  
     refreshStaleSensors()
   else
     resetSensors()

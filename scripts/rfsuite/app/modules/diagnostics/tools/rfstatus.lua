@@ -18,7 +18,7 @@
 
 ]] --
 -- Short aliases
-local i18n = rfsuite.i18n.get
+
 
 -- State
 local enableWakeup = false
@@ -30,10 +30,12 @@ local btnW   = 100
 local btnWs  = btnW - (btnW * 20) / 100
 local xRight = w - 15
 
+local x,y
+
 local displayPos = {
   x = xRight - btnW - btnWs - 5 - btnWs,
   y = rfsuite.app.radio.linePaddingTop,
-  w = 100,
+  w = 150,
   h = rfsuite.app.radio.navbuttonHeight
 }
 
@@ -55,16 +57,17 @@ local function setStatus(field, ok, dashIfNil)
     return
   end
   if ok then
-    field:value(i18n("app.modules.rfstatus.ok"))
+    field:value("@i18n(app.modules.rfstatus.ok)@")
     field:color(GREEN)
   else
-    field:value(i18n("app.modules.rfstatus.error"))
+    field:value("@i18n(app.modules.rfstatus.error)@")
     field:color(RED)
   end
 end
 
-local function addStatusLine(captionKey, initialText)
-  rfsuite.app.formLines[rfsuite.app.formLineCnt] = form.addLine(i18n(captionKey))
+local function addStatusLine(captionText, initialText)
+  -- captionText should already be a literal string or an @i18n(...)@ tag
+  rfsuite.app.formLines[rfsuite.app.formLineCnt] = form.addLine(captionText)
   rfsuite.app.formFields[rfsuite.app.formFieldCount] = form.addStaticText(
     rfsuite.app.formLines[rfsuite.app.formLineCnt],
     displayPos,
@@ -99,7 +102,7 @@ local function openPage(pidx, title, script)
 
   -- header
   rfsuite.app.ui.fieldHeader(
-    i18n("app.modules.diagnostics.name") .. " / " .. i18n("app.modules.rfstatus.name")
+    "@i18n(app.modules.diagnostics.name)@" .. " / " .. "@i18n(app.modules.rfstatus.name)@"
   )
 
   -- fresh tables so lookups are never stale/nil
@@ -109,38 +112,34 @@ local function openPage(pidx, title, script)
   rfsuite.app.formFieldCount = 0
 
   -- CPU Load %
-  addStatusLine("CPU Load", string.format("%.1f%%", rfsuite.session.cpuload or 0))
+  addStatusLine("@i18n(app.modules.fblstatus.cpu_load)@", string.format("%.1f%%", rfsuite.performance.cpuload or 0))
 
   -- Free RAM
-  addStatusLine("Free RAM", string.format("%.1f kB", rfsuite.session.freeram or 0))
-
+  addStatusLine("@i18n(app.modules.msp_speed.memory_free)@", string.format("%.1f kB", rfsuite.performance.freeram or 0))
 
   -- Background Task status
-  addStatusLine(
-    "app.modules.rfstatus.bgtask",
-    rfsuite.tasks.active() and i18n("app.modules.rfstatus.ok") or i18n("app.modules.rfstatus.error")
+  addStatusLine("@i18n(app.modules.rfstatus.bgtask)@",
+    rfsuite.tasks.active() and "@i18n(app.modules.rfstatus.ok)@" or "@i18n(app.modules.rfstatus.error)@"
   )
 
   -- RF Module Status
-  addStatusLine(
-    "app.modules.rfstatus.rfmodule",
-    moduleEnabled() and i18n("app.modules.rfstatus.ok") or i18n("app.modules.rfstatus.error")
+  addStatusLine("@i18n(app.modules.rfstatus.rfmodule)@",
+    moduleEnabled() and "@i18n(app.modules.rfstatus.ok)@" or "@i18n(app.modules.rfstatus.error)@"
   )
 
   -- MSP Sensor Status
-  addStatusLine(
-    "app.modules.rfstatus.mspsensor",
-    haveMspSensor() and i18n("app.modules.rfstatus.ok") or i18n("app.modules.rfstatus.error")
+  addStatusLine("@i18n(app.modules.rfstatus.mspsensor)@",
+    haveMspSensor() and "@i18n(app.modules.rfstatus.ok)@" or "@i18n(app.modules.rfstatus.error)@"
   )
 
   -- Telemetry Sensor Status
-  addStatusLine("app.modules.rfstatus.telemetrysensors", "-")
+  addStatusLine("@i18n(app.modules.rfstatus.telemetrysensors)@", "-")
 
   -- FBL Connected
-  addStatusLine("app.modules.rfstatus.fblconnected", "-")
+  addStatusLine("@i18n(app.modules.rfstatus.fblconnected)@", "-")
 
   -- API Version
-  addStatusLine("app.modules.rfstatus.apiversion", "-")
+  addStatusLine("@i18n(app.modules.rfstatus.apiversion)@", "-")
 
   enableWakeup = true
 end
@@ -161,7 +160,7 @@ local function wakeup()
   do
     local field = rfsuite.app.formFields and rfsuite.app.formFields[IDX_CPULOAD]
     if field then
-      field:value(string.format("%.1f%%", rfsuite.session.cpuload or 0))
+      field:value(string.format("%.1f%%", rfsuite.performance.cpuload or 0))
     end
   end
 
@@ -169,7 +168,7 @@ local function wakeup()
   do
     local field = rfsuite.app.formFields and rfsuite.app.formFields[IDX_FREERAM]
     if field then
-      field:value(string.format("%.1f kB", rfsuite.utils.round(rfsuite.session.freeram or 0, 1)))
+      field:value(string.format("%.1f kB", rfsuite.utils.round(rfsuite.performance.freeram or 0, 1)))
     end
   end
 
@@ -240,7 +239,7 @@ local function event(widget, category, value, x, y)
   if (category == EVT_CLOSE and value == 0) or value == 35 then
     rfsuite.app.ui.openPage(
       pageIdx,
-      i18n("app.modules.diagnostics.name"),
+      "@i18n(app.modules.diagnostics.name)@",
       "diagnostics/diagnostics.lua"
     )
     return true
@@ -252,7 +251,7 @@ local function onNavMenu()
   rfsuite.app.ui.progressDisplay(nil, nil, true)
   rfsuite.app.ui.openPage(
     pageIdx,
-    i18n("app.modules.diagnostics.name"),
+    "@i18n(app.modules.diagnostics.name)@",
     "diagnostics/diagnostics.lua"
   )
 end

@@ -54,12 +54,15 @@ local taskSchedulerPercentage
 local schedulerTick
 local lastSensorName
 local tasks, tasksList = {}, {}
-tasks.heartbeat, tasks.begin, tasks.wasOn = nil, nil, false  -- begin nil by default
-
+tasks.heartbeat, tasks.begin = nil, nil  -- begin nil by default
 
 local currentSensor, currentModuleId, currentTelemetryType
 local internalModule, externalModule
 
+-- CPU constants (cheap -> keep)
+local CPU_TICK_HZ     = 20
+local SCHED_DT        = 1 / CPU_TICK_HZ
+local OVERDUE_TOL     = SCHED_DT * 0.25
 
 tasks._justInitialized = false
 tasks._initState = "start"
@@ -80,22 +83,6 @@ local usingSimulator = system.getVersion().simulation
 
 local tlm 
 
--- CPU constants (cheap -> keep)
-local CPU_TICK_HZ     = 20
-local SCHED_DT        = 1 / CPU_TICK_HZ
-local OVERDUE_TOL     = SCHED_DT * 0.25
-
--- CPU/mem moving-average state (declare only)
-local last_wakeup_start
-local CPU_TICK_BUDGET
-local CPU_ALPHA
-local cpu_avg
-
-local MEM_ALPHA
-local mem_avg_kb
-local last_mem_t
-local MEM_PERIOD
-
 
 -- =========================
 -- Profiler config & helpers
@@ -111,6 +98,7 @@ tasks.profile = {
 }
 
 local function profWanted(name)
+  if not tasks.profile.enabled then return end
   if not tasks.profile.enabled then return false end
   local inc, exc = tasks.profile.include, tasks.profile.exclude
   if inc and not inc[name] then return false end
@@ -119,6 +107,7 @@ local function profWanted(name)
 end
 
 local function profRecord(task, dur)
+  if not tasks.profile.enabled then return end
   if dur < (tasks.profile.minDuration or 0) then return end
   task.duration = dur
   task.totalDuration = (task.totalDuration or 0) + dur
@@ -132,7 +121,7 @@ function tasks.isTaskActive(name)
         if t.name == name then
             local age = os.clock() - t.last_run
             if name == "msp" then
-                return rfsuite.app.triggers.mspBusy
+                return rfsuite.session.mspBusy
             elseif name == "callback" then
                 return age <= 2
             else
@@ -363,11 +352,10 @@ function tasks.telemetryCheckScheduler()
 end
 
 function tasks.active()
-    if not tasks.heartbeat then return false end
-
-    local age = os.clock() - tasks.heartbeat
-    tasks.wasOn = age >= 2
-    if rfsuite.app.triggers.mspBusy or age <= 2 then return true end
+    -- consider recent task activity as active
+    if tasks.heartbeat and (os.clock() - tasks.heartbeat) < 2 then
+        return true
+    end
 
     return false
 end
@@ -392,7 +380,7 @@ local function canRunTask(task, now)
     local ok =
         linkOK
         and connOK
-        and (priorityTask or od >= 0 or not rfsuite.app.triggers.mspBusy)
+        and (priorityTask or od >= 0 or not rfsuite.session.mspBusy)
         and (not task.simulatoronly or usingSimulator)
 
     return ok, od
@@ -402,6 +390,8 @@ function tasks.wakeup()
 
     schedulerTick = schedulerTick + 1
     tasks.heartbeat = os.clock()
+    local t0 = tasks.heartbeat
+    local loopCpu = 0   -- seconds of CPU spent inside task wakeups this tick
 
     tasks.profile.enabled = rfsuite.preferences and rfsuite.preferences.developer and rfsuite.preferences.developer.taskprofiler
 
@@ -487,21 +477,20 @@ function tasks.wakeup()
                         end
                         local fn = tasks[task.name].wakeup
                         if fn then
+                            local c0 = os.clock()
+                            local ok, err = pcall(fn, tasks[task.name])
+                            local c1 = os.clock()
+                            local dur = c1 - c0
+                            loopCpu = loopCpu + dur
                             if profWanted(task.name) then
-                                local t0 = os.clock()
-                                local ok, err = pcall(fn, tasks[task.name])
-                                local t1 = os.clock()
-                                profRecord(task, t1 - t0)
+                                profRecord(task, dur)
                                 if not ok then
                                     print(("Error in task %q wakeup: %s"):format(task.name, err))
                                     collectgarbage("collect")
                                 end
-                            else
-                                local ok, err = pcall(fn, tasks[task.name])
-                                if not ok then
-                                    print(("Error in task %q wakeup: %s"):format(task.name, err))
-                                    collectgarbage("collect")
-                                end
+                            elseif not ok then
+                                print(("Error in task %q wakeup: %s"):format(task.name, err))
+                                collectgarbage("collect")
                             end
                         end
                         task.last_run = now
@@ -549,21 +538,15 @@ function tasks.wakeup()
         for _, task in ipairs(mustRunTasks) do
             local fn = tasks[task.name].wakeup
             if fn then
-                if profWanted(task.name) then
-                    local t0 = os.clock()
-                    local ok, err = pcall(fn, tasks[task.name])
-                    local t1 = os.clock()
-                    profRecord(task, t1 - t0)
-                    if not ok then
-                        print(("Error in task %q wakeup (must-run): %s"):format(task.name, err))
-                        collectgarbage("collect")
-                    end
-                else
-                    local ok, err = pcall(fn, tasks[task.name])
-                    if not ok then
-                        print(("Error in task %q wakeup (must-run): %s"):format(task.name, err))
-                        collectgarbage("collect")
-                    end
+                local c0 = os.clock()
+                local ok, err = pcall(fn, tasks[task.name])
+                local c1 = os.clock()
+                local dur = c1 - c0
+                loopCpu = loopCpu + dur
+                if profWanted(task.name) then profRecord(task, dur) end
+                if not ok then
+                    print(("Error in task %q wakeup (must-run): %s"):format(task.name, err))
+                    collectgarbage("collect")
                 end
             end
             task.last_run = now
@@ -573,21 +556,15 @@ function tasks.wakeup()
             local task = normalEligibleTasks[i]
             local fn = tasks[task.name].wakeup
             if fn then
-                if profWanted(task.name) then
-                    local t0 = os.clock()
-                    local ok, err = pcall(fn, tasks[task.name])
-                    local t1 = os.clock()
-                    profRecord(task, t1 - t0)
-                    if not ok then
-                        print(("Error in task %q wakeup: %s"):format(task.name, err))
-                        collectgarbage("collect")
-                    end
-                else
-                    local ok, err = pcall(fn, tasks[task.name])
-                    if not ok then
-                        print(("Error in task %q wakeup: %s"):format(task.name, err))
-                        collectgarbage("collect")
-                    end
+                local c0 = os.clock()
+                local ok, err = pcall(fn, tasks[task.name])
+                local c1 = os.clock()
+                local dur = c1 - c0
+                loopCpu = loopCpu + dur
+                if profWanted(task.name) then profRecord(task, dur) end
+                if not ok then
+                    print(("Error in task %q wakeup: %s"):format(task.name, err))
+                    collectgarbage("collect")
                 end
             end
             task.last_run = now
@@ -611,78 +588,12 @@ function tasks.wakeup()
         end
     end
 
-    -- track average cpu load    
-  -- Accurate CPU utilization: work_time / wall_time_between_wakeups
-  local t_end = os.clock()
-  local work_elapsed = t_end - now
-
-  local dt
-  if last_wakeup_start ~= nil then
-    dt = now - last_wakeup_start
-  else
-    dt = (1 / CPU_TICK_HZ)
-  end
-
-  -- Guard against pathological tiny dt (e.g., re-entrancy)
-  if dt < (0.25 * (1 / CPU_TICK_HZ)) then
-    dt = (1 / CPU_TICK_HZ)
-  end
-
-  local instant_util = work_elapsed / dt   -- 0..∞
-
-  -- ---- Simulator CPU bias ---
-  if usingSimulator then
-    -- Target the radio's baseline utilization in sim.
-    local SIM_TARGET_UTIL = 0.50        -- e.g. 20%
-    local SIM_MAX_UTIL    = 0.80        -- never report above this via bias
-    -- Blend toward the target only when we're below it.
-    if instant_util < SIM_TARGET_UTIL then
-        -- Amount to blend this tick (EMA-ish). Tune 0.25..0.5 for snappier/slower convergence.
-        local BLEND = 0.55
-        instant_util = math.min(
-        SIM_MAX_UTIL,
-        instant_util + (SIM_TARGET_UTIL - instant_util) * BLEND
-        )
-    end
-  end
-  -- ---- end simulator bias ----
-
-
-  cpu_avg = CPU_ALPHA * instant_util + (1 - CPU_ALPHA) * cpu_avg
-  rfsuite.session.cpuload = math.min(100, math.max(0, cpu_avg * 100))
-
-  last_wakeup_start = now
-
-
-    -- track average memory usage
-    do
-    local now2 = os.clock()
-    if (now2 - last_mem_t) >= MEM_PERIOD then
-        last_mem_t = now2
-
-        local m = (system.getMemoryUsage and system.getMemoryUsage()) or nil
-        if m and m.luaRamAvailable then
-        -- Primary path: radio reports free Lua RAM (bytes)
-        local free_now_kb = (m.luaRamAvailable or 0) / 1000
-        if mem_avg_kb == nil then
-            mem_avg_kb = free_now_kb
-        else
-            mem_avg_kb = MEM_ALPHA * free_now_kb + (1 - MEM_ALPHA) * mem_avg_kb
-        end
-        rfsuite.session.freeram   = mem_avg_kb          -- KB (ema)
-        rfsuite.session.luaUsedKb = collectgarbage and collectgarbage("count") or nil
-        rfsuite.session.memSource = "system"
-        else
-        -- Fallback: no system metric; still report Lua heap used so UI isn’t “0”
-        local used_kb = collectgarbage and collectgarbage("count") or nil
-        rfsuite.session.luaUsedKb = used_kb
-        -- keep last known free if we had one; otherwise mark as nil
-        rfsuite.session.freeram   = mem_avg_kb          -- may be nil if never known
-        rfsuite.session.memSource = "lua"
-        end
-    end
-    end
-
+    -- measure how long this wakeup cycle took
+    -- Publish both: summed CPU time and (legacy) wall-ish loop time.
+    local t1 = os.clock()
+    rfsuite.performance = rfsuite.performance or {}
+    rfsuite.performance.taskLoopCpuMs = loopCpu * 1000.0
+    rfsuite.performance.taskLoopTime  = (t1 - t0) * 1000.0
 end
 
 function tasks.reset()
@@ -760,26 +671,11 @@ function tasks.init()
     schedulerTick              = 0
 
     ethosVersionGood           = nil
-    lastTelemetrySensorName    = nil
-    sportSensor, elrsSensor    = nil, nil
-    lastModuleId               = 0
     lastSensorName             = nil
     lastCheckAt                = nil
 
-    -- profiler / CPU / mem tracking baselines
-    CPU_TICK_BUDGET            = 1 / CPU_TICK_HZ
-    CPU_ALPHA                  = 0.2
-    cpu_avg                    = 0
-    last_wakeup_start          = nil
-
-    MEM_ALPHA                  = 0.2
-    mem_avg_kb                 = nil
-    last_mem_t                 = 0
-    MEM_PERIOD                 = 2.0
-
     -- reset public flags
     tasks.heartbeat            = nil
-    tasks.wasOn                = false
     tasks._justInitialized     = false
 
     -- fresh task container(s)

@@ -18,7 +18,7 @@
 ]] --
 
 local utils = {}
-local i18n  = rfsuite.i18n.get
+
 local compiler = rfsuite.compiler 
 
 local arg    = {...}
@@ -28,10 +28,6 @@ local config = arg[1]
 -- Function is called on startup of the script and whenever tasks.lua detects the heli has been disconnected.
 function utils.session()
     rfsuite.session = {
-        -- system
-        cpuload             = 0,
-        freeram             = 0,
-
         -- Modes
         tailMode            = nil,
         swashMode           = nil,
@@ -72,6 +68,9 @@ function utils.session()
         telemetryModule      = nil,
         telemetryModelChanged = nil,
         telemetryConfig       = nil,
+
+        -- MSP
+        mspBusy             = false,
 
         -- Sensors / Repair
         repairSensors       = false,
@@ -152,42 +151,70 @@ function utils.msp_version_array_to_indexed()
     return arr
 end
 
---- Converts arming disable flags into a human-readable string representation.
----
---- Iterates through bits of `flags` and appends corresponding localized strings.
---- Returns localized "OK" if no flags are set or flags is nil.
----
---- @param flags number Bitfield representing arming disable flags.
---- @return string Uppercased, comma-separated descriptions or "OK".
 function utils.armingDisableFlagsToString(flags)
-    if flags == nil then
-        return i18n("app.modules.fblstatus.ok"):upper()
+
+    local ARMING_DISABLE_FLAG_TAG = {
+    [0]  = "@i18n(app.modules.fblstatus.arming_disable_flag_0,upper)@",
+    [1]  = "@i18n(app.modules.fblstatus.arming_disable_flag_1,upper)@",
+    [2]  = "@i18n(app.modules.fblstatus.arming_disable_flag_2,upper)@",
+    [3]  = "@i18n(app.modules.fblstatus.arming_disable_flag_3,upper)@",
+    [4]  = "@i18n(app.modules.fblstatus.arming_disable_flag_4,upper)@",
+    [5]  = "@i18n(app.modules.fblstatus.arming_disable_flag_5,upper)@",
+    [6]  = "@i18n(app.modules.fblstatus.arming_disable_flag_6,upper)@",
+    [7]  = "@i18n(app.modules.fblstatus.arming_disable_flag_7,upper)@",
+    [8]  = "@i18n(app.modules.fblstatus.arming_disable_flag_8,upper)@",
+    [9]  = "@i18n(app.modules.fblstatus.arming_disable_flag_9,upper)@",
+    [10] = "@i18n(app.modules.fblstatus.arming_disable_flag_10,upper)@",
+    [11] = "@i18n(app.modules.fblstatus.arming_disable_flag_11,upper)@",
+    [12] = "@i18n(app.modules.fblstatus.arming_disable_flag_12,upper)@",
+    [13] = "@i18n(app.modules.fblstatus.arming_disable_flag_13,upper)@",
+    [14] = "@i18n(app.modules.fblstatus.arming_disable_flag_14,upper)@",
+    [15] = "@i18n(app.modules.fblstatus.arming_disable_flag_15,upper)@",
+    [16] = "@i18n(app.modules.fblstatus.arming_disable_flag_16,upper)@",
+    [17] = "@i18n(app.modules.fblstatus.arming_disable_flag_17,upper)@",
+    [18] = "@i18n(app.modules.fblstatus.arming_disable_flag_18,upper)@",
+    [19] = "@i18n(app.modules.fblstatus.arming_disable_flag_19,upper)@",
+    [20] = "@i18n(app.modules.fblstatus.arming_disable_flag_20,upper)@",
+    [21] = "@i18n(app.modules.fblstatus.arming_disable_flag_21,upper)@",
+    [22] = "@i18n(app.modules.fblstatus.arming_disable_flag_22,upper)@",
+    [23] = "@i18n(app.modules.fblstatus.arming_disable_flag_23,upper)@",
+    [24] = "@i18n(app.modules.fblstatus.arming_disable_flag_24,upper)@",
+    [25] = "@i18n(app.modules.fblstatus.arming_disable_flag_25,upper)@",
+    }
+
+
+    -- No flags: localized OK (already uppercase via tag transform)
+    if flags == nil or flags == 0 then
+        return "@i18n(app.modules.fblstatus.ok,upper)@"
     end
 
     local names = {}
     for i = 0, 25 do
         if (flags & (1 << i)) ~= 0 then
-            local key  = "app.modules.fblstatus.arming_disable_flag_" .. i
-            local name = i18n(key)
+            local name = ARMING_DISABLE_FLAG_TAG[i]
             if name and name ~= "" then
-                table.insert(names, name)
+                names[#names+1] = name
             end
         end
     end
 
     if #names == 0 then
-        return i18n("app.modules.fblstatus.ok"):upper()
+        return "@i18n(app.modules.fblstatus.ok,upper)@"
     end
 
-    return table.concat(names, ", "):upper()
+    -- NOTE: We avoid forcing uppercase here to preserve non-ASCII locales.
+    -- If you really want uppercase, you can do:
+    --   return (table.concat(names, ", ")):upper()
+    return table.concat(names, ", ")
 end
+
 
 -- Get the governor text from the value
 function utils.getGovernorState(value)
     local returnvalue
 
     if not rfsuite.tasks.telemetry then
-        return i18n("widgets.governor.UNKNOWN")
+        return "@i18n(widgets.governor.UNKNOWN)@"
     end
 
     --[[
@@ -195,17 +222,17 @@ function utils.getGovernorState(value)
         If the key exists, returns the mapped value; otherwise returns localized "UNKNOWN".
     ]]
     local map = {
-        [0]   = i18n("widgets.governor.OFF"),
-        [1]   = i18n("widgets.governor.IDLE"),
-        [2]   = i18n("widgets.governor.SPOOLUP"),
-        [3]   = i18n("widgets.governor.RECOVERY"),
-        [4]   = i18n("widgets.governor.ACTIVE"),
-        [5]   = i18n("widgets.governor.THROFF"),
-        [6]   = i18n("widgets.governor.LOSTHS"),
-        [7]   = i18n("widgets.governor.AUTOROT"),
-        [8]   = i18n("widgets.governor.BAILOUT"),
-        [100] = i18n("widgets.governor.DISABLED"),
-        [101] = i18n("widgets.governor.DISARMED")
+        [0]   = "@i18n(widgets.governor.OFF,upper)@",
+        [1]   = "@i18n(widgets.governor.IDLE,upper)@",
+        [2]   = "@i18n(widgets.governor.SPOOLUP,upper)@",
+        [3]   = "@i18n(widgets.governor.RECOVERY,upper)@",
+        [4]   = "@i18n(widgets.governor.ACTIVE,upper)@",
+        [5]   = "@i18n(widgets.governor.THROFF,upper)@",
+        [6]   = "@i18n(widgets.governor.LOSTHS,upper)@",
+        [7]   = "@i18n(widgets.governor.AUTOROT,upper)@",
+        [8]   = "@i18n(widgets.governor.BAILOUT,upper)@",
+        [100] = "@i18n(widgets.governor.DISABLED,upper)@",
+        [101] = "@i18n(widgets.governor.DISARMED,upper)@"
     }
 
     if rfsuite.session and rfsuite.session.apiVersion and rfsuite.utils.apiVersionCompare(">", "12.07") then
@@ -218,7 +245,7 @@ function utils.getGovernorState(value)
     if map[value] then
         returnvalue = map[value]
     else
-        returnvalue = i18n("widgets.governor.UNKNOWN")
+        returnvalue = "@i18n(widgets.governor.UNKNOWN,upper)@"
     end
 
     --[[
@@ -616,24 +643,59 @@ function utils.logMsp(cmd, rwState, buf, err)
     end
 end
 
-function utils.reportMemoryUsage(location)
+-- store measurements between start/end calls
+utils._memProfile = utils._memProfile or {}
+
+function utils.reportMemoryUsage(location, phase)
     if not rfsuite.preferences.developer.memstats then return end
     location = location or "Unknown"
 
-    local cpuInfo = rfsuite.session and rfsuite.session.cpuload or 0
-    local memInfo = system.getMemoryUsage() or {}
-    local mainStackKB     = (memInfo.mainStackAvailable or 0) / 1024
-    local ramKB           = (memInfo.ramAvailable or 0) / 1024
-    local luaRamKB        = (memInfo.luaRamAvailable or 0) / 1024
-    local luaBitmapsRamKB = (memInfo.luaBitmapsRamAvailable or 0) / 1024
+    local cpuInfo   = (rfsuite.performance and rfsuite.performance.cpuload) or 0
+    local ramFree   = (rfsuite.performance and rfsuite.performance.freeram) or 0
+    local ramUsed   = (rfsuite.performance and rfsuite.performance.usedram) or 0
+    local memInfo   = system.getMemoryUsage() or {}
 
-    rfsuite.utils.log(string.format("[%s] CPU Load: %.2f ", location, rfsuite.utils.round(cpuInfo,0)) .. "%", "info")
-    rfsuite.utils.log(string.format("[%s] Main stack available: %.2f KB", location, mainStackKB), "info")
-    rfsuite.utils.log(string.format("[%s] System RAM available: %.2f KB", location, ramKB), "info")
-    rfsuite.utils.log(string.format("[%s] Lua RAM available: %.2f KB", location, luaRamKB), "info")
-    rfsuite.utils.log(string.format("[%s] Lua Bitmap RAM available: %.2f KB", location, luaBitmapsRamKB), "info")
+    local snapshot = {
+        cpu   = cpuInfo,
+        free  = ramFree,
+        used  = ramUsed,
+        main  = (memInfo.mainStackAvailable or 0) / 1024,
+        ram   = (memInfo.ramAvailable or 0) / 1024,
+        lua   = (memInfo.luaRamAvailable or 0) / 1024,
+        bmp   = (memInfo.luaBitmapsRamAvailable or 0) / 1024,
+        time  = os.clock()
+    }
+
+    -- if phase is given, handle profiling
+    if phase == "start" then
+        utils._memProfile[location] = snapshot
+        rfsuite.utils.log(string.format("[%s] Profiling started", location), "info")
+        return
+    elseif phase == "end" then
+        local startSnap = utils._memProfile[location]
+        if startSnap then
+            local dt = snapshot.time - startSnap.time
+            utils.log(string.format("[%s] Profiling ended (%.3fs)", location, dt), "info")
+            utils.log(string.format("[%s] CPU diff: %.0f -> %.0f", location, startSnap.cpu, snapshot.cpu), "info")
+            utils.log(string.format("[%s] RAM Used diff: %.0f -> %.0f kB", location, startSnap.used, snapshot.used), "info")
+            utils.log(string.format("[%s] Lua RAM diff: %.2f -> %.2f KB", location, startSnap.lua, snapshot.lua), "info")
+            -- …repeat for other stats if useful
+            utils._memProfile[location] = nil
+        else
+            utils.log(string.format("[%s] Profiling 'end' without a 'start'", location), "warn")
+        end
+        return
+    end
+
+    -- default behavior: just log snapshot
+    rfsuite.utils.log(string.format("[%s] CPU Load: %d%%", location, rfsuite.utils.round(snapshot.cpu, 0)), "info")
+    rfsuite.utils.log(string.format("[%s] RAM Free: %d kB", location, rfsuite.utils.round(snapshot.free, 0)), "info")
+    rfsuite.utils.log(string.format("[%s] RAM Used: %d kB", location, rfsuite.utils.round(snapshot.used, 0)), "info")
+    rfsuite.utils.log(string.format("[%s] Main stack available: %.2f KB", location, snapshot.main), "info")
+    rfsuite.utils.log(string.format("[%s] System RAM available: %.2f KB", location, snapshot.ram), "info")
+    rfsuite.utils.log(string.format("[%s] Lua RAM available: %.2f KB", location, snapshot.lua), "info")
+    rfsuite.utils.log(string.format("[%s] Lua Bitmap RAM available: %.2f KB", location, snapshot.bmp), "info")
 end
-
 
 
 
