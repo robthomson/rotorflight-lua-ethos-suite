@@ -1,11 +1,11 @@
 
 
-local i18n = rfsuite.i18n.get
+
 
 local S_PAGES = {
-    {name = i18n("app.modules.settings.txt_audio_events"), script = "audio_events.lua", image = "audio_events.png"},
-    {name = i18n("app.modules.settings.txt_audio_switches"), script = "audio_switches.lua", image = "audio_switches.png"},
-    {name = i18n("app.modules.settings.txt_audio_timer"), script = "audio_timer.lua", image = "audio_timer.png"},
+    {name = "@i18n(app.modules.settings.txt_audio_events)@", script = "audio_events.lua", image = "audio_events.png"},
+    {name = "@i18n(app.modules.settings.txt_audio_switches)@", script = "audio_switches.lua", image = "audio_switches.png"},
+    {name = "@i18n(app.modules.settings.txt_audio_timer)@", script = "audio_timer.lua", image = "audio_timer.png"},
 }
 
 local function openPage(pidx, title, script)
@@ -30,9 +30,6 @@ local function openPage(pidx, title, script)
         end
     end
 
-
-    ESC = {}
-
     -- size of buttons
     if rfsuite.preferences.general.iconsize == nil or rfsuite.preferences.general.iconsize == "" then
         rfsuite.preferences.general.iconsize = 1
@@ -50,11 +47,11 @@ local function openPage(pidx, title, script)
 
 
 
-    buttonW = 100
+    local buttonW = 100
     local x = windowWidth - buttonW - 10
 
     rfsuite.app.ui.fieldHeader(
-        i18n(i18n("app.modules.settings.name") .. " / " .. i18n("app.modules.settings.audio"))
+        "@i18n(app.modules.settings.name)@" .. " / " .. "@i18n(app.modules.settings.audio)@"
     )
 
     local buttonW
@@ -148,7 +145,7 @@ local function event(widget, category, value, x, y)
     if category == EVT_CLOSE and value == 0 or value == 35 then
         rfsuite.app.ui.openPage(
             pageIdx,
-            i18n("app.modules.settings.name"),
+            "@i18n(app.modules.settings.name)@",
             "settings/settings.lua"
         )
         return true
@@ -160,7 +157,7 @@ local function onNavMenu()
     rfsuite.app.ui.progressDisplay(nil,nil,true)
         rfsuite.app.ui.openPage(
             pageIdx,
-            i18n("app.modules.settings.name"),
+            "@i18n(app.modules.settings.name)@",
             "settings/settings.lua"
         )
         return true

@@ -20,7 +20,7 @@ local dashboard = {}  -- main namespace for all dashboard functionality
 
 -- cache some functions and variables for performance
 local compile = rfsuite.compiler.loadfile
-local i18n = rfsuite.i18n.get
+
 local baseDir = rfsuite.config.baseDir
 local preferences = rfsuite.config.preferences
 local utils = rfsuite.utils
@@ -384,12 +384,12 @@ function dashboard.computeOverlayMessage()
     -- 1) Theme load error (recent only)
     if dashboard.themeFallbackUsed and dashboard.themeFallbackUsed[state] and
        (os.clock() - (dashboard.themeFallbackTime and dashboard.themeFallbackTime[state] or 0)) < 10 then
-        return i18n("widgets.dashboard.theme_load_error")
+        return "@i18n(widgets.dashboard.theme_load_error)@"
     end
 
     -- 2) Background task
     if not tasks.active() then
-        return i18n("widgets.dashboard.check_bg_task")
+        return "@i18n(widgets.dashboard.check_bg_task)@"
     end    
   
     -- 3) As soon as we know RF version, show it with precedence
@@ -403,7 +403,7 @@ function dashboard.computeOverlayMessage()
 
     -- 4) LAST: generic waiting message (don’t let it mask actionable errors)
     if not rfsuite.session.isConnectedHigh and state ~= "postflight" then
-        return i18n("widgets.dashboard.waiting_for_connection")
+        return "@i18n(widgets.dashboard.waiting_for_connection)@"
     end
 
     return nil
@@ -757,43 +757,101 @@ function dashboard.renderLayout(widget, config)
     if layout.showstats or rfsuite.preferences.developer.overlaystats then
         local headerOffset = (isFullScreen and headerLayout and headerLayout.height) or 0
 
-        local cpuUsage = rfsuite.session and rfsuite.session.cpuload or 0
-        local ramUsage = rfsuite.session and rfsuite.session.freeram or 0
+        local cpuUsage = (rfsuite.performance and rfsuite.performance.cpuload) or 0
+        local ramFree  = (rfsuite.performance and rfsuite.performance.freeram) or 0
+        local ramUsed  = (rfsuite.performance and rfsuite.performance.usedram) or 0
+        local mainStackKB     = ((rfsuite.performance and rfsuite.performance.mainStackKB) or 0)
+        local ramKB           = ((rfsuite.performance and rfsuite.performance.ramKB) or 0)
+        local luaRamKB        = ((rfsuite.performance and rfsuite.performance.luaRamKB) or 0)
+        local luaBitmapsRamKB = ((rfsuite.performance and rfsuite.performance.luaBitmapsRamKB) or 0)
 
         lcd.font(FONT_S)
 
-        local cpuText = "CPU: " .. rfsuite.utils.round(cpuUsage, 0) .. "%"
-        local ramText = "RAM: " .. rfsuite.utils.round(ramUsage, 0) .. "kB"
+        -- ===== Config you can tune =====
+        local cfg = {
+            padX = 6, padY = 4,        -- box padding
+            colGap = 10, rowGap = 2,   -- gaps between columns/rows
+            labelW = 180,              -- widened for longer labels
+            valueW = 80,
+            unitW  = 30,
+            align = {                   -- per-column alignment: "left" | "right"
+                label = "left",
+                value = "right",
+                unit  = "left",
+            },
+            boxX = 4,                  -- box position (top-left)
+            boxY = 4 + headerOffset,
+            -- colors
+            bg = {0,0,0,0.9}, fg = {255,255,255},
+            border = true,
+            decimalsKB = 2,            -- how many decimals for KB values
+        }
+        -- =================================
 
-        -- measure widths
-        local cpuW, textH = lcd.getTextSize(cpuText)
-        local ramW, _     = lcd.getTextSize(ramText)
+        local function fmtInt(n)   return rfsuite.utils.round(n or 0, 0) end
+        local function fmtKB(n)    return string.format("%." .. tostring(cfg.decimalsKB) .. "f", n or 0) end
 
-        local padX, padY = 6, 4
-        local spacing    = 12  -- space between CPU and RAM
+        -- rows: label / value / unit
+        local rows = {
+            { "SCHEDULER CAPACITY",               fmtInt(cpuUsage),             "%"  },
+            { "LUA RAM FREE",          fmtInt(ramFree),              "kB" },
+            { "LUA RAM USED",          fmtInt(ramUsed),              "kB" },
+            { "SYSTEM RAM FREE",  fmtKB(ramKB),                 "KB" },
+            { "LUA BITMAP RAM",    fmtKB(luaBitmapsRamKB),       "KB" },
+        }
 
-        -- box dimensions
-        local boxW = cpuW + spacing + ramW + padX * 2
-        local boxH = textH + padY * 2
-        local boxX = 4
-        local boxY = 4 + headerOffset
+        -- measure row height from font
+        local _, textH = lcd.getTextSize("A")  -- any char, to get height
+
+        -- compute box size
+        local boxW = cfg.padX*2 + cfg.labelW + cfg.colGap + cfg.valueW + cfg.colGap + cfg.unitW
+        local boxH = cfg.padY*2 + (#rows * textH) + ((#rows-1) * cfg.rowGap)
+
+        -- center on screen, but respect headerOffset at top
+        local screenW, screenH = lcd.getWindowSize()
+        local boxX = math.floor((screenW - boxW) / 2)
+        local boxY = math.floor((screenH - boxH) / 2)
+        local minY = 4 + headerOffset
+        if boxY < minY then boxY = minY end
 
         -- draw background + border
-        lcd.color(lcd.RGB(0, 0, 0))
+        lcd.color(lcd.RGB(cfg.bg[1], cfg.bg[2], cfg.bg[3], cfg.bg[4]))
         lcd.drawFilledRectangle(boxX, boxY, boxW, boxH)
-        lcd.pen(1)
-        lcd.color(lcd.RGB(255, 255, 255))
-        lcd.drawRectangle(boxX, boxY, boxW, boxH)
-        lcd.pen(0)
+        if cfg.border then
+            lcd.pen(1)
+            lcd.color(lcd.RGB(cfg.fg[1], cfg.fg[2], cfg.fg[3]))
+            lcd.drawRectangle(boxX, boxY, boxW, boxH)
+            lcd.pen(0)
+        end
 
-        -- draw text inside box
-        local textY = boxY + padY
-        lcd.color(lcd.RGB(255, 255, 255))
-        lcd.drawText(boxX + padX, textY, cpuText)
-        lcd.drawText(boxX + padX + cpuW + spacing, textY, ramText)
+        -- column anchors
+        local labelX = boxX + cfg.padX
+        local valueX = labelX + cfg.labelW + cfg.colGap
+        local unitX  = valueX + cfg.valueW + cfg.colGap
+        local startY = boxY + cfg.padY
+
+        lcd.color(lcd.RGB(cfg.fg[1], cfg.fg[2], cfg.fg[3]))
+
+        local function drawCell(x, w, text, align, y)
+            local tw = 0
+            if text ~= nil then tw = (lcd.getTextSize(tostring(text))) end
+            if align == "right" then
+                lcd.drawText(x + w - tw, y, tostring(text))
+            else -- left/default
+                lcd.drawText(x, y, tostring(text))
+            end
+        end
+
+        -- draw rows
+        for i = 1, #rows do
+            local y = startY + (i-1) * (textH + cfg.rowGap)
+            local label, value, unit = rows[i][1], rows[i][2], rows[i][3]
+
+            drawCell(labelX, cfg.labelW, label, cfg.align.label, y)
+            drawCell(valueX, cfg.valueW, value, cfg.align.value, y)
+            drawCell(unitX,  cfg.unitW,  unit,  cfg.align.unit,  y)
+        end
     end
-
-
 
     -- Handle overlay messages
     if dashboard.overlayMessage then
@@ -943,6 +1001,9 @@ local function reload_state_only(state)
     objectsThreadedWakeupCount = 0
     objectWakeupsPerCycle = nil
     dashboard.boxRects = {}
+    if dashboard.boxRects then  
+        for k in pairs(dashboard.boxRects) do dashboard.boxRects[k] = nil end
+    end    
     lcd.invalidate()
 end
 
@@ -1036,7 +1097,9 @@ function dashboard.reload_themes(force)
 
     -- Reset rendering state explicitly
     dashboard._forceFullRepaint = true
-    dashboard.boxRects = {}
+    if dashboard.boxRects then  
+        for k in pairs(dashboard.boxRects) do dashboard.boxRects[k] = nil end
+    end    
     lastBoxRectsCount = 0
     lastLoadedBoxCount = 0
     objectWakeupIndex = 1
@@ -1132,9 +1195,9 @@ function dashboard.paint(widget)
         -- If the resolution is unsupported, show an error message and return
         local W, H = lcd.getWindowSize()
         if H < (system.getVersion().lcdHeight/5) or W < (system.getVersion().lcdWidth/10) then
-           dashboard.utils.screenError(i18n("widgets.dashboard.unsupported_resolution"), true, 0.4)
+           dashboard.utils.screenError("@i18n(widgets.dashboard.unsupported_resolution)@", true, 0.4)
         else
-            dashboard.overlaymessage(0, 0, W, H , i18n("widgets.dashboard.unsupported_resolution"))
+            dashboard.overlaymessage(0, 0, W, H , "@i18n(widgets.dashboard.unsupported_resolution)@")
         end     
         return
     end
@@ -1310,7 +1373,7 @@ end
 function dashboard.wakeup(widget)
 
     -- Check if MSP is allow msp to be prioritized
-    if rfsuite.app and rfsuite.app.triggers.mspBusy and not (rfsuite.session and rfsuite.session.isConnected) then return end
+    if rfsuite.session and rfsuite.session.mspBusy and not (rfsuite.session and rfsuite.session.isConnected) then return end
 
     objectProfiler = rfsuite.preferences and rfsuite.preferences.developer and rfsuite.preferences.developer.logobjprof
 
@@ -1611,14 +1674,14 @@ end
 function dashboard.resetFlightModeAsk()
 
     local buttons = {{
-        label = i18n("app.btn_ok"),
+        label = "@i18n(app.btn_ok)@",
         action = function()
             tasks.events.flightmode.reset()
             lcd.invalidate()
             return true
         end
     }, {
-        label = i18n("app.btn_cancel"),
+        label = "@i18n(app.btn_cancel)@",
         action = function()
             return true
         end
@@ -1626,8 +1689,8 @@ function dashboard.resetFlightModeAsk()
 
     form.openDialog({
         width = nil,
-        title =  i18n("widgets.dashboard.reset_flight_ask_title"),
-        message = i18n("widgets.dashboard.reset_flight_ask_text"),
+        title =  "@i18n(widgets.dashboard.reset_flight_ask_title)@",
+        message = "@i18n(widgets.dashboard.reset_flight_ask_text)@",
         buttons = buttons,
         wakeup = function()
         end,
@@ -1639,9 +1702,8 @@ function dashboard.resetFlightModeAsk()
 end    
 
 function dashboard.menu(widget)
-
     return {
-        {i18n("widgets.dashboard.reset_flight"), dashboard.resetFlightModeAsk},
+        {"@i18n(widgets.dashboard.reset_flight)@", dashboard.resetFlightModeAsk},
     }
 end
 

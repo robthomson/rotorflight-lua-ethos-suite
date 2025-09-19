@@ -293,6 +293,14 @@ end
 
 local lastWakeupTime = 0
 function msp.wakeup()
+
+    -- we cannot do anything until connected
+    if not rfsuite.session.isConnected then return end
+    if rfsuite.session.mspBusy then return end
+    if rfsuite.tasks and rfsuite.tasks.onconnect and rfsuite.tasks.onconnect.active and rfsuite.tasks.onconnect.active() then
+        return
+    end 
+
     msp.clock = os.clock()
 
     if firstWakeup then
