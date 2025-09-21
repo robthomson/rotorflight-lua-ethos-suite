@@ -73,6 +73,11 @@ local loadedStateModules = {}
 -- Counter used by wakeup to cycle through tasks
 local wakeupScheduler = 0
 
+-- Check model path aligns
+local lastModelPath = model.path()
+local lastModelPathCheckAt = 0
+local PATH_CHECK_INTERVAL = 1.0
+
 -- Spread scheduling of object wakeups to avoid doing them all at once:
 local objectWakeupIndex = 1             -- current object index for wakeup
 local objectWakeupsPerCycle = nil       -- number of objects to wake per cycle (calculated later)
@@ -1220,6 +1225,21 @@ function dashboard.paint(widget)
         return
     end
 
+        -- we must reset if model changes
+    if os.clock() - lastModelPathCheckAt >= PATH_CHECK_INTERVAL then
+        local newModelPath = model.path()
+        if newModelPath ~= lastModelPath then
+            lastModelPath = newModelPath
+            lastModelPathCheckAt = os.clock()
+
+            local W, H = lcd.getWindowSize()
+            local loaderY = (isFullScreen and headerLayout.height) or 0
+            dashboard.loader(0, loaderY, W, H - loaderY)
+            lcd.invalidate()  -- Ensures repaint while theme loads
+            return
+        end
+    end    
+
     local state = dashboard.flightmode or "preflight"
     local module = loadedStateModules[state]
 
@@ -1383,18 +1403,45 @@ function dashboard.wakeup(widget)
     -- Check if MSP is allow msp to be prioritized
     if rfsuite.session and rfsuite.session.mspBusy and not (rfsuite.session and rfsuite.session.isConnected) then return end
 
+    -- Quick exit if not visible or running admin app
+    local now = os.clock()
+    local visible = lcd.isVisible()
+    local admin = rfsuite.app and rfsuite.app.guiIsRunning 
+
+    -- Throttle CPU usage based on connection and visibility
+    if admin or not visible then
+        -- not visible or in admin 
+        return     
+    elseif isSliding then
+        -- check if sliding timeout expired
+        if (now - isSlidingStart) > 1 then
+            isSliding = false
+        else
+            return
+        end 
+    end
+
     objectProfiler = rfsuite.preferences and rfsuite.preferences.developer and rfsuite.preferences.developer.logobjprof
 
     local telemetry = tasks.telemetry
     local W, H = lcd.getWindowSize()
 
-    if not dashboard.utils.supportedResolution(W, H, supportedResolutions) then
-        unsupportedResolution = true
-        lcd.invalidate(widget)
-        return
-    else
-        unsupportedResolution = false
+    -- cache last window size + support result to avoid rework every wakeup
+    dashboard._lastWH = dashboard._lastWH or { w = nil, h = nil, supported = nil }
+
+    if W ~= dashboard._lastWH.w or H ~= dashboard._lastWH.h then
+        local supported = dashboard.utils.supportedResolution(W, H, supportedResolutions)
+        if supported ~= dashboard._lastWH.supported then
+            unsupportedResolution = not supported
+            dashboard._lastWH.supported = supported
+            -- Only invalidate on a state flip (supported <-> unsupported)
+            lcd.invalidate(widget)
+        end
+        dashboard._lastWH.w, dashboard._lastWH.h = W, H
     end
+
+    -- Early out if currently unsupported (no need to keep invalidating)
+    if unsupportedResolution then return end
 
     if lcd.darkMode() ~= darkModeState then
         darkModeState = lcd.darkMode()
@@ -1441,29 +1488,6 @@ function dashboard.wakeup(widget)
             dashboard.reload_themes()
             firstWakeupCustomTheme = false
         end
-    end
-
-    local now = os.clock()
-    local visible = lcd.isVisible()
-    local admin = rfsuite.app and rfsuite.app.guiIsRunning 
-
-    -- Throttle CPU usage based on connection and visibility
-    if not rfsuite.session.isConnected then
-        -- if not connected, then poll every 1 second
-        if (now - lastWakeup) < 1 then return end
-    elseif isSliding then
-        -- check if sliding timeout expired
-        if (now - isSlidingStart) > 1 then
-            isSliding = false
-        else
-            return
-        end
-    elseif admin or not visible then
-        -- if admin app is running or quick return
-        return 
-    else
-        -- default rate limit of 0.05s (50% of clock speed)
-        if (now - lastWakeup) < 0.05 then return end   
     end
 
     local currentFlightMode = rfsuite.flightmode.current or "preflight"
