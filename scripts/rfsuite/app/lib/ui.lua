@@ -57,7 +57,7 @@ function ui.progressDisplay(title, message, speed)
                     app.dialogs.progressDisplay = false
                     app.dialogs.progressCounter = 0
                     app.triggers.closeProgressLoader = false
-                    collectgarbage('collect')
+                    ---collectgarbage('collect')
                 end
             elseif app.triggers.closeProgressLoader and app.triggers.closeProgressLoaderNoisProcessed then
                 app.dialogs.progressCounter = app.dialogs.progressCounter + (15 * mult)
@@ -68,7 +68,7 @@ function ui.progressDisplay(title, message, speed)
                     app.triggers.closeProgressLoader = false
                     app.dialogs.progressSpeed = false
                     app.triggers.closeProgressLoaderNoisProcessed = false
-                    collectgarbage('collect')
+                    ---collectgarbage('collect')
                 end
             end
 
@@ -91,7 +91,7 @@ function ui.progressDisplay(title, message, speed)
                     app.dialogs.progressDisplay = false
                     app.dialogs.progressCounter = 0
                     app.dialogs.progressSpeed = false
-                    collectgarbage('collect')
+                    ---collectgarbage('collect')
                 end
             end
 
@@ -137,7 +137,7 @@ function ui.progressDisplaySave(message)
                     app.dialogs.saveDisplay = false
                     app.dialogs.saveWatchDog = nil
                     app.dialogs.save:close()
-                    collectgarbage('collect')
+                    ---collectgarbage('collect')
                 end
             elseif tasks.msp.mspQueue:isProcessed() then
                 app.dialogs.saveProgressCounter = app.dialogs.saveProgressCounter + 15
@@ -147,7 +147,7 @@ function ui.progressDisplaySave(message)
                     app.dialogs.saveProgressCounter = 0
                     app.triggers.closeSave = false
                     app.triggers.isSaving = false
-                    collectgarbage('collect')
+                    ---collectgarbage('collect')
                 end
             else
                 app.dialogs.saveProgressCounter = app.dialogs.saveProgressCounter + 2
@@ -165,7 +165,7 @@ function ui.progressDisplaySave(message)
                 app.triggers.isSaving = false
                 app.Page = app.PageTmp
                 app.PageTmp = nil
-                collectgarbage('collect')
+                ---collectgarbage('collect')
             end
         end
     })
@@ -353,6 +353,7 @@ function ui.openMainMenu()
     utils.reportMemoryUsage("app.openMainMenu", "end")
 
     collectgarbage('collect')
+    collectgarbage('collect')
 end
 
 function ui.openMainMenuSub(activesection)
@@ -486,6 +487,7 @@ function ui.openMainMenuSub(activesection)
 
     utils.reportMemoryUsage("app.openMainMenuSub", "end")
 
+    collectgarbage('collect')
     collectgarbage('collect')
 end
 
@@ -1200,7 +1202,7 @@ function ui.openPage(idx, title, script, extra1, extra2, extra3, extra5, extra6)
         utils.reportMemoryUsage("app.Page.openPage: " .. script, "start")
 
         app.Page.openPage(idx, title, script, extra1, extra2, extra3, extra5, extra6)
-
+        collectgarbage('collect')
         utils.reportMemoryUsage("app.Page.openPage: " .. script, "end")
         return
     end
@@ -1265,6 +1267,7 @@ function ui.openPage(idx, title, script, extra1, extra2, extra3, extra5, extra6)
 
     utils.reportMemoryUsage("ui.openPage: " .. script, "end")
 
+    collectgarbage('collect')
     collectgarbage('collect')
 end
 
@@ -1664,8 +1667,8 @@ function ui.requestPage()
                     app.triggers.closeProgressLoader = true
                 end
                 checkForUnresolvedTimeouts()
-                collectgarbage('collect')
-                collectgarbage('collect')
+                ---collectgarbage('collect')
+                ---collectgarbage('collect')
             end
             return
         end
@@ -1729,7 +1732,7 @@ function ui.requestPage()
             app.Page.apidata.retryCount[apiKey] = 0
             state.currentIndex = state.currentIndex + 1
             API = nil
-            collectgarbage('collect')
+            ---collectgarbage('collect')
             tasks.callback.inSeconds(0.5, processNextAPI)
         end)
 
@@ -1743,7 +1746,7 @@ function ui.requestPage()
             retryCount = retryCount + 1
             app.Page.apidata.retryCount[apiKey] = retryCount
             API = nil
-            collectgarbage('collect')            
+            ---collectgarbage('collect')            
             if retryCount < 3 then
                 log("[ERROR] API: " .. apiKey .. " failed (Retry " .. retryCount .. "): " .. tostring(err), "warning")
                 tasks.callback.inSeconds(0.5, processNextAPI)
@@ -1796,7 +1799,7 @@ function ui.saveSettings()
             completedRequests = completedRequests + 1
             log("API " .. apiNAME .. " write complete", "debug")
             API = nil
-            collectgarbage('collect')
+            ---collectgarbage('collect')
             if completedRequests == totalRequests then
                 log("All API requests have been completed!", "debug")
                 if app.Page.postSave then app.Page.postSave(app.Page) end

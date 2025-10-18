@@ -113,7 +113,7 @@ function logging.flushLogs()
         logging.writeLogs(true)
         logFileName, logHeader = nil, nil
         logdir = nil
-        collectgarbage()
+        ---collectgarbage()
     end
 end
 

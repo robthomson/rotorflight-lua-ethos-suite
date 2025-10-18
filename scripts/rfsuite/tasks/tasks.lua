@@ -383,11 +383,11 @@ function tasks.wakeup()
                                 profRecord(task, dur)
                                 if not ok then
                                     print(("Error in task %q wakeup: %s"):format(task.name, err))
-                                    collectgarbage("collect")
+                                    ---collectgarbage("collect")
                                 end
                             elseif not ok then
                                 print(("Error in task %q wakeup: %s"):format(task.name, err))
-                                collectgarbage("collect")
+                                ---collectgarbage("collect")
                             end
                         end
                         task.last_run = now
@@ -435,7 +435,7 @@ function tasks.wakeup()
                 if profWanted(task.name) then profRecord(task, dur) end
                 if not ok then
                     print(("Error in task %q wakeup (must-run): %s"):format(task.name, err))
-                    collectgarbage("collect")
+                    ---collectgarbage("collect")
                 end
             end
             task.last_run = now
@@ -453,7 +453,7 @@ function tasks.wakeup()
                 if profWanted(task.name) then profRecord(task, dur) end
                 if not ok then
                     print(("Error in task %q wakeup: %s"):format(task.name, err))
-                    collectgarbage("collect")
+                    ---collectgarbage("collect")
                 end
             end
             task.last_run = now
@@ -649,8 +649,8 @@ function tasks.reload(name)
 
     tasks.unload(name)
 
-    collectgarbage("collect")
-    collectgarbage("collect")
+    ---collectgarbage("collect")
+    ---collectgarbage("collect")
 
     local meta = tasks._initMetadata and tasks._initMetadata[name] or nil
 

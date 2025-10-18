@@ -246,8 +246,8 @@ function app.close()
 
     rfsuite.tasks.msp.api.resetApidata()
 
-    collectgarbage()
-    collectgarbage()
+    ---collectgarbage()
+    ---collectgarbage()
 
     rfsuite.utils.reportMemoryUsage("app.close", "end")
 

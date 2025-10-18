@@ -140,7 +140,7 @@ local function openPage(pidx, title, script)
     end
 
     rfsuite.app.triggers.closeProgressLoader = true
-    collectgarbage()
+    ---collectgarbage()
     return
 end
 

@@ -119,8 +119,8 @@ function apiLoader.resetApidata()
     
     apiLoader.apidata = {} 
 
-    collectgarbage()
-    collectgarbage()
+    ---collectgarbage()
+    ---collectgarbage()
 end
 
 apiLoader.apidata = {}

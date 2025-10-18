@@ -229,7 +229,7 @@ local function openPage(pidx, title, script)
 
     rfsuite.app.triggers.escToolEnableButtons = false
 
-    collectgarbage()
+    ---collectgarbage()
 end
 
 local function wakeup()

@@ -185,7 +185,7 @@ local function ensureElrsMap()
     end
 
     if rfsuite and rfsuite.tasks and rfsuite.tasks.sensors then rfsuite.tasks.sensors.sid = nil end
-    collectgarbage("collect")
+    ---collectgarbage("collect")
 
     _elrsMapBuilt = true
 end
@@ -209,7 +209,7 @@ function elrs.setFblSensors(list)
         end
 
         if rfsuite and rfsuite.tasks and rfsuite.tasks.sensors then rfsuite.tasks.sensors.sid = nil end
-        collectgarbage("collect")
+        ---collectgarbage("collect")
     end
 end
 

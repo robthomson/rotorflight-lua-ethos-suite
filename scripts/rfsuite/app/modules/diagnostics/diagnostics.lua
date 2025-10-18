@@ -147,7 +147,7 @@ local function openPage(pidx, title, script)
     end
 
     app.triggers.closeProgressLoader = true
-    collectgarbage()
+    ---collectgarbage()
     return
 end
 
