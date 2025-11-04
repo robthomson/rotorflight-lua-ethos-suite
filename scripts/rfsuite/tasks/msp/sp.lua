@@ -13,13 +13,23 @@ local FPORT_REMOTE_SENSOR_ID = 0x00
 local REQUEST_FRAME_ID = 0x30
 local REPLY_FRAME_ID = 0x32
 
+local v2_inflight = false
+local v2_remaining = 0
+local v2_req = nil
+local v2_seq = nil
+local function v2_get_seq(st) return st & 0x0F end
+
 local lastSensorId, lastFrameId, lastDataId, lastValue
 
 local sensor
 
-function transport.sportTelemetryPush(sensorId, frameId, dataId, value) 
+local function _isInboundReply(sensorId, frameId) return (sensorId == SPORT_REMOTE_SENSOR_ID or sensorId == FPORT_REMOTE_SENSOR_ID) and frameId == REPLY_FRAME_ID end
+
+local function _map_subframe(dataId, value) return {dataId & 0xFF, (dataId >> 8) & 0xFF, value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF, (value >> 24) & 0xFF} end
+
+function transport.sportTelemetryPush(sensorId, frameId, dataId, value)
     if not sensor then sensor = sport.getSensor({primId = 0x32}) end
-    return sensor:pushFrame({physId = sensorId, primId = frameId, appId = dataId, value = value}) 
+    return sensor:pushFrame({physId = sensorId, primId = frameId, appId = dataId, value = value})
 end
 
 function transport.sportTelemetryPop()
@@ -48,23 +58,44 @@ local lastSensorId, lastFrameId, lastDataId, lastValue = nil, nil, nil, nil
 
 local function sportTelemetryPop()
     local sensorId, frameId, dataId, value = transport.sportTelemetryPop()
-
-    if sensorId and not (sensorId == lastSensorId and frameId == lastFrameId and dataId == lastDataId and value == lastValue) then
-        lastSensorId, lastFrameId, lastDataId, lastValue = sensorId, frameId, dataId, value
-        return sensorId, frameId, dataId, value
-    end
-
-    return nil
+    return sensorId, frameId, dataId, value
 end
 
 transport.mspPoll = function()
-    local sensorId, frameId, dataId, value = sportTelemetryPop()
+    while true do
+        local sensorId, frameId, dataId, value = sportTelemetryPop()
+        if not sensorId then return nil end
 
-    if not sensorId then return nil end
+        if not ((sensorId == SPORT_REMOTE_SENSOR_ID or sensorId == FPORT_REMOTE_SENSOR_ID) and frameId == REPLY_FRAME_ID) then goto continue end
 
-    if (sensorId == SPORT_REMOTE_SENSOR_ID or sensorId == FPORT_REMOTE_SENSOR_ID) and frameId == REPLY_FRAME_ID then return {dataId & 0xFF, (dataId >> 8) & 0xFF, value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF, (value >> 24) & 0xFF} end
+        local status = dataId & 0xFF
+        local app_hi = (dataId >> 8) & 0xFF
+        local b0 = value & 0xFF
+        local b1 = (value >> 8) & 0xFF
+        local b2 = (value >> 16) & 0xFF
+        local b3 = (value >> 24) & 0xFF
 
-    return nil
+        local pv = (rfsuite and rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.common and rfsuite.tasks.msp.common.getProtocolVersion) and rfsuite.tasks.msp.common.getProtocolVersion() or 1
+
+        if pv == 2 then
+            local isStart = (status & 0x10) ~= 0
+            if isStart then
+
+                local out = {status, app_hi, b0, b1, b2, b3}
+                return out
+            else
+
+                local out = {status, app_hi, b0, b1, b2, b3}
+                return out
+            end
+        else
+
+            local out = {status, app_hi, b0, b1, b2, b3}
+            return out
+        end
+
+        ::continue::
+    end
 end
 
 return transport
