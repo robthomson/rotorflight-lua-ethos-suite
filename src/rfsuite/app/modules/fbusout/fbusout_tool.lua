@@ -11,8 +11,8 @@ local currentProfileChecked = false
 local firstLoad = true
 local minMaxIndex = 1
 
-local ch = rfsuite.currentSbusServoIndex
-local ch_str = "@i18n(app.modules.sbusout.ch_prefix)@" .. tostring(ch + 1)
+local ch = rfsuite.currentFbusServoIndex
+local ch_str = "@i18n(app.modules.fbusout.ch_prefix)@" .. tostring(ch + 1)
 local offset = 6 * ch
 
 local servoCount = rfsuite.session.servoCount or 6
@@ -28,26 +28,26 @@ minmax[4] = {min = 0, max = 1000, sourceMax = motorCount, defaultMin = 0, defaul
 local enableWakeup = false
 
 local apidata = {
-    api = {[1] = "SBUS_OUTPUT_CONFIG"},
+    api = {[1] = "FBUS_MASTER_CONFIG"},
     formdata = {
         labels = {},
         fields = {
-            {t = "@i18n(app.modules.sbusout.type)@", min = 0, max = 16, mspapi = 1, apikey = "Type_" .. ch + 1, table = {[0] = "@i18n(app.modules.sbusout.receiver)@", "@i18n(app.modules.sbusout.mixer)@", "@i18n(app.modules.sbusout.servo)@", "@i18n(app.modules.sbusout.motor)@"}, postEdit = function(self) self.setMinMaxIndex(self, true) end}, 
-            {t = "@i18n(app.modules.sbusout.source)@", min = 0, max = 15, mspapi = 1, apikey = "Index_" .. ch + 1, help = "sbusOutSource"},
-            {t = "@i18n(app.modules.sbusout.min)@", min = -2000, max = 2000, mspapi = 1, apikey = "RangeLow_" .. ch + 1, help = "sbusOutMin"}, {t = "@i18n(app.modules.sbusout.max)@", min = -2000, max = 2000, mspapi = 1, apikey = "RangeHigh_" .. ch + 1, help = "sbusOutMax"}
+            {t = "@i18n(app.modules.fbusout.type)@", min = 0, max = 16, mspapi = 1, apikey = "Type_" .. ch + 1, table = {[0] = "@i18n(app.modules.fbusout.receiver)@", "@i18n(app.modules.fbusout.mixer)@", "@i18n(app.modules.fbusout.servo)@", "@i18n(app.modules.fbusout.motor)@"}, postEdit = function(self) self.setMinMaxIndex(self, true) end}, 
+            {t = "@i18n(app.modules.fbusout.source)@", min = 0, max = 15, mspapi = 1, apikey = "Index_" .. ch + 1, help = "fbusOutSource"},
+            {t = "@i18n(app.modules.fbusout.min)@", min = -2000, max = 2000, mspapi = 1, apikey = "RangeLow_" .. ch + 1, help = "fbusOutMin"}, {t = "@i18n(app.modules.fbusout.max)@", min = -2000, max = 2000, mspapi = 1, apikey = "RangeHigh_" .. ch + 1, help = "fbusOutMax"}
         }
     }
 }
 
 local function saveServoSettings(self)
 
-    local mixIndex = rfsuite.currentSbusServoIndex
+    local mixIndex = rfsuite.currentFbusServoIndex
     local mixType = math.floor(rfsuite.app.Page.apidata.formdata.fields[1].value)
     local mixSource = math.floor(rfsuite.app.Page.apidata.formdata.fields[2].value)
     local mixMin = math.floor(rfsuite.app.Page.apidata.formdata.fields[3].value)
     local mixMax = math.floor(rfsuite.app.Page.apidata.formdata.fields[4].value)
 
-    local message = {command = 153, payload = {}, processReply = function() end}
+    local message = {command = 157, payload = {}, processReply = function() end}
     rfsuite.tasks.msp.mspHelper.writeU8(message.payload, mixIndex)
     rfsuite.tasks.msp.mspHelper.writeU8(message.payload, mixType)
     rfsuite.tasks.msp.mspHelper.writeU8(message.payload, mixSource)
@@ -55,11 +55,11 @@ local function saveServoSettings(self)
     rfsuite.tasks.msp.mspHelper.writeS16(message.payload, mixMax)
 
     rfsuite.tasks.msp.mspQueue:add(message)
-
+    
 end
 
 local function onSaveMenuProgress()
-    rfsuite.app.ui.progressDisplay("@i18n(app.modules.sbusout.saving)@", "@i18n(app.modules.sbusout.saving_data)@")
+    rfsuite.app.ui.progressDisplay("@i18n(app.modules.fbusout.saving)@", "@i18n(app.modules.fbusout.saving_data)@")
     saveServoSettings()
     rfsuite.app.triggers.isReady = true
     rfsuite.app.triggers.closeProgressLoader = true
@@ -94,7 +94,7 @@ end
 local function onNavMenu(self)
 
     rfsuite.app.ui.progressDisplay()
-    rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "sbusout/sbusout.lua")
+    rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "fbusout/fbusout.lua")
 
 end
 
@@ -102,7 +102,7 @@ local function event(widget, category, value, x, y)
 
     if category == EVT_CLOSE and value == 0 or value == 35 then
         rfsuite.app.ui.progressDisplay()
-        rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "sbusout/sbusout.lua")
+        rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "fbusout/fbusout.lua")
         return true
     end
 
@@ -117,10 +117,10 @@ local function onSaveMenu()
 
                 return true
             end
-        }, {label = "@i18n(app.modules.sbusout.cancel)@", action = function() return true end}
+        }, {label = "@i18n(app.modules.fbusout.cancel)@", action = function() return true end}
     }
-    local theTitle = "@i18n(app.modules.sbusout.save_settings)@"
-    local theMsg = "@i18n(app.modules.sbusout.save_prompt)@"
+    local theTitle = "@i18n(app.modules.fbusout.save_settings)@"
+    local theMsg = "@i18n(app.modules.fbusout.save_prompt)@"
 
     form.openDialog({width = nil, title = theTitle, message = theMsg, buttons = buttons, wakeup = function() end, paint = function() end, options = TEXT_LEFT})
 
