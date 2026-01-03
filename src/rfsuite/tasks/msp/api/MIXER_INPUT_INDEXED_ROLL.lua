@@ -6,15 +6,35 @@
 local rfsuite = require("rfsuite")
 local core = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/msp/api_core.lua"))()
 
-local API_NAME = "EEPROM_WRITE"
-local MSP_API_CMD_READ = nil
-local MSP_API_CMD_WRITE = 250
+local API_NAME = "MIXER_INPUT_INDEXED_ROLL"
+local MSP_API_CMD_READ = 170
+local MSP_API_CMD_WRITE = 171
 local MSP_REBUILD_ON_WRITE = true
-local MSP_API_SIMULATOR_RESPONSE = {}
-local MSP_MIN_BYTES = 0
 
-local MSP_API_STRUCTURE_READ = {}
-local MSP_API_STRUCTURE_WRITE = {}
+local FIXED_INDEX = 1
+
+-- LuaFormatter off
+local MSP_API_STRUCTURE_READ_DATA = {
+    { field = "rate", type = "U16", apiVersion = 12.09, simResponse = { 250, 0 }, tableEthos = { [1] = { "@i18n(api.MIXER_INPUT.tbl_normal)@",   250 }, [2] = { "@i18n(api.MIXER_INPUT.tbl_reversed)@", 65286 },}},
+    { field = "min",  type = "U16", apiVersion = 12.09, simResponse = { 30, 251 } },
+    { field = "max",  type = "U16", apiVersion = 12.09, simResponse = { 226, 4 } },
+}
+
+-- LuaFormatter on
+
+local MSP_API_STRUCTURE_READ, MSP_MIN_BYTES, MSP_API_SIMULATOR_RESPONSE = core.prepareStructureData(MSP_API_STRUCTURE_READ_DATA)
+
+-- LuaFormatter off
+local MSP_API_STRUCTURE_WRITE = {
+    -- mixer input index
+    { field = "index", type = "U8" },
+
+    -- mixer input values
+    { field = "rate",  type = "U16" },
+    { field = "min",   type = "U16" },
+    { field = "max",   type = "U16" },
+}
+-- LuaFormatter on
 
 local mspData = nil
 local mspWriteComplete = false
@@ -69,7 +89,20 @@ local function read()
         return
     end
 
-    local message = {isWrite = false, command = MSP_API_CMD_READ, structure = MSP_API_STRUCTURE_READ, minBytes = MSP_MIN_BYTES, processReply = processReplyStaticRead, errorHandler = errorHandlerStatic, simulatorResponse = MSP_API_SIMULATOR_RESPONSE, uuid = MSP_API_UUID, timeout = MSP_API_MSG_TIMEOUT, getCompleteHandler = handlers.getCompleteHandler, getErrorHandler = handlers.getErrorHandler, mspData = nil}
+    local message = {
+        command = MSP_API_CMD_READ,
+        payload = { FIXED_INDEX }, 
+        structure = MSP_API_STRUCTURE_READ,
+        minBytes = MSP_MIN_BYTES,
+        processReply = processReplyStaticRead,
+        errorHandler = errorHandlerStatic,
+        simulatorResponse = MSP_API_SIMULATOR_RESPONSE,
+        uuid = (MSP_API_UUID or API_NAME) .. FIXED_INDEX,
+        timeout = MSP_API_MSG_TIMEOUT,
+        getCompleteHandler = handlers.getCompleteHandler,
+        getErrorHandler = handlers.getErrorHandler,
+        mspData = nil
+    }
     rfsuite.tasks.msp.mspQueue:add(message)
 end
 
@@ -79,12 +112,29 @@ local function write(suppliedPayload)
         return
     end
 
-    local payload = suppliedPayload or core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, MSP_REBUILD_ON_WRITE)
+    local v = {
+        index = FIXED_INDEX,
+        rate  = (payloadData.rate ~= nil) and payloadData.rate or curRate,
+        min   = (payloadData.min  ~= nil) and payloadData.min  or curMin,
+        max   = (payloadData.max  ~= nil) and payloadData.max  or curMax,
+    }
+
+    local payload = core.buildFullPayload(API_NAME, v, MSP_API_STRUCTURE_WRITE)
 
     local uuid = MSP_API_UUID or rfsuite.utils and rfsuite.utils.uuid and rfsuite.utils.uuid() or tostring(os.clock())
-    lastWriteUUID = uuid
+    lastWriteUUID = uuid .. FIXED_INDEX
 
-    local message = {isWrite = true, command = MSP_API_CMD_WRITE, payload = payload, processReply = processReplyStaticWrite, errorHandler = errorHandlerStatic, simulatorResponse = {}, uuid = uuid, timeout = MSP_API_MSG_TIMEOUT, getCompleteHandler = handlers.getCompleteHandler, getErrorHandler = handlers.getErrorHandler}
+    local message = {
+        command = MSP_API_CMD_WRITE,
+        payload = payload,
+        processReply = processReplyStaticWrite,
+        errorHandler = errorHandlerStatic,
+        simulatorResponse = {},
+        uuid = (MSP_API_UUID or API_NAME) .. FIXED_INDEX,
+        timeout = MSP_API_MSG_TIMEOUT,
+        getCompleteHandler = handlers.getCompleteHandler,
+        getErrorHandler = handlers.getErrorHandler
+    }
 
     rfsuite.tasks.msp.mspQueue:add(message)
 end
