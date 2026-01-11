@@ -191,112 +191,6 @@ local function renderOverlayText(dashboard, cx, cy, innerR, fg)
     end
 end
 
-function loaders.staticLoader(dashboard, x, y, w, h)
-
-    local cx, cy = x + w / 2, y + h / 2
-    local radius = math.min(w, h) * (dashboard.loaderScale or 0.3)
-    local thickness = math.max(6, radius * 0.15)
-
-    local r, g, b = lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0
-    lcd.color(lcd.RGB(r, g, b, 1.0))
-
-    if lcd.drawFilledCircle then
-        lcd.drawFilledCircle(cx, cy, radius)
-        lcd.color(lcd.darkMode() and lcd.RGB(0, 0, 0, 1.0) or lcd.RGB(0, 0, 0, 1.0))
-        lcd.drawFilledCircle(cx, cy, radius - thickness)
-    end
-
-    drawLogoImage(cx, cy, w, h, 0.50)
-
-    dashboard._dots_index = dashboard._dots_index or 1
-    dashboard._dots_time = dashboard._dots_time or os.clock()
-    if os.clock() - dashboard._dots_time > 0.5 then
-        dashboard._dots_time = os.clock()
-        dashboard._dots_index = (dashboard._dots_index % 3) + 1
-    end
-
-    local dotRadius = 4
-    local spacing = 3 * dotRadius
-    local startX = cx - spacing
-    local yPos = cy + (radius - thickness / 2) / 2
-
-    for i = 1, 3 do
-        if i == dashboard._dots_index then
-            lcd.color(lcd.darkMode() and lcd.RGB(255, 255, 255) or lcd.RGB(0, 0, 0))
-        else
-            lcd.color(lcd.darkMode() and lcd.RGB(80, 80, 80) or lcd.RGB(180, 180, 180))
-        end
-        lcd.drawFilledCircle(startX + (i - 1) * spacing, yPos, dotRadius)
-    end
-
-end
-
-function loaders.staticOverlayMessage(dashboard, x, y, w, h, txt)
-    dashboard._overlay_cycles_required = dashboard._overlay_cycles_required or math.ceil(5 / (dashboard.paint_interval or 0.5))
-    dashboard._overlay_cycles = dashboard._overlay_cycles or 0
-
-    if txt and txt ~= "" then
-        dashboard._overlay_text = txt
-        dashboard._overlay_cycles = dashboard._overlay_cycles_required
-    end
-
-    if dashboard._overlay_cycles <= 0 then return end
-    dashboard._overlay_cycles = dashboard._overlay_cycles - 1
-
-    local fg = lcd.darkMode() and lcd.RGB(255, 255, 255) or lcd.RGB(255, 255, 255)
-    local bg = lcd.darkMode() and lcd.RGB(0, 0, 0, 1.0) or lcd.RGB(255, 255, 255, 1.0)
-
-    local cx, cy = x + w / 2, y + h / 2
-    local radius = math.min(w, h) * (dashboard.overlayScale or 0.35)
-    local thickness = math.max(6, radius * 0.15)
-    local innerR = radius - (thickness / 2) - 1
-
-    drawOverlayBackground(cx, cy, innerR, bg)
-
-    local r, g, b = lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0
-    lcd.color(lcd.RGB(r, g, b, 1.0))
-    if lcd.drawFilledCircle then
-        lcd.drawFilledCircle(cx, cy, radius)
-        lcd.color(lcd.darkMode() and lcd.RGB(0, 0, 0, 1.0) or lcd.RGB(0, 0, 0, 1.0))
-        lcd.drawFilledCircle(cx, cy, radius - thickness)
-    end
-
-    -- Keep Rotorflight logo visible inside the ring
-    drawLogoImage(cx, cy, radius * 2, radius * 2, 0.50)
-
-    dashboard._dots_index = dashboard._dots_index or 1
-    dashboard._dots_time = dashboard._dots_time or os.clock()
-    if os.clock() - dashboard._dots_time > 0.5 then
-        dashboard._dots_time = os.clock()
-        dashboard._dots_index = (dashboard._dots_index % 3) + 1
-    end
-
-    local dotRadius = 4
-    local spacing = 3 * dotRadius
-    local startX = cx - spacing
-    local yPos = cy + (radius - thickness / 2) / 2
-
-    for i = 1, 3 do
-        if i == dashboard._dots_index then
-            lcd.color(lcd.darkMode() and lcd.RGB(255, 255, 255) or lcd.RGB(0, 0, 0))
-        else
-            lcd.color(lcd.darkMode() and lcd.RGB(80, 80, 80) or lcd.RGB(180, 180, 180))
-        end
-        lcd.drawFilledCircle(startX + (i - 1) * spacing, yPos, dotRadius)
-    end
-
-    renderOverlayText(dashboard, cx, cy, innerR, fg)
-end
-
--- A clean "traditional" loader panel:
--- big rounded box, bold frame, logo on the left, console log on the right, and 3 dots.
---
--- Usage:
---   loaders.logsLoader(dashboard, x, y, w, h, linesSrc[, opts])
--- Where linesSrc can be:
---   * function(maxLines)->{...}
---   * table array of strings
---   * object with :getLines(maxLines)
 function loaders.logsLoader(dashboard, x, y, w, h, linesSrc, opts)
     opts = opts or {}
 
@@ -314,8 +208,15 @@ function loaders.logsLoader(dashboard, x, y, w, h, linesSrc, opts)
     local cornerR = opts.cornerR or math.floor(math.min(panelW, panelH) * 0.14)
 
     -- Frame like the circle: bright outer, dark inner.
-    local outer = lcd.darkMode() and lcd.RGB(255, 255, 255, 1.0) or lcd.RGB(0, 0, 0, 1.0)
-    local inner = lcd.RGB(0, 0, 0, 1.0)
+    local isDark = lcd.darkMode()
+
+    local outer = isDark
+        and lcd.RGB(255, 255, 255, 1.0)
+        or  lcd.RGB(0,   0,   0,   1.0)
+
+    local inner = isDark
+        and lcd.RGB(0,   0,   0,   1.0)
+        or  lcd.RGB(128, 128, 128, 1.0)
 
     -- Outer frame
     lcd.color(outer)
@@ -383,7 +284,10 @@ function loaders.logsLoader(dashboard, x, y, w, h, linesSrc, opts)
     -- Bottom side: log lines
     local fonts = dashboard.utils and dashboard.utils.getFontListsForResolution and dashboard.utils.getFontListsForResolution()
     fonts = (fonts and fonts.value_default) or {FONT_S, FONT_XS, FONT_XXS}
-    lcd.color(lcd.RGB(255, 255, 255, 1.0))
+    lcd.color(isDark
+        and lcd.RGB(255, 255, 255, 1.0)
+        or  lcd.RGB(0,   0,   0,   1.0)
+    )
 
     -- Prefer the smaller fonts so we get more lines in the console area.
     local chosenFont = fonts[#fonts] or FONT_XS
