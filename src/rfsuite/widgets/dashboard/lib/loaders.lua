@@ -7,6 +7,93 @@ local rfsuite = require("rfsuite")
 
 local loaders = {}
 
+local function fmtRadioLinkType()
+
+
+    local currentSensor
+    local currentModuleId 
+    local currentModuleNumber 
+    local currentTelemetryType 
+    local rf
+
+    local internalModule = model.getModule(0)   
+    local externalModule = model.getModule(1)
+
+    if internalModule and internalModule:enable() then
+        currentSensor = system.getSource({appId = 0xF101})
+        currentModuleId = internalModule
+        currentModuleNumber = 0
+        currentTelemetryType = "sport"
+    elseif externalModule and externalModule:enable() then
+        currentSensor = system.getSource({crsfId = 0x14, subIdStart = 0, subIdEnd = 1})
+        currentModuleId = externalModule
+        currentTelemetryType = "crsf"
+        currentModuleNumber = 1
+        if not currentSensor then
+            currentSensor = system.getSource({appId = 0xF101})
+            currentTelemetryType = "sport"
+        end
+    else    
+        currentSensor = nil
+        currentModuleId = nil
+        currentModuleNumber = -1
+        currentTelemetryType = "none"
+    end
+
+
+    -- Determine RF link type string
+    
+    if currentModuleNumber == -1 then
+        return "RF Module Disabled"
+    elseif currentModuleNumber == 0 and currentSensor == nil then 
+         rf = "Int. No Telemetry"  
+    elseif currentModuleNumber == 1 and currentSensor == nil then 
+         rf = "Ext. No Telemetry"     
+    elseif currentModuleNumber == 0 and currentTelemetryType == "sport" then
+         rf = "Int. FBUS/F.PORT/S.PORT"
+    elseif currentModuleNumber == 1 and currentTelemetryType == "sport" then
+         rf = "Ext. FBUS/F.PORT/S.PORT"  
+    elseif currentModuleNumber == 1 and currentTelemetryType == "crsf" then 
+         rf = "Ext. CRSF"    
+    else
+         rf = "Unknown RF Link"      
+    end
+
+    return rf
+
+end
+
+local function fmtRfsuiteVersion()
+    local v = rfsuite and rfsuite.config and rfsuite.config.version
+    if type(v) ~= "table" then return "rfsuite ?" end
+    local major = tonumber(v.major) or 0
+    local minor = tonumber(v.minor) or 0
+    local rev   = tonumber(v.revision) or 0
+    local sfx   = v.suffix
+    local base = string.format("RFSUITE %d.%d.%d", major, minor, rev)
+    if sfx and sfx ~= "" then
+        base = base .. "-" .. tostring(sfx)
+    end
+    return base
+end
+
+local function fmtEthosVersion()
+    if not system or type(system.getVersion) ~= "function" then return "Ethos ?" end
+    local ok, info = pcall(system.getVersion)
+    if not ok or type(info) ~= "table" then return "Ethos ?" end
+    local board = info.board or "Ethos"
+    -- Prefer the full version string if present
+    local ver = info.version
+    if not ver or ver == "" then
+        local major = tonumber(info.major) or 0
+        local minor = tonumber(info.minor) or 0
+        local rev   = tonumber(info.revision) or 0
+        ver = string.format("%d.%d.%d", major, minor, rev)
+        if info.suffix and info.suffix ~= "" then ver = ver .. "-" .. tostring(info.suffix) end
+    end
+    return string.format("%s %s", tostring(board), tostring(ver))
+end
+
 -- Draw a filled rounded rectangle using primitives (no alpha blending).
 -- r is corner radius in pixels.
 local function drawFilledRoundRect(x, y, w, h, r)
@@ -191,112 +278,6 @@ local function renderOverlayText(dashboard, cx, cy, innerR, fg)
     end
 end
 
-function loaders.staticLoader(dashboard, x, y, w, h)
-
-    local cx, cy = x + w / 2, y + h / 2
-    local radius = math.min(w, h) * (dashboard.loaderScale or 0.3)
-    local thickness = math.max(6, radius * 0.15)
-
-    local r, g, b = lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0
-    lcd.color(lcd.RGB(r, g, b, 1.0))
-
-    if lcd.drawFilledCircle then
-        lcd.drawFilledCircle(cx, cy, radius)
-        lcd.color(lcd.darkMode() and lcd.RGB(0, 0, 0, 1.0) or lcd.RGB(0, 0, 0, 1.0))
-        lcd.drawFilledCircle(cx, cy, radius - thickness)
-    end
-
-    drawLogoImage(cx, cy, w, h, 0.50)
-
-    dashboard._dots_index = dashboard._dots_index or 1
-    dashboard._dots_time = dashboard._dots_time or os.clock()
-    if os.clock() - dashboard._dots_time > 0.5 then
-        dashboard._dots_time = os.clock()
-        dashboard._dots_index = (dashboard._dots_index % 3) + 1
-    end
-
-    local dotRadius = 4
-    local spacing = 3 * dotRadius
-    local startX = cx - spacing
-    local yPos = cy + (radius - thickness / 2) / 2
-
-    for i = 1, 3 do
-        if i == dashboard._dots_index then
-            lcd.color(lcd.darkMode() and lcd.RGB(255, 255, 255) or lcd.RGB(0, 0, 0))
-        else
-            lcd.color(lcd.darkMode() and lcd.RGB(80, 80, 80) or lcd.RGB(180, 180, 180))
-        end
-        lcd.drawFilledCircle(startX + (i - 1) * spacing, yPos, dotRadius)
-    end
-
-end
-
-function loaders.staticOverlayMessage(dashboard, x, y, w, h, txt)
-    dashboard._overlay_cycles_required = dashboard._overlay_cycles_required or math.ceil(5 / (dashboard.paint_interval or 0.5))
-    dashboard._overlay_cycles = dashboard._overlay_cycles or 0
-
-    if txt and txt ~= "" then
-        dashboard._overlay_text = txt
-        dashboard._overlay_cycles = dashboard._overlay_cycles_required
-    end
-
-    if dashboard._overlay_cycles <= 0 then return end
-    dashboard._overlay_cycles = dashboard._overlay_cycles - 1
-
-    local fg = lcd.darkMode() and lcd.RGB(255, 255, 255) or lcd.RGB(255, 255, 255)
-    local bg = lcd.darkMode() and lcd.RGB(0, 0, 0, 1.0) or lcd.RGB(255, 255, 255, 1.0)
-
-    local cx, cy = x + w / 2, y + h / 2
-    local radius = math.min(w, h) * (dashboard.overlayScale or 0.35)
-    local thickness = math.max(6, radius * 0.15)
-    local innerR = radius - (thickness / 2) - 1
-
-    drawOverlayBackground(cx, cy, innerR, bg)
-
-    local r, g, b = lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0, lcd.darkMode() and 255 or 0
-    lcd.color(lcd.RGB(r, g, b, 1.0))
-    if lcd.drawFilledCircle then
-        lcd.drawFilledCircle(cx, cy, radius)
-        lcd.color(lcd.darkMode() and lcd.RGB(0, 0, 0, 1.0) or lcd.RGB(0, 0, 0, 1.0))
-        lcd.drawFilledCircle(cx, cy, radius - thickness)
-    end
-
-    -- Keep Rotorflight logo visible inside the ring
-    drawLogoImage(cx, cy, radius * 2, radius * 2, 0.50)
-
-    dashboard._dots_index = dashboard._dots_index or 1
-    dashboard._dots_time = dashboard._dots_time or os.clock()
-    if os.clock() - dashboard._dots_time > 0.5 then
-        dashboard._dots_time = os.clock()
-        dashboard._dots_index = (dashboard._dots_index % 3) + 1
-    end
-
-    local dotRadius = 4
-    local spacing = 3 * dotRadius
-    local startX = cx - spacing
-    local yPos = cy + (radius - thickness / 2) / 2
-
-    for i = 1, 3 do
-        if i == dashboard._dots_index then
-            lcd.color(lcd.darkMode() and lcd.RGB(255, 255, 255) or lcd.RGB(0, 0, 0))
-        else
-            lcd.color(lcd.darkMode() and lcd.RGB(80, 80, 80) or lcd.RGB(180, 180, 180))
-        end
-        lcd.drawFilledCircle(startX + (i - 1) * spacing, yPos, dotRadius)
-    end
-
-    renderOverlayText(dashboard, cx, cy, innerR, fg)
-end
-
--- A clean "traditional" loader panel:
--- big rounded box, bold frame, logo on the left, console log on the right, and 3 dots.
---
--- Usage:
---   loaders.logsLoader(dashboard, x, y, w, h, linesSrc[, opts])
--- Where linesSrc can be:
---   * function(maxLines)->{...}
---   * table array of strings
---   * object with :getLines(maxLines)
 function loaders.logsLoader(dashboard, x, y, w, h, linesSrc, opts)
     opts = opts or {}
 
@@ -314,8 +295,15 @@ function loaders.logsLoader(dashboard, x, y, w, h, linesSrc, opts)
     local cornerR = opts.cornerR or math.floor(math.min(panelW, panelH) * 0.14)
 
     -- Frame like the circle: bright outer, dark inner.
-    local outer = lcd.darkMode() and lcd.RGB(255, 255, 255, 1.0) or lcd.RGB(0, 0, 0, 1.0)
-    local inner = lcd.RGB(0, 0, 0, 1.0)
+    local isDark = lcd.darkMode()
+
+    local outer = isDark
+        and lcd.RGB(255, 255, 255, 1.0)
+        or  lcd.GREY(64, 1.0)
+
+    local inner = isDark
+        and lcd.RGB(0,   0,   0,   1.0)
+        or  lcd.RGB(128, 128, 128, 1.0)
 
     -- Outer frame
     lcd.color(outer)
@@ -348,42 +336,115 @@ function loaders.logsLoader(dashboard, x, y, w, h, linesSrc, opts)
     local logoY = contentY
     local logoW = contentW
 
+    -- Right-side info column 
+    local infoWRatio = opts.infoWRatio or 0.45   -- 0.30..0.42 feels good
+    local infoW = math.max(1, math.floor(logoW * infoWRatio))
+
     local logX = contentX
     local logY = contentY + logoH + splitGap
     local logW = contentW
 
-    -- Draw logo centered in the top half.
-    -- For landscape logos, a top/bottom split gives better use of width.
-    local logoCx = logoX + logoW / 2
-    local logoCy = logoY + logoH / 2
+    -- Split top area into: [logo area | info area]
+    local infoX = logoX + (logoW - infoW)
+    local infoY = logoY
+    local infoH = logoH
 
-    -- Try to preserve aspect ratio if the bitmap exposes size; otherwise fall back.
+    local logoAreaX = logoX
+    local logoAreaY = logoY
+    local logoAreaW = logoW - infoW
+    local logoAreaH = logoH
+
+     -- Draw logo in the top half
     local imageName = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/widgets/dashboard/gfx/logo.png"
     local bmp = rfsuite.utils.loadImage(imageName)
+
+    -- Alignment: "center" (default) or "left"
+    local align = "left" 
+
+    -- Where in the logo area to anchor the logo centre point
+    local anchorX
+    if align == "left" then
+        anchorX = logoAreaX + logoAreaW * (opts.logoAnchorX or 0.30)  -- tweak 0.20..0.40
+    else
+        anchorX = logoAreaX + logoAreaW * 0.50
+    end
+    local anchorY = logoAreaY + logoAreaH * 0.50
+
     if bmp then
         local okW, bw = pcall(function() return bmp:width() end)
         local okH, bh = pcall(function() return bmp:height() end)
+
         if okW and okH and type(bw) == "number" and type(bh) == "number" and bw > 0 and bh > 0 then
-            local padX = math.floor(logoW * (opts.logoPadXRatio or 0.06))
-            local padY = math.floor(logoH * (opts.logoPadYRatio or 0.18))
-            local boxW = math.max(1, logoW - 2 * padX)
-            local boxH = math.max(1, logoH - 2 * padY)
+            local padX = math.floor(logoAreaW * (opts.logoPadXRatio or 0.06))
+            local padY = math.floor(logoAreaH * (opts.logoPadYRatio or 0.18))
+            local boxW = math.max(1, logoAreaW - 2 * padX)
+            local boxH = math.max(1, logoAreaH - 2 * padY)
 
             local scale = math.min(boxW / bw, boxH / bh) * (opts.logoScale or 1.0)
             local drawW = math.max(1, math.floor(bw * scale))
             local drawH = math.max(1, math.floor(bh * scale))
 
-            lcd.drawBitmap(math.floor(logoCx - drawW / 2), math.floor(logoCy - drawH / 2), bmp, drawW, drawH)
+            lcd.drawBitmap(
+                math.floor(anchorX - drawW / 2),
+                math.floor(anchorY - drawH / 2),
+                bmp,
+                drawW,
+                drawH
+            )
         else
-            -- Fallback: square-fit method (still fine for most logos)
-            drawLogoImage(logoCx, logoCy, logoW, logoH, opts.logoScale or 0.95)
+            -- Fallback: square-fit method
+            drawLogoImage(anchorX, anchorY, logoAreaW * (opts.logoFallbackWScale or 0.4), logoAreaH, opts.logoScale or 0.95)
         end
     end
+
+    -- Right info column: separator + versions
+    do
+        local isDark = lcd.darkMode()
+        local txt = isDark and lcd.RGB(255,255,255,1.0) or lcd.RGB(0,0,0,1.0)
+
+        local padX = math.max(4, math.floor(infoW * 0.10))
+        local padY = math.max(4, math.floor(infoH * 0.14))
+        local iy = infoY + padY
+
+        -- Vertical separator line (kept)
+        local sepW = math.max(1, math.floor(infoW * 0.02))
+        local sepCol = isDark and lcd.RGB(90,90,90,1.0) or lcd.RGB(110,110,110,1.0)
+        lcd.color(sepCol)
+        lcd.drawFilledRectangle(infoX + math.floor(sepW / 2), infoY + padY, sepW, math.max(1, infoH - 2 * padY))
+
+        -- Text starts after the separator with a little gap
+        local gap = math.max(6, math.floor(infoW * 0.03))
+        local tx = infoX + padX + sepW + gap
+        local tw = (infoX + infoW) - tx - padX
+
+        local t1 = fmtRfsuiteVersion()
+        local t2 = fmtEthosVersion()
+        local t3 = fmtRadioLinkType() 
+
+        lcd.color(txt)
+        lcd.font(FONT_XXS)
+
+        local _, th = lcd.getTextSize("Ay")
+
+        -- line 1: rfsuite version
+        lcd.drawText(tx, iy,          ellipsizeRight(t1, tw))
+
+        -- line 2: ethos version
+        lcd.drawText(tx, iy + th,     ellipsizeRight(t2, tw))
+
+        -- line 3: radio/link type
+        lcd.drawText(tx, iy + th * 2, ellipsizeRight(t3, tw))
+
+    end
+
 
     -- Bottom side: log lines
     local fonts = dashboard.utils and dashboard.utils.getFontListsForResolution and dashboard.utils.getFontListsForResolution()
     fonts = (fonts and fonts.value_default) or {FONT_S, FONT_XS, FONT_XXS}
-    lcd.color(lcd.RGB(255, 255, 255, 1.0))
+    lcd.color(isDark
+        and lcd.RGB(255, 255, 255, 1.0)
+        or  lcd.RGB(0,   0,   0,   1.0)
+    )
 
     -- Prefer the smaller fonts so we get more lines in the console area.
     local chosenFont = fonts[#fonts] or FONT_XS

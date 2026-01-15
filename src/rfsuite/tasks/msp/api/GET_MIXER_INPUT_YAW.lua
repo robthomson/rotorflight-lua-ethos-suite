@@ -6,35 +6,37 @@
 local rfsuite = require("rfsuite")
 local core = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/msp/api_core.lua"))()
 
-local API_NAME = "BATTERY_CONFIG"
-local MSP_API_CMD_READ = 32
-local MSP_API_CMD_WRITE = 33
-local MSP_REBUILD_ON_WRITE = false
+local API_NAME = "GET_MIXER_INPUT_YAW"
+local MSP_API_CMD_READ = 174
+local MSP_API_CMD_WRITE = 171
+local MSP_REBUILD_ON_WRITE = true
 
-local tblBatterySource = {
-    [1] = "@i18n(api.BATTERY_CONFIG.source_none)@",
-    [2] = "@i18n(api.BATTERY_CONFIG.source_adc)@",
-    [3] = "@i18n(api.BATTERY_CONFIG.source_esc)@",
-}
+local FIXED_INDEX = 3
 
 -- LuaFormatter off
+-- Note.  We do not do any parameters on these calls like min, max etc as the calls are very bespoke and 
+--        do not benifit from generic handling.
 local MSP_API_STRUCTURE_READ_DATA = {
-    {field = "batteryCapacity", type = "U16", apiVersion = 12.06, simResponse = {136, 19}, min = 0, max = 20000, step = 50, unit = "mAh", default = 0, help = "@i18n(api.BATTERY_CONFIG.batteryCapacity)@"},
-    {field = "batteryCellCount", type = "U8", apiVersion = 12.06, simResponse = {6}, min = 0, max = 24, unit = nil, default = 6, help = "@i18n(api.BATTERY_CONFIG.batteryCellCount)@"},
-    {field = "voltageMeterSource", type = "U8", apiVersion = 12.06, simResponse = {1}, table = tblBatterySource, tableIdxInc = -1, help = "@i18n(api.BATTERY_CONFIG.voltageMeterSource)@"},
-    {field = "currentMeterSource", type = "U8", apiVersion = 12.06, simResponse = {1}, table = tblBatterySource, tableIdxInc = -1, help = "@i18n(api.BATTERY_CONFIG.currentMeterSource)@"},
-    {field = "vbatmincellvoltage", type = "U16", apiVersion = 12.06, simResponse = {74, 1}, min = 0, decimals = 2, scale = 100, max = 500, unit = "V", default = 3.3, help = "@i18n(api.BATTERY_CONFIG.vbatmincellvoltage)@"},
-    {field = "vbatmaxcellvoltage", type = "U16", apiVersion = 12.06, simResponse = {164, 1}, min = 0, decimals = 2, scale = 100, max = 500, unit = "V", default = 4.2, help = "@i18n(api.BATTERY_CONFIG.vbatmaxcellvoltage)@"},
-    {field = "vbatfullcellvoltage", type = "U16", apiVersion = 12.06, simResponse = {154, 1}, min = 0, decimals = 2, scale = 100, max = 500, unit = "V", default = 4.1, help = "@i18n(api.BATTERY_CONFIG.vbatfullcellvoltage)@"},
-    {field = "vbatwarningcellvoltage", type = "U16", apiVersion = 12.06, simResponse = {94, 1}, min = 0, decimals = 2, scale = 100, max = 500, unit = "V", default = 3.5, help = "@i18n(api.BATTERY_CONFIG.vbatwarningcellvoltage)@"},
-    {field = "lvcPercentage", type = "U8", apiVersion = 12.06, simResponse = {100}, help = "@i18n(api.BATTERY_CONFIG.lvcPercentage)@"},
-    {field = "consumptionWarningPercentage", type = "U8", apiVersion = 12.06, simResponse = {30}, min = 0, max = 50, default = 35, unit = "%", help = "@i18n(api.BATTERY_CONFIG.consumptionWarningPercentage)@"}
+    { field = "rate_stabilized_yaw", type = "U16", apiVersion = 12.09, simResponse = { 250, 0 }},
+    { field = "min_stabilized_yaw",  type = "U16", apiVersion = 12.09, simResponse = { 30, 251 } },
+    { field = "max_stabilized_yaw",  type = "U16", apiVersion = 12.09, simResponse = { 226, 4 } },
 }
+
 -- LuaFormatter on
 
 local MSP_API_STRUCTURE_READ, MSP_MIN_BYTES, MSP_API_SIMULATOR_RESPONSE = core.prepareStructureData(MSP_API_STRUCTURE_READ_DATA)
 
-local MSP_API_STRUCTURE_WRITE = MSP_API_STRUCTURE_READ
+-- LuaFormatter off
+local MSP_API_STRUCTURE_WRITE = {
+    -- mixer input index
+    { field = "index", type = "U8" },
+
+    -- mixer input values
+    { field = "rate_stabilized_yaw",  type = "U16" },
+    { field = "min_stabilized_yaw",   type = "U16" },
+    { field = "max_stabilized_yaw",   type = "U16" },
+}
+-- LuaFormatter on
 
 local mspData = nil
 local mspWriteComplete = false
@@ -89,7 +91,21 @@ local function read()
         return
     end
 
-    local message = {command = MSP_API_CMD_READ, apiname=API_NAME, structure = MSP_API_STRUCTURE_READ, minBytes = MSP_MIN_BYTES, processReply = processReplyStaticRead, errorHandler = errorHandlerStatic, simulatorResponse = MSP_API_SIMULATOR_RESPONSE, uuid = MSP_API_UUID, timeout = MSP_API_MSG_TIMEOUT, getCompleteHandler = handlers.getCompleteHandler, getErrorHandler = handlers.getErrorHandler, mspData = nil}
+    local message = {
+        command = MSP_API_CMD_READ,
+        apiname = API_NAME,
+        payload = { FIXED_INDEX }, 
+        structure = MSP_API_STRUCTURE_READ,
+        minBytes = MSP_MIN_BYTES,
+        processReply = processReplyStaticRead,
+        errorHandler = errorHandlerStatic,
+        simulatorResponse = MSP_API_SIMULATOR_RESPONSE,
+        uuid = uuid,
+        timeout = MSP_API_MSG_TIMEOUT,
+        getCompleteHandler = handlers.getCompleteHandler,
+        getErrorHandler = handlers.getErrorHandler,
+        mspData = nil
+    }
     rfsuite.tasks.msp.mspQueue:add(message)
 end
 
@@ -99,12 +115,30 @@ local function write(suppliedPayload)
         return
     end
 
-    local payload = suppliedPayload or core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, MSP_REBUILD_ON_WRITE)
+    local v = {
+        index = FIXED_INDEX,
+        rate_stabilized_yaw  = (payloadData.rate_stabilized_yaw ~= nil) and payloadData.rate_stabilized_yaw or curRate,
+        min_stabilized_yaw   = (payloadData.min_stabilized_yaw  ~= nil) and payloadData.min_stabilized_yaw  or curMin,
+        max_stabilized_yaw   = (payloadData.max_stabilized_yaw  ~= nil) and payloadData.max_stabilized_yaw  or curMax,
+    }
+
+    local payload = core.buildFullPayload(API_NAME, v, MSP_API_STRUCTURE_WRITE)
 
     local uuid = MSP_API_UUID or rfsuite.utils and rfsuite.utils.uuid and rfsuite.utils.uuid() or tostring(os.clock())
     lastWriteUUID = uuid
 
-    local message = {command = MSP_API_CMD_WRITE, apiname = API_NAME, payload = payload, processReply = processReplyStaticWrite, errorHandler = errorHandlerStatic, simulatorResponse = {}, uuid = uuid, timeout = MSP_API_MSG_TIMEOUT, getCompleteHandler = handlers.getCompleteHandler, getErrorHandler = handlers.getErrorHandler}
+    local message = {
+        command = MSP_API_CMD_WRITE,
+        apiname = API_NAME,
+        payload = payload,
+        processReply = processReplyStaticWrite,
+        errorHandler = errorHandlerStatic,
+        simulatorResponse = {},
+        uuid = uuid,
+        timeout = MSP_API_MSG_TIMEOUT,
+        getCompleteHandler = handlers.getCompleteHandler,
+        getErrorHandler = handlers.getErrorHandler
+    }
 
     rfsuite.tasks.msp.mspQueue:add(message)
 end

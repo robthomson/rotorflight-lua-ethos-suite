@@ -6,13 +6,13 @@
 local rfsuite = require("rfsuite")
 local core = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/msp/api_core.lua"))()
 
-local API_NAME = "SBUS_OUTPUT_CONFIG"
+local API_NAME = "FBUS_MASTER_CHANNEL"
 
--- Indexed (single-channel) SBUS output config
--- READ  (MSP_GET_SBUS_OUTPUT_CONFIG): payload = { index }
--- WRITE (MSP_SET_SBUS_OUTPUT_CONFIG): payload = { index, source_type, source_index, source_range_low, source_range_high }
-local MSP_API_CMD_READ = 157
-local MSP_API_CMD_WRITE = 153
+-- Indexed (single-channel) FBUS output config
+-- READ  (MSP_GET_FBUS_MASTER_CHANNEL): payload = { index }
+-- WRITE (MSP_SET_FBUS_MASTER_CHANNEL): payload = { index, source_type, source_index, source_range_low, source_range_high }
+local MSP_API_CMD_READ = 163
+local MSP_API_CMD_WRITE = 162
 
 -- Single-channel writes do not require table rebuild semantics.
 local MSP_REBUILD_ON_WRITE = false
@@ -93,7 +93,7 @@ local function read(index)
 
     local idx = index
     if idx == nil then idx = payloadData.index end
-    if idx == nil then idx = rfsuite.currentSbusServoIndex end
+    if idx == nil then idx = rfsuite.currentFbusServoIndex end
     if idx == nil then idx = 0 end
 
     local uuid = MSP_API_UUID
@@ -124,9 +124,9 @@ local function write(suppliedPayload)
 
     -- Ensure index is present; forms typically set this.
     local idx = payloadData.index
-    if idx == nil then idx = rfsuite.currentSbusServoIndex end
+    if idx == nil then idx = rfsuite.currentFbusServoIndex end
     if idx == nil then
-        rfsuite.utils.log("SBUS_OUTPUT_CONFIG.write requires payloadData.index (0-based channel index)", "debug")
+        rfsuite.utils.log("FBUS_MASTER_CHANNEL.write requires payloadData.index (0-based channel index)", "debug")
         return
     end
 
