@@ -14,6 +14,10 @@ local taskSchedulerPercentage
 local schedulerTick
 local lastSensorName
 local tasks, tasksList = {}, {}
+-- Split scheduled tasks into two lists so the scheduler doesn't have to scan
+-- the full task list on every cycle.
+local tasksListNonSpread, tasksListSpread = {}, {}
+local nonSpreadCount = 0
 tasks.heartbeat, tasks.begin = nil, nil
 
 local currentSensor, currentModuleId, currentTelemetryType, currentModuleNumber
@@ -51,6 +55,10 @@ local usingSimulator = system.getVersion().simulation
 local tlm
 
 tasks.profile = {enabled = false, dumpInterval = 5, minDuration = 0, include = nil, exclude = nil, onDump = nil}
+
+-- Reused tables to avoid per-cycle allocations (reduces GC churn)
+local normalEligibleTasks = {}
+local mustRunTasks = {}
 
 local function profWanted(name)
     if not tasks.profile.enabled then return end
@@ -180,6 +188,12 @@ function tasks.findTasks()
 
                     local task = {name = dir, interval = interval, baseInterval = baseInterval, jitter = jitter, script = tconfig.script, linkrequired = tconfig.linkrequired or false, connected = tconfig.connected or false, spreadschedule = tconfig.spreadschedule or false, simulatoronly = tconfig.simulatoronly or false, last_run = os.clock() - offset, duration = 0, totalDuration = 0, runs = 0, maxDuration = 0}
                     table.insert(tasksList, task)
+                    if task.spreadschedule then
+                        table.insert(tasksListSpread, task)
+                    else
+                        table.insert(tasksListNonSpread, task)
+                        nonSpreadCount = nonSpreadCount + 1
+                    end
 
                     taskMetadata[dir] = {interval = task.interval, script = task.script, linkrequired = task.linkrequired, connected = task.connected, simulatoronly = task.simulatoronly, spreadschedule = task.spreadschedule}
                 end
@@ -320,6 +334,114 @@ local function canRunTask(task, now)
     return ok, od
 end
 
+
+
+-- Hoisted runners (avoid allocating closures on every wakeup)
+local function runNonSpreadTasks(now)
+
+    local loopCpu = 0
+
+    for _, task in ipairs(tasksListNonSpread) do
+        if tasks[task.name].wakeup then
+            local okToRun, od = canRunTask(task, now)
+            if okToRun then
+                local elapsed = now - task.last_run
+                if elapsed + OVERDUE_TOL >= task.interval then
+                    if (od or 0) > 0 then
+                        if LOG_OVERDUE_TASKS then utils.log(string.format("[scheduler] %s overdue by %.3fs", task.name, od), "info") end
+                    end
+
+                    local fn = tasks[task.name].wakeup
+                    if fn then
+                        local c0 = os.clock()
+                        local ok, err = pcall(fn, tasks[task.name])
+                        local c1 = os.clock()
+                        local dur = c1 - c0
+                        loopCpu = loopCpu + dur
+
+                        if profWanted(task.name) then
+                            profRecord(task, dur)
+                            if not ok then print(("Error in task %q wakeup: %s"):format(task.name, err)) end
+                        elseif not ok then
+                            print(("Error in task %q wakeup: %s"):format(task.name, err))
+                        end
+                    end
+
+                    task.last_run = now
+                end
+            end
+        end
+    end
+
+    return loopCpu
+end
+
+local function runSpreadTasks(now)
+
+    local loopCpu = 0
+
+    -- Clear reused lists (no new tables)
+    for i = #normalEligibleTasks, 1, -1 do normalEligibleTasks[i] = nil end
+    for i = #mustRunTasks, 1, -1 do mustRunTasks[i] = nil end
+
+    local nN, nM = 0, 0
+
+    for _, task in ipairs(tasksListSpread) do
+        local okToRun, od = canRunTask(task, now)
+        if okToRun then
+            local elapsed = now - task.last_run
+            if elapsed >= 2 * task.interval then
+                nM = nM + 1
+                mustRunTasks[nM] = task
+                if LOG_OVERDUE_TASKS then utils.log(string.format("[scheduler] %s hard overdue by %.3fs", task.name, elapsed - 2 * task.interval), "info") end
+            elseif elapsed + OVERDUE_TOL >= task.interval then
+                nN = nN + 1
+                normalEligibleTasks[nN] = task
+                if elapsed - task.interval > 0 then
+                    if LOG_OVERDUE_TASKS then utils.log(string.format("[scheduler] %s overdue by %.3fs", task.name, elapsed - task.interval), "info") end
+                end
+            end
+        end
+    end
+
+    table.sort(mustRunTasks, function(a, b) return a.last_run < b.last_run end)
+    table.sort(normalEligibleTasks, function(a, b) return a.last_run < b.last_run end)
+
+    tasksPerCycle = math.ceil(nonSpreadCount * taskSchedulerPercentage)
+
+    for i = 1, #mustRunTasks do
+        local task = mustRunTasks[i]
+        local fn = tasks[task.name].wakeup
+        if fn then
+            local c0 = os.clock()
+            local ok, err = pcall(fn, tasks[task.name])
+            local c1 = os.clock()
+            local dur = c1 - c0
+            loopCpu = loopCpu + dur
+            if profWanted(task.name) then profRecord(task, dur) end
+            if not ok then print(("Error in task %q wakeup (must-run): %s"):format(task.name, err)) end
+        end
+        task.last_run = now
+    end
+
+    local n = math.min(tasksPerCycle, #normalEligibleTasks)
+    for i = 1, n do
+        local task = normalEligibleTasks[i]
+        local fn = tasks[task.name].wakeup
+        if fn then
+            local c0 = os.clock()
+            local ok, err = pcall(fn, tasks[task.name])
+            local c1 = os.clock()
+            local dur = c1 - c0
+            loopCpu = loopCpu + dur
+            if profWanted(task.name) then profRecord(task, dur) end
+            if not ok then print(("Error in task %q wakeup: %s"):format(task.name, err)) end
+        end
+        task.last_run = now
+    end
+
+    return loopCpu
+end
 function tasks.wakeup()
 
     schedulerTick = schedulerTick + 1
@@ -367,92 +489,6 @@ function tasks.wakeup()
 
     local now = os.clock()
 
-    local function runNonSpreadTasks()
-        for _, task in ipairs(tasksList) do
-            if not task.spreadschedule and tasks[task.name].wakeup then
-                local okToRun, od = canRunTask(task, now)
-                if okToRun then
-                    local elapsed = now - task.last_run
-                    if elapsed + OVERDUE_TOL >= task.interval then
-                        if (od or 0) > 0 then if LOG_OVERDUE_TASKS then utils.log(string.format("[scheduler] %s overdue by %.3fs", task.name, od), "info") end end
-                        local fn = tasks[task.name].wakeup
-                        if fn then
-                            local c0 = os.clock()
-                            local ok, err = pcall(fn, tasks[task.name])
-                            local c1 = os.clock()
-                            local dur = c1 - c0
-                            loopCpu = loopCpu + dur
-                            if profWanted(task.name) then
-                                profRecord(task, dur)
-                                if not ok then print(("Error in task %q wakeup: %s"):format(task.name, err)) end
-                            elseif not ok then
-                                print(("Error in task %q wakeup: %s"):format(task.name, err))
-
-                            end
-                        end
-                        task.last_run = now
-                    end
-                end
-            end
-        end
-    end
-
-    local function runSpreadTasks()
-        local normalEligibleTasks, mustRunTasks = {}, {}
-
-        for _, task in ipairs(tasksList) do
-            if task.spreadschedule then
-                local okToRun, od = canRunTask(task, now)
-                if okToRun then
-                    local elapsed = now - task.last_run
-                    if elapsed >= 2 * task.interval then
-                        table.insert(mustRunTasks, task)
-                        if LOG_OVERDUE_TASKS then utils.log(string.format("[scheduler] %s hard overdue by %.3fs", task.name, elapsed - 2 * task.interval), "info") end
-                    elseif elapsed + OVERDUE_TOL >= task.interval then
-                        table.insert(normalEligibleTasks, task)
-                        if elapsed - task.interval > 0 then if LOG_OVERDUE_TASKS then utils.log(string.format("[scheduler] %s overdue by %.3fs", task.name, elapsed - task.interval), "info") end end
-                    end
-                end
-            end
-        end
-
-        table.sort(mustRunTasks, function(a, b) return a.last_run < b.last_run end)
-        table.sort(normalEligibleTasks, function(a, b) return a.last_run < b.last_run end)
-
-        local nonSpreadCount = 0
-        for _, task in ipairs(tasksList) do if not task.spreadschedule then nonSpreadCount = nonSpreadCount + 1 end end
-
-        tasksPerCycle = math.ceil(nonSpreadCount * taskSchedulerPercentage)
-
-        for _, task in ipairs(mustRunTasks) do
-            local fn = tasks[task.name].wakeup
-            if fn then
-                local c0 = os.clock()
-                local ok, err = pcall(fn, tasks[task.name])
-                local c1 = os.clock()
-                local dur = c1 - c0
-                loopCpu = loopCpu + dur
-                if profWanted(task.name) then profRecord(task, dur) end
-                if not ok then print(("Error in task %q wakeup (must-run): %s"):format(task.name, err)) end
-            end
-            task.last_run = now
-        end
-
-        for i = 1, math.min(tasksPerCycle, #normalEligibleTasks) do
-            local task = normalEligibleTasks[i]
-            local fn = tasks[task.name].wakeup
-            if fn then
-                local c0 = os.clock()
-                local ok, err = pcall(fn, tasks[task.name])
-                local c1 = os.clock()
-                local dur = c1 - c0
-                loopCpu = loopCpu + dur
-                if profWanted(task.name) then profRecord(task, dur) end
-                if not ok then print(("Error in task %q wakeup: %s"):format(task.name, err)) end
-            end
-            task.last_run = now
-        end
-    end
 
     local cycleFlip = schedulerTick % 2
 
@@ -470,11 +506,11 @@ function tasks.wakeup()
         end
     else
         if cycleFlip == 0 then
-            local ok, err = pcall(runNonSpreadTasks)
-            if not ok then print("[ERROR][runNonSpreadTasks]", err) end
+            local ok, cpuOrErr = pcall(runNonSpreadTasks, now)
+            if ok then loopCpu = loopCpu + (cpuOrErr or 0) else print("[ERROR][runNonSpreadTasks]", cpuOrErr) end
         else
-            local ok, err = pcall(runSpreadTasks)
-            if not ok then print("[ERROR][runSpreadTasks]", err) end
+            local ok, cpuOrErr = pcall(runSpreadTasks, now)
+            if ok then loopCpu = loopCpu + (cpuOrErr or 0) else print("[ERROR][runSpreadTasks]", cpuOrErr) end
         end
     end
 
@@ -546,6 +582,9 @@ function tasks.init()
     tasks._justInitialized = false
 
     tasksList = {}
+    tasksListNonSpread = {}
+    tasksListSpread = {}
+    nonSpreadCount = 0
     tasks._initState = "start"
     tasks._initMetadata = nil
     tasks._initKeys = nil
@@ -576,11 +615,24 @@ function tasks.unload(name)
         if q and q.clear then pcall(function() q:clear() end) end
     end
 
+    local removed = nil
     for i, t in ipairs(tasksList) do
         if t.name == name then
+            removed = t
             table.remove(tasksList, i)
             break
         end
+    end
+
+    if removed then
+        local list = removed.spreadschedule and tasksListSpread or tasksListNonSpread
+        for i, t in ipairs(list) do
+            if t.name == name then
+                table.remove(list, i)
+                break
+            end
+        end
+        if not removed.spreadschedule then nonSpreadCount = math.max(0, nonSpreadCount - 1) end
     end
 
     tasks[name] = nil
@@ -635,7 +687,15 @@ function tasks.load(name, meta)
     local interval = (baseInterval * (tasks.rateMultiplier or 1.0)) + jitter
     local offset = math.random() * interval
 
-    table.insert(tasksList, {name = name, interval = interval, baseInterval = baseInterval, jitter = jitter, script = meta.script, linkrequired = meta.linkrequired or false, connected = meta.connected or false, simulatoronly = meta.simulatoronly or false, spreadschedule = meta.spreadschedule or false, last_run = os.clock() - offset, duration = 0, totalDuration = 0, runs = 0, maxDuration = 0})
+    local task = {name = name, interval = interval, baseInterval = baseInterval, jitter = jitter, script = meta.script, linkrequired = meta.linkrequired or false, connected = meta.connected or false, simulatoronly = meta.simulatoronly or false, spreadschedule = meta.spreadschedule or false, last_run = os.clock() - offset, duration = 0, totalDuration = 0, runs = 0, maxDuration = 0}
+
+    table.insert(tasksList, task)
+    if task.spreadschedule then
+        table.insert(tasksListSpread, task)
+    else
+        table.insert(tasksListNonSpread, task)
+        nonSpreadCount = nonSpreadCount + 1
+    end
 
     utils.log(string.format("[scheduler] Loaded task '%s' (%s)", name, meta.script), "info")
     utils.log(string.format("[scheduler] Loaded task '%s' (%s)", name, meta.script), "connect")
