@@ -5236,6 +5236,16 @@
           "needs_translation": false,
           "translation": "Roll"
         },
+        "rotorflight": {
+          "english": "ROTORFLIGHT",
+          "needs_translation": true,
+          "translation": "ROTORFLIGHT"
+        },
+        "shape": {
+          "english": "Shape",
+          "needs_translation": true,
+          "translation": "Shape"
+        },
         "superrate": {
           "english": "SuperRate",
           "needs_translation": false,
@@ -5257,6 +5267,11 @@
           "english": "Accel",
           "needs_translation": false,
           "translation": "Accel"
+        },
+        "advanced": {
+          "english": "Advanced",
+          "needs_translation": true,
+          "translation": "Advanced"
         },
         "col": {
           "english": "Col",
@@ -5382,6 +5397,11 @@
           "english": "Setpoint boost gain",
           "needs_translation": false,
           "translation": "SetpVersterk"
+        },
+        "table": {
+          "english": "Rate Table",
+          "needs_translation": true,
+          "translation": "Rate Table"
         },
         "yaw": {
           "english": "Yaw",
