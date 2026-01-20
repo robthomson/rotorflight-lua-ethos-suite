@@ -30,13 +30,13 @@ minmax[4] = {min = 0, max = 1000, sourceMax = motorCount, defaultMin = 0, defaul
 local enableWakeup = false
 
 local apidata = {
-    api = {[1] = "SBUS_OUTPUT_CONFIG_LEGACY"},
+    api = {[1] = "SBUS_OUTPUT_CONFIG"},
     formdata = {
         labels = {},
         fields = {
-            {t = "@i18n(app.modules.sbusout.type)@", min = 0, max = 16, mspapi = 1, apikey = "Type_" .. ch + 1, table = {[0] = "NONE", [1] = "@i18n(app.modules.sbusout.receiver)@", [2] = "@i18n(app.modules.sbusout.mixer)@", [3] = "@i18n(app.modules.sbusout.servo)@", [4] = "@i18n(app.modules.sbusout.motor)@"}, postEdit = function(self) self.setMinMaxIndex(self, true) end}, 
-            {t = "@i18n(app.modules.sbusout.source)@", min = 0, max = 15, mspapi = 1, apikey = "Index_" .. ch + 1, help = "sbusOutSource"},
-            {t = "@i18n(app.modules.sbusout.min)@", min = -2000, max = 2000, mspapi = 1, apikey = "RangeLow_" .. ch + 1, help = "sbusOutMin"}, {t = "@i18n(app.modules.sbusout.max)@", min = -2000, max = 2000, mspapi = 1, apikey = "RangeHigh_" .. ch + 1, help = "sbusOutMax"}
+            {t = "@i18n(app.modules.sbusout.type)@", min = 0, max = 16, mspapi = 1, apikey = "source_type", table = {[0] = "NONE", [1] = "@i18n(app.modules.sbusout.receiver)@", [2] = "@i18n(app.modules.sbusout.mixer)@", [3] = "@i18n(app.modules.sbusout.servo)@", [4] = "@i18n(app.modules.sbusout.motor)@"}, postEdit = function(self) self.setMinMaxIndex(self, true) end}, 
+            {t = "@i18n(app.modules.sbusout.source)@", min = 0, max = 15, mspapi = 1, apikey = "source_index", help = "sbusOutSource"},
+            {t = "@i18n(app.modules.sbusout.min)@", min = -2000, max = 2000, mspapi = 1, apikey = "source_range_low", help = "sbusOutMin"}, {t = "@i18n(app.modules.sbusout.max)@", min = -2000, max = 2000, mspapi = 1, apikey = "source_range_high", help = "sbusOutMax"}
         }
     }
 }
@@ -105,7 +105,7 @@ end
 local function onNavMenu(self)
 
     rfsuite.app.ui.progressDisplay()
-    rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "sbusout/sbusout.lua")
+    rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "servos/tools/sbus.lua")
 
 end
 
@@ -113,7 +113,7 @@ local function event(widget, category, value, x, y)
 
     if category == EVT_CLOSE and value == 0 or value == 35 then
         rfsuite.app.ui.progressDisplay()
-        rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "sbusout/sbusout.lua")
+        rfsuite.app.ui.openPage(rfsuite.app.lastIdx, rfsuite.app.lastTitle, "servos/tools/sbus.lua")
         return true
     end
 
