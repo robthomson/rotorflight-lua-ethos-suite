@@ -345,6 +345,31 @@
         "translation": "Settings",
         "needs_translation": false
       },
+      "dashboard_loader": {
+        "english": "Loader",
+        "translation": "Loader",
+        "needs_translation": false
+      },
+      "loader_style_small": {
+        "english": "SMALL",
+        "translation": "SMALL",
+        "needs_translation": false
+      },
+      "loader_style_medium": {
+        "english": "MEDIUM",
+        "translation": "MEDIUM",
+        "needs_translation": false
+      },
+      "loader_style_large": {
+        "english": "LARGE",
+        "translation": "LARGE",
+        "needs_translation": false
+      },
+      "dashboard_loader_loader_style_select": {
+        "english": "Loader size",
+        "translation": "Loader size",
+        "needs_translation": false
+      },
       "dashboard_theme_preflight": {
         "english": "Preflight Theme",
         "translation": "Preflight Theme",

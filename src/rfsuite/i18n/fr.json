@@ -5906,6 +5906,16 @@
           "needs_translation": false,
           "translation": "Tableau de bord"
         },
+        "dashboard_loader": {
+          "english": "Loader",
+          "needs_translation": true,
+          "translation": "Loader"
+        },
+        "dashboard_loader_loader_style_select": {
+          "english": "Loader size",
+          "needs_translation": true,
+          "translation": "Loader size"
+        },
         "dashboard_settings": {
           "english": "Settings",
           "needs_translation": false,
@@ -6020,6 +6030,21 @@
           "english": "Governor State",
           "needs_translation": false,
           "translation": "Etat du regulateur"
+        },
+        "loader_style_large": {
+          "english": "LARGE",
+          "needs_translation": true,
+          "translation": "LARGE"
+        },
+        "loader_style_medium": {
+          "english": "MEDIUM",
+          "needs_translation": true,
+          "translation": "MEDIUM"
+        },
+        "loader_style_small": {
+          "english": "SMALL",
+          "needs_translation": true,
+          "translation": "SMALL"
         },
         "localizations": {
           "english": "Localization",
