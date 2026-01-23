@@ -7,6 +7,27 @@ local rfsuite = require("rfsuite")
 
 local utils = rfsuite.utils
 
+-- Event-driven onconnect handler (moved out of scheduled tasks)
+local onconnect
+local function getOnconnect()
+    if onconnect then return onconnect end
+
+    local fn, err = loadfile("tasks/events/onconnect/tasks.lua")
+    if not fn then
+        utils.log("[tasks] onconnect tasks.lua missing: " .. tostring(err), "error")
+        return nil
+    end
+
+    local ok, mod = pcall(fn)
+    if ok and type(mod) == "table" then
+        onconnect = mod
+        return onconnect
+    end
+
+    utils.log("[tasks] onconnect tasks.lua did not return a table", "error")
+    return nil
+end
+
 local currentTelemetrySensor
 local tasksPerCycle
 local taskSchedulerPercentage
@@ -35,6 +56,7 @@ tasks._justInitialized = false
 tasks._initState = "start"
 tasks._initMetadata = nil
 tasks._initKeys = nil
+tasks._initByName = nil
 tasks._initIndex = 1
 
 local ethosVersionGood
@@ -135,87 +157,80 @@ function tasks.dumpSchedule()
 end
 
 function tasks.initialize()
-    local cacheFile, cachePath = "tasks.lua", "cache/tasks.lua"
-    if io.open(cachePath, "r") then
-        local ok, cached = pcall(dofile, cachePath)
-        if ok and type(cached) == "table" then
-            tasks._initMetadata = cached
-            utils.log("[cache] Loaded task metadata from cache", "info")
-        else
-            utils.log("[cache] Failed to load tasks cache", "info")
+    local manifestPath = "tasks/scheduled/manifest.lua"
+    local fn, err = loadfile(manifestPath)
+    if not fn then
+        utils.log("[tasks] manifest.lua missing: " .. tostring(err), "error")
+        tasks._initMetadata = {}
+        tasks._initKeys = {}
+        tasks._initState = nil
+        return
+    end
+
+    local ok, manifest = pcall(fn)
+    if not ok or type(manifest) ~= "table" then
+        utils.log("[tasks] manifest.lua did not return a table", "error")
+        tasks._initMetadata = {}
+        tasks._initKeys = {}
+        tasks._initState = nil
+        return
+    end
+
+    tasks._initMetadata = manifest
+    tasks._initKeys = {}
+    tasks._initByName = {}
+    for i, meta in ipairs(tasks._initMetadata) do
+        tasks._initKeys[i] = i
+        if type(meta) == "table" and meta.name then
+            tasks._initByName[meta.name] = meta
         end
     end
-    if not tasks._initMetadata then
-        local taskPath, taskMetadata = "tasks/", {}
-        for _, dir in pairs(system.listFiles(taskPath)) do
-            if dir ~= "." and dir ~= ".." and not dir:match("%.%a+$") then
-                local initPath = taskPath .. dir .. "/init.lua"
-                local func, err = loadfile(initPath)
-                if err then
-                    utils.log("Error loading " .. initPath .. ": " .. err, "info")
-                elseif func then
-                    local tconfig = func()
-                    if type(tconfig) == "table" and tconfig.interval and tconfig.script then taskMetadata[dir] = {interval = tconfig.interval, script = tconfig.script, linkrequired = tconfig.linkrequired or false, connected = tconfig.connected or false, simulatoronly = tconfig.simulatoronly or false, spreadschedule = tconfig.spreadschedule or false, init = initPath} end
-                end
-            end
-        end
-        tasks._initMetadata = taskMetadata
-        utils.createCacheFile(taskMetadata, cacheFile)
-        utils.log("[cache] Created new tasks cache file", "info")
-    end
-    tasks._initKeys = utils.keys(tasks._initMetadata)
     tasks._initState = "loadNextTask"
+    utils.log("[tasks] Loaded task manifest (" .. tostring(#tasks._initKeys) .. " tasks)", "info")
+ 
 end
 
 function tasks.findTasks()
-    local taskPath, taskMetadata = "tasks/", {}
+    local manifestPath = "tasks/scheduled/manifest.lua"
 
-    for _, dir in pairs(system.listFiles(taskPath)) do
-        if dir ~= "." and dir ~= ".." and not dir:match("%.%a+$") then
-            local initPath = taskPath .. dir .. "/init.lua"
-            local func, err = loadfile(initPath)
-            if err then
-                utils.log("Error loading " .. initPath .. ": " .. err, "info")
-            elseif func then
-                local tconfig = func()
-                if type(tconfig) ~= "table" or not tconfig.interval or not tconfig.script then
-                    utils.log("Invalid configuration in " .. initPath, "debug")
-                else
-                    local scriptPath = taskPath .. dir .. "/" .. tconfig.script
-                    local fn, loadErr = loadfile(scriptPath)
-                    if fn then
-                        tasks[dir] = fn(config)
-                    else
-                        utils.log("Failed to load task script " .. scriptPath .. ": " .. loadErr, "warn")
-                    end
-
-                    local baseInterval = tconfig.interval or 1
-                    local jitter = (math.random() * 0.1)
-                    local interval = (baseInterval * (tasks.rateMultiplier or 1.0)) + jitter
-                    local offset = taskOffset(dir, interval)
-
-                    local task = {name = dir, interval = interval, baseInterval = baseInterval, jitter = jitter, script = tconfig.script, linkrequired = tconfig.linkrequired or false, connected = tconfig.connected or false, spreadschedule = tconfig.spreadschedule or false, simulatoronly = tconfig.simulatoronly or false, last_run = os.clock() - offset, duration = 0, totalDuration = 0, runs = 0, maxDuration = 0}
-                    table.insert(tasksList, task)
-                    if task.spreadschedule then
-                        table.insert(tasksListSpread, task)
-                    else
-                        table.insert(tasksListNonSpread, task)
-                        nonSpreadCount = nonSpreadCount + 1
-                    end
-
-                    taskMetadata[dir] = {interval = task.interval, script = task.script, linkrequired = task.linkrequired, connected = task.connected, simulatoronly = task.simulatoronly, spreadschedule = task.spreadschedule}
-                end
-            end
-        end
+    local fn, err = loadfile(manifestPath)
+    if not fn then
+        utils.log("[tasks] manifest.lua missing: " .. tostring(err), "error")
+        return {}
     end
-    return taskMetadata
+
+    local ok, manifest = pcall(fn)
+    if not ok or type(manifest) ~= "table" then
+        utils.log("[tasks] manifest.lua did not return a table", "error")
+        return {}
+    end
+
+    return manifest
 end
 
 local function clearSessionAndQueue()
     tasks.setTelemetryTypeChanged()
+    local oc = getOnconnect()
+    if oc then
+        if type(oc.setTelemetryTypeChanged) == "function" then pcall(oc.setTelemetryTypeChanged) end
+        if type(oc.resetAllTasks) == "function" then pcall(oc.resetAllTasks) end
+    end
+
     utils.session()
     local q = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.mspQueue
     if q then q:clear() end
+
+    -- IMPORTANT: when switching telemetry transport (S.Port <-> CRSF/ELRS),
+    -- onconnect can start immediately (event-driven), so we must force MSP
+    -- to re-bind its transport right now (not later when the scheduled MSP
+    -- task next runs).
+    local msp = rfsuite.tasks and rfsuite.tasks.msp
+    if msp then
+        if type(msp.setTelemetryTypeChanged) == "function" then pcall(msp.setTelemetryTypeChanged) end
+        if type(msp.reset) == "function" then pcall(msp.reset) end
+        -- If we already have a sensor/type, wakeup will re-bind transports immediately.
+        if type(msp.wakeup) == "function" then pcall(msp.wakeup) end
+    end
 
     internalModule = nil
     externalModule = nil
@@ -262,6 +277,8 @@ function tasks.telemetryCheckScheduler()
         end
     end
 
+    local haveSensor = false
+
     if currentSensor then
         rfsuite.session.telemetryState = true
         rfsuite.session.telemetrySensor = currentSensor
@@ -276,40 +293,45 @@ function tasks.telemetryCheckScheduler()
                 utils.log("Telem. sensor changed to " .. tostring(currentSensor:name()), "connect")
                 lastSensorName = currentSensor:name()
                 currentSensor = nil
+                clearSessionAndQueue()  
             end
         end
 
-        return
+        haveSensor = (currentSensor ~= nil)
     end
 
-    if not internalModule or not externalModule then
-        internalModule = model.getModule(0)
-        externalModule = model.getModule(1)
-    end
+    if not haveSensor then
 
-    if internalModule and internalModule:enable() then
-        currentSensor = system.getSource(SRC_SPORT)
-        currentModuleId = internalModule
-        currentModuleNumber = 0
-        currentTelemetryType = "sport"
-    elseif externalModule and externalModule:enable() then
-        currentSensor = system.getSource(SRC_CRSF)
-        currentModuleId = externalModule
-        currentTelemetryType = "crsf"
-        currentModuleNumber = 1
-        if not currentSensor then
-            currentSensor = system.getSource(SRC_SPORT)
-            currentTelemetryType = "sport"
+        if not internalModule or not externalModule then
+            internalModule = model.getModule(0)
+            externalModule = model.getModule(1)
         end
+
+        if internalModule and internalModule:enable() then
+            currentSensor = system.getSource(SRC_SPORT)
+            currentModuleId = internalModule
+            currentModuleNumber = 0
+            currentTelemetryType = "sport"
+        elseif externalModule and externalModule:enable() then
+            currentSensor = system.getSource(SRC_CRSF)
+            currentModuleId = externalModule
+            currentTelemetryType = "crsf"
+            currentModuleNumber = 1
+            if not currentSensor then
+                currentSensor = system.getSource(SRC_SPORT)
+                currentTelemetryType = "sport"
+            end
+        end
+
+        if not currentSensor then return clearSessionAndQueue() end
+
+        rfsuite.session.telemetryState = true
+        rfsuite.session.telemetrySensor = currentSensor
+        rfsuite.session.telemetryModule = currentModuleId
+        rfsuite.session.telemetryType = currentTelemetryType
+        rfsuite.session.telemetryModuleNumber = currentModuleNumber
+
     end
-
-    if not currentSensor then return clearSessionAndQueue() end
-
-    rfsuite.session.telemetryState = true
-    rfsuite.session.telemetrySensor = currentSensor
-    rfsuite.session.telemetryModule = currentModuleId
-    rfsuite.session.telemetryType = currentTelemetryType
-    rfsuite.session.telemetryModuleNumber = currentModuleNumber
 
     if currentTelemetryType ~= lastTelemetryType then
         rfsuite.utils.log("Telemetry type changed to " .. tostring(currentTelemetryType), "info")
@@ -317,6 +339,17 @@ function tasks.telemetryCheckScheduler()
         tasks.setTelemetryTypeChanged()
         lastTelemetryType = currentTelemetryType
         clearSessionAndQueue()
+    end
+
+    -- Run onconnect event handler only when needed (link-up and not yet established)
+    local oc = getOnconnect()
+    if oc and type(oc.wakeup) == "function" then
+        local needsRun = (not rfsuite.session.isConnected)
+        if not needsRun and type(oc.active) == "function" then needsRun = oc.active() end
+        if needsRun then
+            local ok, err = pcall(oc.wakeup)
+            if not ok then print("[ERROR][onconnect.wakeup]", err) end
+        end
     end
 
 end
@@ -483,13 +516,15 @@ function tasks.wakeup()
         if key then
             local meta = tasks._initMetadata[key]
 
-            tasks.load(key, meta)
+            local name = meta and meta.name
+            tasks.load(name, meta)
             tasks._initIndex = tasks._initIndex + 1
             return
         else
             tasks._initState = nil
             tasks._initMetadata = nil
             tasks._initKeys = nil
+            tasks._initByName = nil
             tasks._initIndex = 1
             utils.log("All tasks initialized.", "info")
             utils.log("All tasks initialized.", "connect")
@@ -542,8 +577,11 @@ function tasks.wakeup()
 end
 
 function tasks.reset()
-
-    for _, task in ipairs(tasksList) do if tasks[task.name].reset then tasks[task.name].reset() end end
+    for _, task in ipairs(tasksList) do 
+        if tasks[task.name].reset then 
+            tasks[task.name].reset() 
+        end
+    end    
     rfsuite.utils.session()
 end
 
@@ -655,32 +693,19 @@ end
 function tasks.load(name, meta)
 
     if not meta then
-        local initPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/" .. name .. "/init.lua"
-        local initFn, err = loadfile(initPath)
-        if not initFn then
-            utils.log("Failed to load init for " .. name .. ": " .. tostring(err), "info")
-            return false
-        end
-        local m = initFn()
-        if type(m) ~= "table" or not m.script then
-            utils.log("Invalid config in " .. initPath, "info")
-            return false
-        end
-        meta = m
-        meta.init = initPath
-    else
-
-        if meta.init then
-            local initFn, err = loadfile(meta.init)
-            if initFn then
-                pcall(initFn)
-            else
-                utils.log("Failed to run init for " .. name .. ": " .. (err or "unknown"), "info")
-            end
-        end
+        utils.log("[scheduler] No manifest entry for task '" .. tostring(name) .. "'", "warn")
+        return false
     end
+    if not name or name == "" then
+        utils.log("[scheduler] Manifest entry missing 'name'", "error")
+        return false
+    end
+    if not meta.script or meta.script == "" then
+        utils.log("[scheduler] Manifest entry '" .. tostring(name) .. "' missing 'script'", "error")
+        return false
+    end    
 
-    local scriptPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/" .. name .. "/" .. meta.script
+    local scriptPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/" .. meta.script
     local fn, loadErr = loadfile(scriptPath)
     if not fn then
         utils.log("Failed to load task script " .. scriptPath .. ": " .. tostring(loadErr), "info")
@@ -710,7 +735,7 @@ function tasks.load(name, meta)
     end
 
     utils.log(string.format("[scheduler] Loaded task '%s' (%s)", name, meta.script), "info")
-    utils.log(string.format("[scheduler] Loaded task '%s' (%s)", name, meta.script), "connect")
+    utils.log(string.format("[scheduler] Loaded task [%s]", name), "connect")
     return true
 end
 
@@ -718,7 +743,7 @@ function tasks.reload(name)
 
     tasks.unload(name)
 
-    local meta = tasks._initMetadata and tasks._initMetadata[name] or nil
+    local meta = tasks._initByName and tasks._initByName[name] or nil
 
     local ok = tasks.load(name, meta)
 
