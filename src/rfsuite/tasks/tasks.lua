@@ -70,14 +70,8 @@ local PATH_CHECK_INTERVAL = 2.0
 local connectAttemptStartedAt = nil
 local hadSession = false  -- latched once we have started (or had) a session attempt
 local connectAttemptResetCooldownUntil = 0
-local CONNECT_WATCHDOG_TIMEOUT_S = 20.0
+local CONNECT_WATCHDOG_TIMEOUT_S = 10.0
 local CONNECT_WATCHDOG_COOLDOWN_S = 3.0
-
--- Teardown gating:
--- Avoid repeated heavy teardown/reset while disconnected (causes lag),
--- but still allow teardown during an in-flight connect attempt.
-local lastTeardownAt = 0
-local TEARDOWN_COOLDOWN_S = 0.25
 
 -- Telemetry edge tracking:
 -- We only want to do heavy teardown ONCE when link drops, not every scheduler tick.
@@ -229,48 +223,9 @@ function tasks.findTasks()
     return manifest
 end
 
-local function clearSessionAndQueue(reason, force)
+local function clearSessionAndQueue()
 
     local now = os.clock()
-
-    -- Throttle heavy teardown to avoid thrashing (lag) when telemetry flaps.
-    -- For "force" reasons (watchdog/model/sensor/transport), bypass the cooldown.
-    if not force then
-        if (now - lastTeardownAt) < TEARDOWN_COOLDOWN_S then
-            -- Still do the *minimal* MSP cleanup even when we skip heavy teardown.
-            -- This prevents the MSP queue getting "stuck" across rapid disconnect/reconnect cycles.
-            local q = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.mspQueue
-            if q then pcall(function() q:clear() end) end
-            if rfsuite.session then rfsuite.session.mspBusy = false end            
-            return
-        end
-    end
-
-    -- Gate: only teardown if we were connected, or we are in an in-flight connect attempt,
-    -- or MSP is busy (partial session). This prevents idle/disconnected thrash.
-    if (not rfsuite.session.isConnected) and (connectAttemptStartedAt == nil) and (not rfsuite.session.mspBusy) then
-        return
-    end
-
-    lastTeardownAt = now
-
-    if reason then
-        utils.log("[teardown] " .. tostring(reason), "info")
-    end
-
-    tasks.setTelemetryTypeChanged()
-    if events.onconnect and type(events.onconnect.setTelemetryTypeChanged)=="function" then pcall(events.onconnect.setTelemetryTypeChanged) end
-
-    -- resetAllTasks on every event module that implements it
-    for name, ev in pairs(events) do
-        if ev and type(ev.resetAllTasks) == "function" then
-            local ok, err = pcall(ev.resetAllTasks)
-            if not ok then
-                utils.log(string.format("[events] %s.resetAllTasks failed: %s", tostring(name), tostring(err)), "error")
-            end
-        end
-    end
-
 
     -- Reset edge caches
     lastArmedState = false
@@ -280,6 +235,32 @@ local function clearSessionAndQueue(reason, force)
     connectAttemptStartedAt = nil    
 
     utils.session()
+
+    tasks.setTelemetryTypeChanged()
+    if events.onconnect and type(events.onconnect.setTelemetryTypeChanged)=="function" then pcall(events.onconnect.setTelemetryTypeChanged) end
+
+    -- reset all scheduled tasks
+    for _, task in ipairs(tasksList) do
+        local name = task and task.name
+        local mod = tasks[name]
+        if mod and type(mod.reset) == "function" then
+            local ok, err = pcall(mod.reset)
+            if not ok then
+                utils.log(string.format("[tasks] %s.reset failed: %s", tostring(name), tostring(err)), "info")
+            end
+        end
+    end
+
+    -- reset every event module that implements it
+    for name, ev in pairs(events) do
+        if ev and type(ev.resetAllTasks) == "function" then
+            local ok, err = pcall(ev.resetAllTasks)
+            if not ok then
+                utils.log(string.format("[events] %s.resetAllTasks failed: %s", tostring(name), tostring(err)), "info")
+            end
+        end
+    end
+    
     local q = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.mspQueue
     if q then q:clear() end
 
@@ -341,9 +322,8 @@ function tasks.telemetryCheckScheduler()
                 pcall(function() od.fire({ reason = "telemetry_down", at = now }) end)
             end
 
-            -- Force teardown if we had any meaningful session activity.
-            local force = hadSession or (rfsuite.session and rfsuite.session.mspBusy)
-            local r = clearSessionAndQueue("telemetry_down", force)
+            -- Force teardown 
+            local r = clearSessionAndQueue()
             connectAttemptStartedAt = nil
             hadSession = false
             return r
@@ -354,7 +334,7 @@ function tasks.telemetryCheckScheduler()
             if (not lastCheckAt) or (now - lastCheckAt) >= 1.0 then
                 lastCheckAt = now
                 utils.log("Waiting for connection", "connect")
-            end
+            end      
         end
 
         connectAttemptStartedAt = nil
@@ -364,6 +344,9 @@ function tasks.telemetryCheckScheduler()
     -- Link is up (rising edge handling)
     if lastTelemetryUp ~= true then
         lastTelemetryUp = true
+        -- force a reset before we start connect attempt
+        clearSessionAndQueue()   
+
         -- Start a new connect attempt window on telemetry-up.
         if not rfsuite.session.isConnected then
             connectAttemptStartedAt = now
@@ -389,7 +372,7 @@ function tasks.telemetryCheckScheduler()
                     -- Prevent rapid-fire resets if we remain in a bad state.
                     connectAttemptResetCooldownUntil = now + CONNECT_WATCHDOG_COOLDOWN_S
 
-                    return clearSessionAndQueue("watchdog", true)
+                    return clearSessionAndQueue()
                 end
             end
         end
@@ -414,7 +397,7 @@ function tasks.telemetryCheckScheduler()
             end
 
             lastModelPath = newModelPath
-            clearSessionAndQueue("model_change", true)
+            clearSessionAndQueue()
         end
     end
 
@@ -434,7 +417,7 @@ function tasks.telemetryCheckScheduler()
                 utils.log("Telem. sensor changed to " .. tostring(currentSensor:name()), "connect")
                 lastSensorName = currentSensor:name()
                 currentSensor = nil
-                clearSessionAndQueue("sensor_change", true)  
+                clearSessionAndQueue()  
             end
         end
 
@@ -464,7 +447,7 @@ function tasks.telemetryCheckScheduler()
             end
         end
 
-        if not currentSensor then return clearSessionAndQueue("sensor_nil", true) end
+        if not currentSensor then return clearSessionAndQueue() end
 
         rfsuite.session.telemetryState = true
         rfsuite.session.telemetrySensor = currentSensor
@@ -487,7 +470,7 @@ function tasks.telemetryCheckScheduler()
 
         tasks.setTelemetryTypeChanged()
         lastTelemetryType = currentTelemetryType
-        clearSessionAndQueue("transport_change", true)
+        clearSessionAndQueue()
     end
 
     -- Run onconnect event handler only when needed (link-up and not yet established)
