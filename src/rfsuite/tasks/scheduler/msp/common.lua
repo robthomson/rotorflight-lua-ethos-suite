@@ -5,6 +5,18 @@
 
 local rfsuite = require("rfsuite")
 
+
+-- Optional protocol trace logger (raw frames). Inert unless enabled.
+local function plog(dir, cmd, payload, extra)
+    local m = rfsuite.tasks and rfsuite.tasks.msp
+    local logger = m and m.proto_logger
+    if not (logger and logger.enabled and logger.log) then return end
+    local protoName = (m.protocol and m.protocol.mspProtocol) or "?"
+    local qid = (m.mspQueue and m.mspQueue.currentMessage and m.mspQueue.currentMessage._qid) or nil
+    local qidTxt = qid and (" QID=" .. tostring(qid)) or ""
+    logger.log(dir, protoName, cmd, payload, (extra or "") .. qidTxt)
+end
+
 -- Convenience wrappers for protocol buffer sizes
 local function proto() return rfsuite.tasks.msp.protocol end
 local function maxTx() return proto().maxTxBufferSize end
@@ -45,7 +57,9 @@ local function pollBudget()
 
     -- Protocol‑specific throughput
     local proto   = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.protocol or {}
-    local base    = proto.mspPollBudget or 0.10
+    -- Default poll budget: keep this modest to reduce instruction burn on the radio.
+    -- Large/slow payloads still get additional budget via the boost logic below.
+    local base    = proto.mspPollBudget or 0.07
     local perPoll = proto.maxRxBufferSize or 6
 
     -- Determine cost of currently pending message
@@ -109,16 +123,19 @@ local function mspProcessTxQ()
             payload[i] = mspTxCRC
             for j = i + 1, maxTx() do payload[j] = 0 end
             mspTxBuf, mspTxIdx, mspTxCRC = {}, 1, 0
+            plog("TX", mspLastReq, payload, "ST=" .. tostring(payload[1] or 0) .. " TXIDX=" .. tostring(mspTxIdx) .. " TXBUF=" .. tostring(#mspTxBuf))
             proto().mspSend(payload)
             return false
         else
+            plog("TX", mspLastReq, payload, "ST=" .. tostring(payload[1] or 0) .. " TXIDX=" .. tostring(mspTxIdx) .. " TXBUF=" .. tostring(#mspTxBuf))
             proto().mspSend(payload)
             return true
         end
     else
         -- V2 pads unused bytes but CRC is handled differently
         for j = i, maxTx() do payload[j] = payload[j] or 0 end
-        proto().mspSend(payload)
+            plog("TX", mspLastReq, payload, "ST=" .. tostring(payload[1] or 0) .. " TXIDX=" .. tostring(mspTxIdx) .. " TXBUF=" .. tostring(#mspTxBuf))
+            proto().mspSend(payload)
         if mspTxIdx > #mspTxBuf then
             mspTxBuf, mspTxIdx, mspTxCRC = {}, 1, 0
             return false
@@ -233,27 +250,65 @@ end
 -- Poll until a complete MSP reply or timeout
 local function mspPollReply()
     local budget = pollBudget() or 0.1
-    local startTime = os.clock()
+    local now = os.clock
+    -- When idle (no in-flight RX + no outstanding request), cap the poll window so
+    -- we don't spin burning max instructions waiting for nothing.
+    local idleCap = 0.02
+    local inflight0 = mspStarted or (mspLastReq ~= 0)
+    local deadline = now() + (inflight0 and budget or math.min(budget, idleCap))
 
-    local MAX_NIL_POLLS = 100
+    -- Hoist lookups (avoid repeated globals + proto() table walks)
+    local p = proto()
+    local mspPoll = p and p.mspPoll
+    if not mspPoll then
+        return nil, nil, nil
+    end
+
+    local receivedReply = _receivedReply
+
+    -- Fast path: when idle, bail quickly on nil (avoid instruction burn).
+    -- Slow path: when a reply is in progress / outstanding request, allow more gaps.
+    local MAX_NIL_IDLE     = 4
+    local MAX_NIL_INFLIGHT = 16
+
+    -- Hard cap on total poll iterations per wakeup to prevent instruction spikes.
+    local MAX_POLLS = 24
+
     local nilPolls = 0
 
-    while os.clock() - startTime < budget do
-        local pkt = proto().mspPoll()
+    local polls = 0
+    while now() < deadline do
+        polls = polls + 1
+        if polls > MAX_POLLS then
+            return nil, nil, nil
+        end
+        local pkt = mspPoll()
 
         if pkt == nil then
             nilPolls = nilPolls + 1
-            if nilPolls >= MAX_NIL_POLLS then
-                -- early exit due to too many nil polls
+
+            -- “In-flight” if we’re mid frame OR we have an outstanding request we’re waiting on.
+            -- (mspStarted is set by _receivedReply() once it sees a valid start for our last request.)
+            local inflight = mspStarted or (mspLastReq ~= 0)
+
+            local maxNil = inflight and MAX_NIL_INFLIGHT or MAX_NIL_IDLE
+            if nilPolls >= maxNil then
                 return nil, nil, nil
             end
         else
-            -- reset counter once we get something
             nilPolls = 0
 
-            if _receivedReply(pkt) then
-                mspLastReq = 0
-                return mspRxReq, mspRxBuf, mspRxError
+            -- Defensive: if transport ever returns non-table, treat as junk/no-data.
+            if type(pkt) == "table" then
+                plog("RX", mspLastReq, pkt, "ST=" .. tostring(pkt[1] or 0))
+                -- Catch rare decode hard-fails without killing the script.
+                -- IMPORTANT: On decode error we *do not* reset mspLastReq or state; next wakeup can continue.
+                local ok, done = pcall(receivedReply, pkt)
+                if ok and done then
+                    plog("RXDONE", mspRxReq, mspRxBuf, "ERR=" .. tostring(mspRxError) .. " SIZE=" .. tostring(#mspRxBuf))
+                    mspLastReq = 0
+                    return mspRxReq, mspRxBuf, mspRxError
+                end
             end
         end
     end
