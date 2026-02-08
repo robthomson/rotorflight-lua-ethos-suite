@@ -9,6 +9,11 @@
     "needs_translation": false,
     "translation": "System"
   },
+  "header_help": {
+    "english": "Help",
+    "translation": "Help",
+    "needs_translation": false
+  },
   "btn_ok": {
     "english": "          OK           ",
     "translation": "          OK           ",
@@ -618,6 +623,21 @@
       "adj_value": {
         "english": "Adjustment Value",
         "translation": "Adjustment Value",
+        "needs_translation": false
+      },
+      "otherSoundSettings": {
+        "english": "Other",
+        "translation": "Other",
+        "needs_translation": false
+      },
+      "modelAnnouncement": {
+        "english": "Model announcement",
+        "translation": "Model announcement",
+        "needs_translation": false
+      },
+      "help_modelAnnouncement": {
+        "english": "Model announcement requires a .wav file in the 'audio' folder matching the model name (e.g. 'racer.wav' for model 'racer').",
+        "translation": "Model announcement requires a .wav file in the 'audio' folder matching the model name (e.g. 'racer.wav' for model 'racer').",
         "needs_translation": false
       }
     },
@@ -3435,6 +3455,21 @@
       "help_table_3_p1": {
         "english": "RC Rate: Maximum rotation rate at full stick deflection.",
         "translation": "RC Rate: Maximum rotation rate at full stick deflection.",
+        "needs_translation": false
+      },
+      "help_table_6_p1": {
+        "english": "Rate: Maximum rotation rate at full stick deflection in degrees per second.",
+        "translation": "Rate: Maximum rotation rate at full stick deflection in degrees per second.",
+        "needs_translation": false
+      },
+      "help_table_6_p2": {
+        "english": "Shape: Shifts the vertex of the control curve. Up to this point, the signal translation is linear. This defines how far the stick travel remains proportional before the curve becomes progressive.",
+        "translation": "Shape: Shifts the vertex of the control curve. Up to this point, the signal translation is linear. This defines how far the stick travel remains proportional before the curve becomes progressive.",
+        "needs_translation": false
+      },
+      "help_table_6_p3": {
+        "english": "Expo: Reduces sensitivity near the stick's center where fine controls are needed.",
+        "translation": "Expo: Reduces sensitivity near the stick's center where fine controls are needed.",
         "needs_translation": false
       }
     },

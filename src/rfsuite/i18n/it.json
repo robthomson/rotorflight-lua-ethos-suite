@@ -2033,6 +2033,11 @@
       "needs_translation": true,
       "translation": "Configurazione"
     },
+    "header_help": {
+      "english": "Help",
+      "needs_translation": true,
+      "translation": "Help"
+    },
     "header_system": {
       "english": "System",
       "needs_translation": true,
@@ -5144,7 +5149,7 @@
         "help_table_3_p1": {
           "english": "RC Rate: Maximum rotation rate at full stick deflection.",
           "needs_translation": false,
-          "translation": "RC Rate: Velocita' di rotazione massima a piena deflessione dello Stick."
+          "translation": "RC Rate: Velocita' di rotazione massima a piena deflessione dello stick."
         },
         "help_table_3_p2": {
           "english": "Rate: Increases maximum rotation rate while reducing sensitivity around half stick.",
@@ -5185,6 +5190,21 @@
           "english": "Expo: Reduces sensitivity near the stick's center where fine controls are needed.",
           "needs_translation": false,
           "translation": "Expo: Riduce la sensibilita' vicino al centro del joystick, dove sono necessari controlli precisi."
+        },
+        "help_table_6_p1": {
+          "english": "Rate: Maximum rotation rate at full stick deflection in degrees per second.",
+          "needs_translation": true,
+          "translation": "Rate: Maximum rotation rate at full stick deflection in degrees per second."
+        },
+        "help_table_6_p2": {
+          "english": "Shape: Shifts the vertex of the control curve. Up to this point, the signal translation is linear. This defines how far the stick travel remains proportional before the curve becomes progressive.",
+          "needs_translation": false,
+          "translation": "Forma: Sposta il vertice della curva di controllo. Fino a questo punto, la conversione del segnale è lineare. Questo definisce quanto il movimento dello stick rimanga proporzionale prima che la curva diventi progressiva."
+        },
+        "help_table_6_p3": {
+          "english": "Expo: Reduces sensitivity near the stick's center where fine controls are needed.",
+          "needs_translation": false,
+          "translation": "Expo: Riduce la sensibilità vicino al centro dello stick dove sono necessari controlli precisi."
         },
         "kiss": {
           "english": "KISS",
@@ -6031,6 +6051,11 @@
           "needs_translation": false,
           "translation": "Stato Governor"
         },
+        "help_modelAnnouncement": {
+          "english": "Model announcement requires a .wav file in the 'audio' folder matching the model name (e.g. 'racer.wav' for model 'racer').",
+          "needs_translation": false,
+          "translation": "L'annuncio del modello richiede un file .wav nella cartella 'audio' corrispondente al nome del modello (ad es. 'racer.wav' per il modello 'racer')."
+        },
         "loader_style_large": {
           "english": "LARGE",
           "needs_translation": true,
@@ -6056,6 +6081,11 @@
           "needs_translation": false,
           "translation": "Metri"
         },
+        "modelAnnouncement": {
+          "english": "Model announcement",
+          "needs_translation": false,
+          "translation": "Annuncio modello"
+        },
         "name": {
           "english": "Settings",
           "needs_translation": false,
@@ -6065,6 +6095,11 @@
           "english": "No configurable themes installed on this device",
           "needs_translation": false,
           "translation": "Nessun tema disponibile configurabile"
+        },
+        "otherSoundSettings": {
+          "english": "Other",
+          "needs_translation": false,
+          "translation": "Altro"
         },
         "pid_profile": {
           "english": "PID Profile",

@@ -9,6 +9,11 @@
     "translation": "System",
     "needs_translation": false
   },
+  "header_help": {
+    "english": "Help",
+    "translation": "Hilfe",
+    "needs_translation": false
+  },
   "btn_ok": {
     "english": "          OK           ",
     "translation": "          OK           ",
@@ -618,6 +623,21 @@
       "adj_value": {
         "english": "Adjustment Value",
         "translation": "Einstellungswert",
+        "needs_translation": false
+      },
+      "otherSoundSettings": {
+        "english": "Other",
+        "translation": "Sonstiges",
+        "needs_translation": false
+      },
+      "modelAnnouncement": {
+        "english": "Model announcement",
+        "translation": "Modellansage",
+        "needs_translation": false
+      },
+      "help_modelAnnouncement": {
+        "english": "Model announcement requires a .wav file in the 'audio' folder matching the model name (e.g. 'racer.wav' for model 'racer').",
+        "translation": "Für die Modellansage wird eine .wav-Datei im Ordner 'audio' benötigt, die dem Modellnamen entspricht (z. B. 'racer.wav' für das Modell 'racer').",
         "needs_translation": false
       }
     },
@@ -3244,7 +3264,7 @@
     "rates": {
       "help_table_5_p2": {
         "english": "Max Rate: Maximum rotation rate at full stick deflection in degrees per second.",
-        "translation": "Maximalrate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag in Grad pro Sekunde.",
+        "translation": "Maximaldrehrate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag in Grad pro Sekunde.",
         "needs_translation": false
       },
       "rotorflight": {
@@ -3259,7 +3279,7 @@
       },
       "max_rate": {
         "english": "Max Rate",
-        "translation": "Max. Rate",
+        "translation": "Max. Drehrate",
         "needs_translation": false
       },
       "help_table_4_p3": {
@@ -3269,7 +3289,7 @@
       },
       "rate": {
         "english": "Rate",
-        "translation": "Rate",
+        "translation": "Drehrate",
         "needs_translation": false
       },
       "shape": {
@@ -3284,7 +3304,7 @@
       },
       "help_table_4_p2": {
         "english": "Max Rate: Maximum rotation rate at full stick deflection in degrees per second.",
-        "translation": "Maximalrate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag in Grad pro Sekunde.",
+        "translation": "Maximaldrehrate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag in Grad pro Sekunde.",
         "needs_translation": false
       },
       "center_sensitivity": {
@@ -3334,7 +3354,7 @@
       },
       "superrate": {
         "english": "SuperRate",
-        "translation": "SuperRate",
+        "translation": "Super-Drehrate",
         "needs_translation": false
       },
       "help_table_2_p3": {
@@ -3359,7 +3379,7 @@
       },
       "name": {
         "english": "Rates",
-        "translation": "Rates",
+        "translation": "Drehraten",
         "needs_translation": false
       },
       "help_table_5_p3": {
@@ -3379,7 +3399,7 @@
       },
       "help_table_1_p2": {
         "english": "SuperRate: Increases maximum rotation rate while reducing sensitivity around half stick.",
-        "translation": "SuperRate: Erhöht die maximale Rotationsgeschwindigkeit und verringert gleichzeitig die Empfindlichkeit in der Mitte des Knüppelwegs.",
+        "translation": "Super-Drehrate: Erhöht die maximale Rotationsgeschwindigkeit und verringert gleichzeitig die Empfindlichkeit in der Mitte des Knüppelwegs.",
         "needs_translation": false
       },
       "help_default_p2": {
@@ -3409,12 +3429,12 @@
       },
       "help_table_1_p1": {
         "english": "RC Rate: Maximum rotation rate at full stick deflection.",
-        "translation": "RC-Rate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag.",
+        "translation": "RC-Drehrate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag.",
         "needs_translation": false
       },
       "rc_rate": {
         "english": "RC Rate",
-        "translation": "RC-Rate",
+        "translation": "RC-Drehrate",
         "needs_translation": false
       },
       "help_table_2_p1": {
@@ -3434,7 +3454,22 @@
       },
       "help_table_3_p1": {
         "english": "RC Rate: Maximum rotation rate at full stick deflection.",
-        "translation": "RC-Rate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag.",
+        "translation": "RC-Drehrate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag.",
+        "needs_translation": false
+      },
+      "help_table_6_p1": {
+        "english": "Rate: Maximum rotation rate at full stick deflection in degrees per second.",
+        "translation": "Drehrate: Maximale Rotationsgeschwindigkeit bei vollem Knüppelausschlag in Grad pro Sekunde.",
+        "needs_translation": false
+      },
+      "help_table_6_p2": {
+        "english": "Shape: Shifts the vertex of the control curve. Up to this point, the signal translation is linear. This defines how far the stick travel remains proportional before the curve becomes progressive.",
+        "translation": "Form: Verschiebt den Scheitelpunkt der Steuerkurve. Bis zu diesem Punkt verläuft die Signalumsetzung linear. Dies definiert, wie weit der Knüppelweg proportional bleibt, bevor die Kurve progressiv wird.",
+        "needs_translation": false
+      },
+      "help_table_6_p3": {
+        "english": "Expo: Reduces sensitivity near the stick's center where fine controls are needed.",
+        "translation": "Expo: Verringert die Empfindlichkeit nahe der Knüppelmitte für feinere Steuerung.",
         "needs_translation": false
       }
     },

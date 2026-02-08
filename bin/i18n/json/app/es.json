@@ -9,6 +9,11 @@
     "translation": "Sistema",
     "needs_translation": true
   },
+  "header_help": {
+    "english": "Help",
+    "translation": "Ayuda",
+    "needs_translation": false
+  },
   "btn_ok": {
     "english": "          OK           ",
     "translation": "          OK           ",
@@ -618,6 +623,21 @@
       "adj_value": {
         "english": "Adjustment Value",
         "translation": "Valor de Ajuste",
+        "needs_translation": false
+      },
+      "otherSoundSettings": {
+        "english": "Other",
+        "translation": "Otros",
+        "needs_translation": false
+      },
+      "modelAnnouncement": {
+        "english": "Model announcement",
+        "translation": "Anuncio de modelo",
+        "needs_translation": false
+      },
+      "help_modelAnnouncement": {
+        "english": "Model announcement requires a .wav file in the 'audio' folder matching the model name (e.g. 'racer.wav' for model 'racer').",
+        "translation": "El anuncio del modelo requiere un archivo .wav en la carpeta 'audio' que coincida con el nombre del modelo (por ejemplo, 'racer.wav' para el modelo 'racer').",
         "needs_translation": false
       }
     },
@@ -3435,6 +3455,21 @@
       "help_table_3_p1": {
         "english": "RC Rate: Maximum rotation rate at full stick deflection.",
         "translation": "Tasa RC: Tasa de rotación máxima durante el desplazamiento máximo del joystick.",
+        "needs_translation": false
+      },
+      "help_table_6_p1": {
+        "english": "Rate: Maximum rotation rate at full stick deflection in degrees per second.",
+        "translation": "Tasa: Tasa máxima de rotación durante el desplazamiento máximo del joystick en grados por segundo.",
+        "needs_translation": false
+      },
+      "help_table_6_p2": {
+        "english": "Shape: Shifts the vertex of the control curve. Up to this point, the signal translation is linear. This defines how far the stick travel remains proportional before the curve becomes progressive.",
+        "translation": "Forma: Desplaza el vértice de la curva de mando. Hasta este punto, la conversión de la señal es lineal. Esto define hasta qué punto el recorrido del stick se mantiene proporcional antes de que la curva se vuelva progresiva.",
+        "needs_translation": false
+      },
+      "help_table_6_p3": {
+        "english": "Expo: Reduces sensitivity near the stick's center where fine controls are needed.",
+        "translation": "Expo: Reduce la sensibilidad cerca del centro del joystick donde hacen falta controles finos.",
         "needs_translation": false
       }
     },

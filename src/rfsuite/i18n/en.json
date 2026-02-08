@@ -2033,6 +2033,11 @@
       "needs_translation": false,
       "translation": "Configuration"
     },
+    "header_help": {
+      "english": "Help",
+      "needs_translation": false,
+      "translation": "Help"
+    },
     "header_system": {
       "english": "System",
       "needs_translation": false,
@@ -5186,6 +5191,21 @@
           "needs_translation": false,
           "translation": "Expo: Reduces sensitivity near the stick's center where fine controls are needed."
         },
+        "help_table_6_p1": {
+          "english": "Rate: Maximum rotation rate at full stick deflection in degrees per second.",
+          "needs_translation": false,
+          "translation": "Rate: Maximum rotation rate at full stick deflection in degrees per second."
+        },
+        "help_table_6_p2": {
+          "english": "Shape: Shifts the vertex of the control curve. Up to this point, the signal translation is linear. This defines how far the stick travel remains proportional before the curve becomes progressive.",
+          "needs_translation": false,
+          "translation": "Shape: Shifts the vertex of the control curve. Up to this point, the signal translation is linear. This defines how far the stick travel remains proportional before the curve becomes progressive."
+        },
+        "help_table_6_p3": {
+          "english": "Expo: Reduces sensitivity near the stick's center where fine controls are needed.",
+          "needs_translation": false,
+          "translation": "Expo: Reduces sensitivity near the stick's center where fine controls are needed."
+        },
         "kiss": {
           "english": "KISS",
           "needs_translation": false,
@@ -6031,6 +6051,11 @@
           "needs_translation": false,
           "translation": "Governor State"
         },
+        "help_modelAnnouncement": {
+          "english": "Model announcement requires a .wav file in the 'audio' folder matching the model name (e.g. 'racer.wav' for model 'racer').",
+          "needs_translation": false,
+          "translation": "Model announcement requires a .wav file in the 'audio' folder matching the model name (e.g. 'racer.wav' for model 'racer')."
+        },
         "loader_style_large": {
           "english": "LARGE",
           "needs_translation": false,
@@ -6056,6 +6081,11 @@
           "needs_translation": false,
           "translation": "Meters"
         },
+        "modelAnnouncement": {
+          "english": "Model announcement",
+          "needs_translation": false,
+          "translation": "Model announcement"
+        },
         "name": {
           "english": "Settings",
           "needs_translation": false,
@@ -6065,6 +6095,11 @@
           "english": "No configurable themes installed on this device",
           "needs_translation": false,
           "translation": "No configurable themes installed on this device"
+        },
+        "otherSoundSettings": {
+          "english": "Other",
+          "needs_translation": false,
+          "translation": "Other"
         },
         "pid_profile": {
           "english": "PID Profile",
