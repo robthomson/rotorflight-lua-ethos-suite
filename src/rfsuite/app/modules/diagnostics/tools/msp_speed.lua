@@ -7,7 +7,6 @@ local rfsuite = require("rfsuite")
 local lcd = lcd
 local app = rfsuite.app
 local tasks = rfsuite.tasks
-local prefs = rfsuite.preferences
 local rfutils = rfsuite.utils
 local session = rfsuite.session
 
@@ -21,8 +20,6 @@ local startTestLength = 0
 local testLoader = nil
 local testLoaderBaseMessage
 local testLoaderMspStatusLast
-local MSP_DEBUG_PLACEHOLDER = "MSP Waiting"
-
 local function openProgressDialog(...)
     if rfutils.ethosVersionAtLeast({1, 7, 0}) and form.openWaitDialog then
         local arg1 = select(1, ...)
