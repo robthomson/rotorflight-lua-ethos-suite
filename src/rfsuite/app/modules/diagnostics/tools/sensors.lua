@@ -7,12 +7,8 @@ local rfsuite = require("rfsuite")
 local lcd = lcd
 local app = rfsuite.app
 local tasks = rfsuite.tasks
-local prefs = rfsuite.preferences
 local rfutils = rfsuite.utils
 local session = rfsuite.session
-
-local fields = {}
-local labels = {}
 
 local enableWakeup = false
 
@@ -33,7 +29,6 @@ local progressLoader
 local progressLoaderCounter = 0
 local progressLoaderBaseMessage
 local progressLoaderMspStatusLast
-local MSP_DEBUG_PLACEHOLDER = "MSP Waiting"
 local doDiscoverNotify = false
 
 local function openProgressDialog(...)
