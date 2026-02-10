@@ -28,6 +28,32 @@ local apiCore
 
 local MSP_DEBUG_PLACEHOLDER = "MSP Waiting"
 
+local function resolveScriptFromRules(rules)
+    if type(rules) ~= "table" then return nil end
+    for _, rule in ipairs(rules) do
+        local op = rule.op or rule[1]
+        local ver = rule.ver or rule[2]
+        local script = rule.script or rule[3]
+        if op and ver and script and utils.apiVersionCompare(op, ver) then
+            return script, rule.loaderspeed
+        end
+    end
+    return nil
+end
+
+local function resolvePageScript(page, section)
+    local rules = page.script_by_mspversion or page.scriptByMspVersion
+    if not rules and section then
+        rules = section.script_by_mspversion or section.scriptByMspVersion
+    end
+    if rules then
+        local chosen, speed = resolveScriptFromRules(rules)
+        if chosen then return chosen, speed end
+        if page.script_default then return page.script_default, page.loaderspeed end
+    end
+    return page.script, page.loaderspeed
+end
+
 local function getMspStatusExtras()
     local m = tasks and tasks.msp
     if not m then return nil end
@@ -699,11 +725,16 @@ function ui.openMainMenu()
             press = function()
                 preferences.menulastselected["mainmenu"] = pidx
                 local speed = tonumber(pvalue.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
-                app.ui.progressDisplay(nil, nil, speed)
                 if pvalue.module then
                     app.isOfflinePage = true
-                    app.ui.openPage({idx = pidx, title = pvalue.title, script = pvalue.module .. "/" .. pvalue.script})
+                    local script, speedOverride = resolvePageScript(pvalue)
+                    if speedOverride ~= nil then
+                        speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
+                    end
+                    app.ui.progressDisplay(nil, nil, speed)
+                    app.ui.openPage({idx = pidx, title = pvalue.title, script = pvalue.module .. "/" .. script})
                 else
+                    app.ui.progressDisplay(nil, nil, speed)
                     app.ui.openMainMenuSub(pvalue.id)
                 end
             end
@@ -812,9 +843,13 @@ function ui.openMainMenuSub(activesection)
                             press = function()
                                 preferences.menulastselected[activesection] = pidx
                                 local speed = tonumber(page.loaderspeed or section.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
-                                app.ui.progressDisplay(nil, nil, speed)
                                 app.isOfflinePage = offline
-                                app.ui.openPage({idx = pidx, title = page.title, script = page.folder .. "/" .. page.script})
+                                local script, speedOverride = resolvePageScript(page, section)
+                                if speedOverride ~= nil then
+                                    speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
+                                end
+                                app.ui.progressDisplay(nil, nil, speed)
+                                app.ui.openPage({idx = pidx, title = page.title, script = page.folder .. "/" .. script})
                             end
                         })
 
