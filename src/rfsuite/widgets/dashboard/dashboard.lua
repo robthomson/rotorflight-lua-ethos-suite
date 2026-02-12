@@ -1102,7 +1102,7 @@ function dashboard.paint(widget)
     if not dashboard.utils then return end
 
     local isCompiledCheck = "@i18n(iscompiledcheck)@"
-    if isCompiledCheck ~= "true" then
+    if isCompiledCheck ~= "true" and isCompiledCheck ~= "eurt" then
         dashboard.utils.screenError("i18n not compiled - download a release version", true, 0.6)
         return
     end
@@ -1530,7 +1530,11 @@ function dashboard.resetFlightModeAsk()
         {
             label = "@i18n(app.btn_ok)@",
             action = function()
-                tasks.events.flightmode.reset()
+                if tasks and tasks.events and tasks.events.flightmode and type(tasks.events.flightmode.reset) == "function" then
+                    tasks.events.flightmode.reset()
+                end
+                rfsuite.flightmode.current = "preflight"
+                dashboard.flightmode = "preflight"
                 lcd.invalidate()
                 return true
             end
