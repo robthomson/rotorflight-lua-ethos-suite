@@ -93,7 +93,7 @@ COPY_SETTLE_SECONDS = 0.03
 TS_SLACK_SECONDS = 2.0
 CACHE_DIRNAME = "cache"
 LOGO_URL = "https://raw.githubusercontent.com/rotorflight/rotorflight-lua-ethos-suite/master/bin/updater/src/logo.png"
-UPDATER_VERSION = "1.0.3"
+UPDATER_VERSION = "1.0.4"
 UPDATER_RELEASE_JSON_URL = "https://raw.githubusercontent.com/rotorflight/rotorflight-lua-ethos-suite/master/bin/updater/src/release.json"
 UPDATER_INFO_URL = "https://github.com/rotorflight/rotorflight-lua-ethos-suite/tree/master/bin/updater/"
 def _get_app_dir():
@@ -117,6 +117,7 @@ try:
 except Exception:
     WORK_DIR = Path(tempfile.gettempdir()) / "rfsuite_updater_work"
     WORK_DIR.mkdir(parents=True, exist_ok=True)
+UPDATER_SETTINGS_FILE = str(WORK_DIR / "updater_settings.json")
 
 UPDATER_LOCK_FILE = str(WORK_DIR / "rfsuite_updater.lock")
 
@@ -152,13 +153,26 @@ def _cleanup_work_dir():
 
 
 def _clear_cache_dir():
+    cache_dir = WORK_DIR / CACHE_DIRNAME
+    if not cache_dir.exists():
+        return True, None
+    if not cache_dir.is_dir():
+        return False, f"Cache path is not a directory: {cache_dir}"
+
+    def _on_rm_error(func, path, exc_info):
+        # Retry delete after clearing readonly bits (common on Windows).
+        try:
+            os.chmod(path, 0o700)
+            func(path)
+            return
+        except Exception:
+            raise exc_info[1]
+
     try:
-        cache_dir = WORK_DIR / CACHE_DIRNAME
-        if cache_dir.is_dir():
-            shutil.rmtree(cache_dir)
-        return True
-    except Exception:
-        return False
+        shutil.rmtree(cache_dir, onerror=_on_rm_error)
+        return True, None
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
 
 # Version types
 VERSION_RELEASE = "release"
@@ -608,9 +622,51 @@ class UpdaterGUI:
         self.selected_version = tk.StringVar(value=VERSION_RELEASE)
         self.selected_locale = tk.StringVar(value=DEFAULT_LOCALE)
         self.chkdsk_attempted = False
+        self.settings_path = UPDATER_SETTINGS_FILE
+        self._load_user_settings()
         
         self.setup_ui()
+        self._bind_settings_autosave()
         self.radio = RadioInterface(self.log)
+
+    def _load_user_settings(self):
+        """Load saved updater selections (version + locale)."""
+        try:
+            if not os.path.isfile(self.settings_path):
+                return
+            with open(self.settings_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return
+
+            version = str(data.get("version", "")).strip()
+            locale = str(data.get("locale", "")).strip()
+
+            if version in (VERSION_RELEASE, VERSION_SNAPSHOT, VERSION_MASTER):
+                self.selected_version.set(version)
+            if locale in AVAILABLE_LOCALES:
+                self.selected_locale.set(locale)
+        except Exception:
+            # Keep defaults on malformed/unreadable settings.
+            return
+
+    def _save_user_settings(self, *_):
+        """Persist current updater selections."""
+        try:
+            _ensure_work_dir()
+            data = {
+                "version": self.selected_version.get(),
+                "locale": self.selected_locale.get(),
+            }
+            with open(self.settings_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            if hasattr(self, "log_text"):
+                self.log(f"⚠ Could not save updater settings: {e}")
+
+    def _bind_settings_autosave(self):
+        self.selected_version.trace_add("write", self._save_user_settings)
+        self.selected_locale.trace_add("write", self._save_user_settings)
     
     def setup_ui(self):
         """Setup the user interface."""
@@ -769,7 +825,7 @@ class UpdaterGUI:
         self.progress_label.pack()
         
         # Segmented progress bar with labels
-        self.step_names = [
+        self.normal_step_names = [
             "Find",
             "Connect",
             "Download",
@@ -779,6 +835,9 @@ class UpdaterGUI:
             "Audio",
             "Cleanup",
         ]
+        self.disk_step_names = ["Detect", "Prepare", "Scan", "Finalize"]
+        self.step_names = list(self.normal_step_names)
+        self.disk_progress_mode = False
         self.segment_bar = tk.Canvas(
             status_frame,
             height=36,
@@ -841,12 +900,20 @@ class UpdaterGUI:
             command=self.delete_cache
         )
         self.clear_cache_button.pack(side=tk.LEFT, padx=5)
+
+        self.check_disk_button = ttk.Button(
+            button_frame,
+            text="Check Disk",
+            command=self.check_disk
+        )
+        self.check_disk_button.pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             button_frame,
             text="Exit",
             command=self.root.quit
         ).pack(side=tk.RIGHT, padx=5)
+        self.exit_button = button_frame.winfo_children()[-1]
         
         # Info frame
         info_frame = ttk.LabelFrame(self.root, text="Instructions", padding="10")
@@ -1091,13 +1158,157 @@ class UpdaterGUI:
         )
         if not confirmed:
             return
-        ok = _clear_cache_dir()
+        ok, err = _clear_cache_dir()
         if ok:
             self.log("Cache deleted by user.")
             messagebox.showinfo("Delete Cache", "Updater cache deleted.")
         else:
-            self.log("⚠ Failed to delete cache.")
-            messagebox.showerror("Delete Cache", "Failed to delete cache.")
+            self.log(f"⚠ Failed to delete cache: {err}")
+            messagebox.showerror("Delete Cache", f"Failed to delete cache:\n{err}")
+
+    def _find_scripts_dir_for_maintenance(self):
+        scripts_dir = None
+        try:
+            scripts_dir = self.radio.get_scripts_dir()
+        except Exception:
+            scripts_dir = None
+        if not scripts_dir:
+            scripts_dir = self.radio.find_scripts_dir_on_drives(removable_only=True)
+        if not scripts_dir:
+            scripts_dir = self.radio.find_scripts_dir_on_drives(removable_only=False)
+        return scripts_dir
+
+    def _check_disk_command_for_scripts(self, scripts_dir):
+        if sys.platform == "win32":
+            drive, _ = os.path.splitdrive(scripts_dir)
+            if not drive:
+                raise RuntimeError(f"Could not determine drive letter for: {scripts_dir}")
+            # /x forces dismount and implies /f.
+            return [ "chkdsk", drive, "/f", "/x" ], f"{drive}\\"
+
+        if sys.platform == "darwin":
+            volume_root = os.path.abspath(os.path.join(scripts_dir, os.pardir))
+            return ["diskutil", "repairVolume", volume_root], volume_root
+
+        # Linux/Unix fallback: fsck auto-repair on backing device if discoverable.
+        source = None
+        mountpoint = None
+        try:
+            res = subprocess.run(
+                ["findmnt", "-no", "SOURCE,TARGET", "--target", scripts_dir],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            line = (res.stdout or "").strip()
+            if line:
+                parts = line.split()
+                if parts:
+                    source = parts[0]
+                if len(parts) > 1:
+                    mountpoint = parts[1]
+        except Exception:
+            pass
+
+        if not source:
+            raise RuntimeError("Could not resolve mounted source device (findmnt unavailable or no result).")
+        if not source.startswith("/dev/"):
+            raise RuntimeError(f"Resolved source is not a block device: {source}")
+
+        target_desc = f"{source} ({mountpoint or 'unknown mount'})"
+        return ["fsck", "-y", source], target_desc
+
+    def _check_disk_worker(self, scripts_dir):
+        def _run_disk_cmd(cmd, timeout=1800):
+            self.log(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            if result.stdout:
+                for line in result.stdout.strip().splitlines():
+                    if line.strip():
+                        self.log(f"  [disk] {line}")
+            if result.stderr:
+                for line in result.stderr.strip().splitlines():
+                    if line.strip():
+                        self.log(f"  [disk] {line}")
+            return result
+
+        try:
+            self.root.after(0, lambda: self._set_disk_phase(current="Prepare", status="Preparing disk check...", text="Resolving disk-check command..."))
+            cmd, target_desc = self._check_disk_command_for_scripts(scripts_dir)
+            self.log(f"Disk check target: {target_desc}")
+            self.root.after(0, lambda: self._set_disk_phase(done="Prepare", current="Scan", status="Running disk check...", text=f"Checking {target_desc}..."))
+            result = _run_disk_cmd(cmd)
+            self.root.after(0, lambda: self._set_disk_phase(done="Scan", current="Finalize", status="Finalizing disk check...", text="Collecting results..."))
+
+            if result.returncode == 0:
+                self.root.after(0, lambda: messagebox.showinfo("Check Disk", f"Disk check completed for {target_desc}."))
+            else:
+                self.root.after(
+                    0,
+                    lambda: messagebox.showwarning(
+                        "Check Disk",
+                        f"Disk check finished with code {result.returncode} for {target_desc}.\nSee log for details."
+                    )
+                )
+        except FileNotFoundError as e:
+            msg = f"Required tool is not available on this system: {e}"
+            self.log(f"⚠ {msg}")
+            self.root.after(0, lambda: messagebox.showerror("Check Disk", msg))
+        except subprocess.TimeoutExpired:
+            msg = "Disk check timed out."
+            self.log(f"⚠ {msg}")
+            self.root.after(0, lambda: messagebox.showerror("Check Disk", msg))
+        except Exception as e:
+            self.log(f"⚠ Disk check failed: {e}")
+            self.root.after(0, lambda: self._set_disk_phase(current="Finalize", status="Disk check failed", text="Disk check failed."))
+            self.root.after(0, lambda: messagebox.showerror("Check Disk", f"Disk check failed:\n{e}"))
+        finally:
+            def _finish_ui():
+                self.mark_step_done("Finalize")
+                self._set_disk_check_controls_running(False)
+                self._exit_disk_check_progress_mode()
+            self.root.after(0, _finish_ui)
+
+    def check_disk(self):
+        """Run a platform-appropriate filesystem check on the mounted radio volume."""
+        if self.is_updating:
+            messagebox.showinfo("Check Disk", "Cannot run disk check while an update is running.")
+            return
+
+        self._enter_disk_check_progress_mode()
+        self._set_disk_phase(current="Detect", status="Detecting radio volume...", text="Detecting target volume...")
+        scripts_dir = self._find_scripts_dir_for_maintenance()
+        if not scripts_dir:
+            self._exit_disk_check_progress_mode()
+            messagebox.showerror("Check Disk", "Could not locate radio scripts directory. Connect the radio in storage mode and try again.")
+            return
+        self._set_disk_phase(done="Detect", current="Prepare", status="Preparing disk check...", text="Preparing check command...")
+
+        if sys.platform == "win32":
+            check_note = "This will run chkdsk /f /x on the radio drive (auto-fix, force dismount)."
+        elif sys.platform == "darwin":
+            check_note = "This will run diskutil repairVolume on the mounted radio volume."
+        else:
+            check_note = "This will run fsck -y on the detected source device (auto-fix)."
+
+        confirmed = messagebox.askyesno(
+            "Check Disk",
+            f"{check_note}\n\nTarget scripts path:\n{scripts_dir}\n\nContinue?"
+        )
+        if not confirmed:
+            self._exit_disk_check_progress_mode()
+            return
+
+        self.log("Starting disk check...")
+        self._set_disk_check_controls_running(True)
+        threading.Thread(target=self._check_disk_worker, args=(scripts_dir,), daemon=True).start()
     
     def set_status(self, message):
         """Update the status label."""
@@ -1175,6 +1386,58 @@ class UpdaterGUI:
             self.segment_active_index = self.step_names.index(step_name)
             self._start_segment_pulse()
         self.update_progress(0, f"Current step: {step_name}")
+
+    def _enter_disk_check_progress_mode(self):
+        if self.disk_progress_mode:
+            return
+        self.disk_progress_mode = True
+        self.step_names = list(self.disk_step_names)
+        self.reset_steps()
+
+    def _exit_disk_check_progress_mode(self):
+        if not self.disk_progress_mode:
+            return
+        self.disk_progress_mode = False
+        self.step_names = list(self.normal_step_names)
+        self.reset_steps()
+        self.update_progress(0, "")
+        self.set_status("Ready to update")
+
+    def _set_disk_phase(self, current=None, done=None, status=None, text=None):
+        if status is not None:
+            self.set_status(status)
+        if done is not None:
+            self.mark_step_done(done)
+        if current is not None:
+            self.set_current_step(current)
+        if text is not None:
+            self.update_progress(0, text)
+
+    def _set_disk_check_controls_running(self, running):
+        if running:
+            self.update_button.config(state=tk.DISABLED)
+            self.clear_cache_button.config(state=tk.DISABLED)
+            self.check_disk_button.config(state=tk.DISABLED)
+            self.exit_button.config(state=tk.DISABLED)
+        else:
+            self.update_button.config(state=tk.NORMAL)
+            self.clear_cache_button.config(state=tk.NORMAL)
+            self.check_disk_button.config(state=tk.NORMAL)
+            self.exit_button.config(state=tk.NORMAL)
+
+    def _set_update_controls_running(self, running):
+        if running:
+            self.update_button.config(state=tk.DISABLED)
+            self.cancel_button.config(state=tk.NORMAL)
+            self.clear_cache_button.config(state=tk.DISABLED)
+            self.check_disk_button.config(state=tk.DISABLED)
+            self.exit_button.config(state=tk.DISABLED)
+        else:
+            self.update_button.config(state=tk.NORMAL)
+            self.cancel_button.config(state=tk.DISABLED)
+            self.clear_cache_button.config(state=tk.NORMAL)
+            self.check_disk_button.config(state=tk.NORMAL)
+            self.exit_button.config(state=tk.NORMAL)
 
     def _start_segment_pulse(self):
         if self.segment_pulse_after_id is not None:
@@ -1903,8 +2166,7 @@ class UpdaterGUI:
         
         _ensure_work_dir()
         self.is_updating = True
-        self.update_button.config(state=tk.DISABLED)
-        self.cancel_button.config(state=tk.NORMAL)
+        self._set_update_controls_running(True)
         self.reset_steps()
         self.update_progress(0, "Starting...")
         
@@ -1918,8 +2180,7 @@ class UpdaterGUI:
         self.set_status("Update cancelled")
         self._stop_segment_pulse()
         self.update_progress(0, "")
-        self.update_button.config(state=tk.NORMAL)
-        self.cancel_button.config(state=tk.DISABLED)
+        self._set_update_controls_running(False)
     
     def update_process(self):
         """Main update process (runs in background thread)."""
@@ -2279,8 +2540,7 @@ class UpdaterGUI:
         finally:
             self.is_updating = False
             self._stop_segment_pulse()
-            self.update_button.config(state=tk.NORMAL)
-            self.cancel_button.config(state=tk.DISABLED)
+            self._set_update_controls_running(False)
             
             # Disconnect from radio
             try:
