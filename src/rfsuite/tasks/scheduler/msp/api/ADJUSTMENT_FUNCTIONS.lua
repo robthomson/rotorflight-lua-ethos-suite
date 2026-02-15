@@ -6,27 +6,33 @@
 local rfsuite = require("rfsuite")
 local core = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api_core.lua"))()
 
-local API_NAME = "BOXIDS"
-local MSP_API_CMD_READ = 119
+local API_NAME = "ADJUSTMENT_FUNCTIONS"
+local MSP_API_CMD_READ = 167
 local MSP_MIN_BYTES = 0
+local ADJUSTMENT_RANGE_MAX = 42
 
 local mspData = nil
 local handlers = core.createHandlers()
 
 local MSP_API_UUID
 local MSP_API_MSG_TIMEOUT
-local SIMULATOR_RESPONSE = {0, 1, 2, 53, 27, 36, 45, 13, 52, 19, 20, 26, 31, 51, 55, 56, 57}
+local SIMULATOR_RESPONSE = {
+    1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+}
 
-local function parseBoxIds(buf)
+local function parseAdjustmentFunctions(buf)
     local parsed = {}
-    local ids = {}
+    local functions = {}
     buf.offset = 1
-    while true do
-        local id = rfsuite.tasks.msp.mspHelper.readU8(buf)
-        if id == nil then break end
-        ids[#ids + 1] = id
+
+    for i = 1, ADJUSTMENT_RANGE_MAX do
+        local fn = rfsuite.tasks.msp.mspHelper.readU8(buf)
+        if fn == nil then break end
+        functions[i] = fn
     end
-    parsed.box_ids = ids
+
+    parsed.adjustment_functions = functions
     return {parsed = parsed, buffer = buf}
 end
 
@@ -35,7 +41,7 @@ local function read()
         command = MSP_API_CMD_READ,
         apiname = API_NAME,
         processReply = function(self, buf)
-            mspData = parseBoxIds(buf)
+            mspData = parseAdjustmentFunctions(buf)
             local completeHandler = handlers.getCompleteHandler()
             if completeHandler then completeHandler(self, buf) end
         end,
