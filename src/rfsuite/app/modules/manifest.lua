@@ -89,8 +89,7 @@ return {
             newline = true,
             pages = {
                 "copyprofiles",
-                "profile_select",
-                "msp_exp"
+                "profile_select"
             }
         },
         -- Single entries open directly from the main menu.
@@ -113,6 +112,12 @@ return {
             image = "app/modules/diagnostics/diagnostics.png",
             bgtask = true,
             offline = true
+        },
+        {
+            title = "@i18n(app.modules.settings.txt_developer)@",
+            entry = "developer",
+            image = "app/modules/developer/developer.png",
+            developer = true
         }
     }
 }
