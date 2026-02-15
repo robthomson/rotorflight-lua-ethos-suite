@@ -17,6 +17,7 @@ local floor = math.floor
 local sqrt = math.sqrt
 local max = math.max
 local min = math.min
+local t_sort = table.sort
 
 local formFields = app.formFields
 local radio = app.radio
@@ -26,6 +27,8 @@ local BASE_VIEW_PITCH_R = rad(-90)
 local BASE_VIEW_YAW_R = rad(90)
 local CAMERA_DIST = 7.0
 local CAMERA_NEAR_EPS = 0.25
+local SHOW_BACKGROUND_GRID = false
+local HIGH_DETAIL_MODEL = false
 
 local state = {
     pageIdx = nil,
@@ -44,6 +47,7 @@ local state = {
     movementPaused = false,
     resumeMovementPending = false,
     autoRecenterPending = false,
+    simStartAt = 0,
     viewYawOffset = 0,
     display = {
         roll_degrees = 0,
@@ -124,12 +128,37 @@ local function parseAttitude(buf)
     return true
 end
 
+local function buildSimulatedAttitudeResponse(now)
+    local m = tasks and tasks.msp and tasks.msp.mspHelper
+    if not m then return {} end
+
+    local t0 = state.simStartAt or 0
+    local t = max(0, (now or os.clock()) - t0)
+
+    local rollDeg = 25.0 * sin(t * 1.25)
+    local pitchDeg = 18.0 * sin((t * 0.90) + 0.9)
+    local yawDeg = 90.0 * sin((t * 0.42) + 0.2)
+
+    local rollRaw = floor((rollDeg * 10.0) + 0.5)
+    local pitchRaw = floor((pitchDeg * 10.0) + 0.5)
+    local yawRaw = floor(yawDeg + 0.5)
+
+    local buf = {}
+    m.writeS16(buf, rollRaw)
+    m.writeS16(buf, pitchRaw)
+    m.writeS16(buf, yawRaw)
+    return buf
+end
+
 local function requestAttitude()
     if state.pendingAttitude then return false end
     if not (tasks and tasks.msp and tasks.msp.mspQueue) then return false end
 
+    local now = os.clock()
     state.pendingAttitude = true
-    state.pendingAt = os.clock()
+    state.pendingAt = now
+    local sim = system.getVersion().simulation
+    local simResponse = sim and buildSimulatedAttitudeResponse(now) or {}
 
     return tasks.msp.mspQueue:add({
         command = MSP_ATTITUDE,
@@ -141,7 +170,7 @@ local function requestAttitude()
         errorHandler = function()
             state.pendingAttitude = false
         end,
-        simulatorResponse = {}
+        simulatorResponse = simResponse
     })
 end
 
@@ -341,6 +370,36 @@ local function drawFilledTriangle3D(a, b, c, cx, cy, scale, pitchR, yawR, rollR,
     lcd.drawFilledTriangle(x1, y1, x2, y2, x3, y3)
 end
 
+local function collectTriangle3D(list, a, b, c, cx, cy, scale, pitchR, yawR, rollR, color)
+    local ax, ay, az = rotatePoint(a[1], a[2], a[3], pitchR, yawR, rollR)
+    local bx, by, bz = rotatePoint(b[1], b[2], b[3], pitchR, yawR, rollR)
+    local cx3, cy3, cz3 = rotatePoint(c[1], c[2], c[3], pitchR, yawR, rollR)
+    if (CAMERA_DIST - az) <= CAMERA_NEAR_EPS or (CAMERA_DIST - bz) <= CAMERA_NEAR_EPS or (CAMERA_DIST - cz3) <= CAMERA_NEAR_EPS then
+        return
+    end
+
+    local x1, y1 = projectPoint(ax, ay, az, cx, cy, scale)
+    local x2, y2 = projectPoint(bx, by, bz, cx, cy, scale)
+    local x3, y3 = projectPoint(cx3, cy3, cz3, cx, cy, scale)
+    if x1 == nil or x2 == nil or x3 == nil then return end
+
+    list[#list + 1] = {
+        x1 = x1, y1 = y1, x2 = x2, y2 = y2, x3 = x3, y3 = y3,
+        z = (az + bz + cz3) / 3,
+        color = color
+    }
+end
+
+local function drawTriangleList(list)
+    if #list == 0 then return end
+    t_sort(list, function(a, b) return a.z < b.z end)
+    for i = 1, #list do
+        local t = list[i]
+        lcd.color(t.color)
+        lcd.drawFilledTriangle(t.x1, t.y1, t.x2, t.y2, t.x3, t.y3)
+    end
+end
+
 local function drawVisual()
     local w, h = lcd.getWindowSize()
     local x = 0
@@ -355,6 +414,9 @@ local function drawVisual()
     local mainColor = isDark and lcd.RGB(248, 248, 248) or lcd.RGB(8, 8, 8)
     local accent = isDark and lcd.RGB(255, 220, 110) or lcd.RGB(0, 110, 235)
     local disc = isDark and lcd.RGB(150, 150, 150) or lcd.RGB(150, 150, 150)
+    local bodyLight = isDark and lcd.RGB(220, 220, 220) or lcd.RGB(180, 180, 180)
+    local bodyMid = isDark and lcd.RGB(180, 180, 180) or lcd.RGB(145, 145, 145)
+    local bodyDark = isDark and lcd.RGB(140, 140, 140) or lcd.RGB(112, 112, 112)
 
     local panelX = x + 4
     local panelY = y + 2
@@ -388,13 +450,15 @@ local function drawVisual()
     lcd.drawRectangle(infoX, infoY, infoW, infoH)
     lcd.drawLine(gx0 - 1, panelY + 1, gx0 - 1, panelY + panelH - 2)
 
-    lcd.color(grid)
-    local step = 24
-    for gy = gy0 + step, gy0 + gh0 - 1, step do
-        lcd.drawLine(gx0, gy, gx0 + gw0, gy)
-    end
-    for gx = gx0 + step, gx0 + gw0 - 1, step do
-        lcd.drawLine(gx, gy0, gx, gy0 + gh0)
+    if SHOW_BACKGROUND_GRID then
+        lcd.color(grid)
+        local step = 24
+        for gy = gy0 + step, gy0 + gh0 - 1, step do
+            lcd.drawLine(gx0, gy, gx0 + gw0, gy)
+        end
+        for gx = gx0 + step, gx0 + gw0 - 1, step do
+            lcd.drawLine(gx, gy0, gx, gy0 + gh0)
+        end
     end
 
     lcd.font(FONT_XS)
@@ -438,7 +502,7 @@ local function drawVisual()
                 local ux = dx / mag
                 local uy = dy / mag
                 local htxt, vtxt = "center", "center"
-                if ux > 0.35 then htxt = "right" elseif ux < -0.35 then htxt = "left" end
+                if ux > 0.35 then htxt = "left" elseif ux < -0.35 then htxt = "right" end
                 if uy > 0.35 then vtxt = "up" elseif uy < -0.35 then vtxt = "down" end
 
                 local primary = "@i18n(app.modules.alignment.nose_level)@"
@@ -466,26 +530,95 @@ local function drawVisual()
     local scale = max(8, min(gw0, gh0) * 0.2112)
 
     -- Simplified heli wireframe for clearer orientation cues.
-    local nose = {2.2, 0.0, 0.0}
-    local tail = {-2.4, 0.0, 0.0}
-    local lf = {0.9, -0.58, 0.0}
-    local rf = {0.9, 0.58, 0.0}
-    local lb = {-0.8, -0.42, 0.0}
-    local rb = {-0.8, 0.42, 0.0}
-    local top = {0.0, 0.0, 0.78}
+    local nose = {2.35, 0.0, -0.02}
+    local tail = {-2.65, 0.0, 0.03}
+    local lf = {1.10, -0.62, 0.02}
+    local rf = {1.10, 0.62, 0.02}
+    local lb = {-0.55, -0.46, 0.05}
+    local rb = {-0.55, 0.46, 0.05}
+    local top = {0.05, 0.0, 0.84}
+    local podAftTop = {-0.66, 0.0, 0.56}
+    local podAftBot = {-0.66, 0.0, -0.12}
+    local podAftL = {-0.66, -0.30, 0.14}
+    local podAftR = {-0.66, 0.30, 0.14}
     local mast = {0.0, 0.0, 1.02}
-    local finU = {-2.1, 0.0, 0.42}
-    local finD = {-2.1, 0.0, -0.20}
+    local finU = {-2.25, 0.0, 0.45}
+    local finD = {-2.25, 0.0, -0.18}
+    local boomSL = {-0.88, -0.10, 0.11}
+    local boomSR = {-0.88, 0.10, 0.11}
+    local boomSU = {-0.88, 0.0, 0.18}
+    local boomSD = {-0.88, 0.0, 0.06}
+    local boomEL = {-2.35, -0.06, 0.08}
+    local boomER = {-2.35, 0.06, 0.08}
+    local boomEU = {-2.35, 0.0, 0.12}
+    local boomED = {-2.35, 0.0, 0.05}
+    local stabL = {-2.35, -0.30, 0.10}
+    local stabR = {-2.35, 0.30, 0.10}
 
-    local skidLF = {0.7, -0.58, -0.60}
-    local skidLB = {-0.9, -0.58, -0.60}
-    local skidRF = {0.7, 0.58, -0.60}
-    local skidRB = {-0.9, 0.58, -0.60}
+    local skidL1 = {1.12, -0.66, -0.69}
+    local skidL2 = {0.76, -0.66, -0.64}
+    local skidL3 = {0.00, -0.66, -0.62}
+    local skidL4 = {-0.96, -0.66, -0.63}
+    local skidL5 = {-1.24, -0.66, -0.67}
+    local skidR1 = {1.12, 0.66, -0.69}
+    local skidR2 = {0.76, 0.66, -0.64}
+    local skidR3 = {0.00, 0.66, -0.62}
+    local skidR4 = {-0.96, 0.66, -0.63}
+    local skidR5 = {-1.24, 0.66, -0.67}
+
+    local strutLFTop = {0.52, -0.50, -0.12}
+    local strutLFBot = {0.48, -0.66, -0.63}
+    local strutLBTop = {-0.52, -0.44, -0.10}
+    local strutLBBot = {-0.58, -0.66, -0.63}
+    local strutRFTop = {0.52, 0.50, -0.12}
+    local strutRFBot = {0.48, 0.66, -0.63}
+    local strutRBTop = {-0.52, 0.44, -0.10}
+    local strutRBBot = {-0.58, 0.66, -0.63}
 
     local rotorA = {0.0, -1.9, 1.02}
     local rotorB = {0.0, 1.9, 1.02}
     local rotorC = {-1.9, 0.0, 1.02}
     local rotorD = {1.9, 0.0, 1.02}
+
+    local fuselage = {}
+    collectTriangle3D(fuselage, nose, lf, top, cx, cy, scale, pitchR, yawR, rollR, bodyLight)
+    collectTriangle3D(fuselage, nose, top, rf, cx, cy, scale, pitchR, yawR, rollR, bodyLight)
+    collectTriangle3D(fuselage, lf, lb, top, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+    collectTriangle3D(fuselage, rf, top, rb, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+    collectTriangle3D(fuselage, lb, podAftTop, top, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, rb, top, podAftTop, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, lf, lb, rb, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, lf, rb, rf, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, lb, podAftL, podAftTop, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, rb, podAftTop, podAftR, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, lb, podAftBot, podAftL, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, rb, podAftR, podAftBot, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    if HIGH_DETAIL_MODEL then
+        -- Rounded aft pod
+        collectTriangle3D(fuselage, lb, podAftTop, top, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+        collectTriangle3D(fuselage, rb, top, podAftTop, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+        collectTriangle3D(fuselage, lb, podAftL, podAftTop, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+        collectTriangle3D(fuselage, rb, podAftTop, podAftR, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+        collectTriangle3D(fuselage, lb, podAftBot, podAftL, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+        collectTriangle3D(fuselage, rb, podAftR, podAftBot, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    end
+    -- Tail boom (low-poly pod-and-boom profile)
+    collectTriangle3D(fuselage, boomSU, boomSL, boomEU, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+    collectTriangle3D(fuselage, boomSL, boomEL, boomEU, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+    collectTriangle3D(fuselage, boomSU, boomEU, boomSR, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+    collectTriangle3D(fuselage, boomSR, boomEU, boomER, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+    collectTriangle3D(fuselage, boomSL, boomSD, boomEL, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, boomSD, boomED, boomEL, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, boomSD, boomSR, boomED, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    collectTriangle3D(fuselage, boomSR, boomER, boomED, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    if HIGH_DETAIL_MODEL then
+        -- Pod to boom shoulder transition
+        collectTriangle3D(fuselage, podAftTop, podAftL, boomSU, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+        collectTriangle3D(fuselage, podAftTop, boomSU, podAftR, cx, cy, scale, pitchR, yawR, rollR, bodyMid)
+        collectTriangle3D(fuselage, podAftL, podAftBot, boomSD, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+        collectTriangle3D(fuselage, podAftBot, podAftR, boomSD, cx, cy, scale, pitchR, yawR, rollR, bodyDark)
+    end
+    drawTriangleList(fuselage)
 
     -- Rotor plane + mast
     drawLine3D(rotorA, rotorB, cx, cy, scale, pitchR, yawR, rollR, disc)
@@ -494,22 +627,48 @@ local function drawVisual()
 
     -- Fuselage
     drawFilledTriangle3D(nose, lf, rf, cx, cy, scale, pitchR, yawR, rollR, accent)
-    drawLine3D(tail, nose, cx, cy, scale, pitchR, yawR, rollR, mainColor)
     drawLine3D(lb, lf, cx, cy, scale, pitchR, yawR, rollR, mainColor)
     drawLine3D(rb, rf, cx, cy, scale, pitchR, yawR, rollR, mainColor)
     drawLine3D(lf, nose, cx, cy, scale, pitchR, yawR, rollR, mainColor)
     drawLine3D(rf, nose, cx, cy, scale, pitchR, yawR, rollR, mainColor)
-    drawLine3D(lb, tail, cx, cy, scale, pitchR, yawR, rollR, mainColor)
-    drawLine3D(rb, tail, cx, cy, scale, pitchR, yawR, rollR, mainColor)
     drawLine3D(top, nose, cx, cy, scale, pitchR, yawR, rollR, mainColor)
-    drawLine3D(top, tail, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(boomSU, boomEU, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(boomSL, boomEL, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(boomSR, boomER, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(boomSD, boomED, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    -- Shoulder ring helps separate pod from the narrower boom.
+    drawLine3D(boomSU, boomSL, cx, cy, scale, pitchR, yawR, rollR, accent)
+    drawLine3D(boomSL, boomSD, cx, cy, scale, pitchR, yawR, rollR, accent)
+    drawLine3D(boomSD, boomSR, cx, cy, scale, pitchR, yawR, rollR, accent)
+    drawLine3D(boomSR, boomSU, cx, cy, scale, pitchR, yawR, rollR, accent)
+    if HIGH_DETAIL_MODEL then
+        drawLine3D(podAftTop, podAftL, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+        drawLine3D(podAftTop, podAftR, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+        drawLine3D(podAftL, podAftBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+        drawLine3D(podAftR, podAftBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    end
 
     -- Tail fin + skids
     drawLine3D(finU, finD, cx, cy, scale, pitchR, yawR, rollR, accent)
-    drawLine3D(skidLF, skidLB, cx, cy, scale, pitchR, yawR, rollR, mainColor)
-    drawLine3D(skidRF, skidRB, cx, cy, scale, pitchR, yawR, rollR, mainColor)
-    drawLine3D(skidLF, skidRF, cx, cy, scale, pitchR, yawR, rollR, mainColor)
-    drawLine3D(skidLB, skidRB, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    if HIGH_DETAIL_MODEL then
+        drawLine3D(stabL, stabR, cx, cy, scale, pitchR, yawR, rollR, accent)
+    end
+    drawLine3D(skidL1, skidL2, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(skidL2, skidL3, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(skidL3, skidL4, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(skidL4, skidL5, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(skidR1, skidR2, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(skidR2, skidR3, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(skidR3, skidR4, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(skidR4, skidR5, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutLFTop, strutLFBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutLBTop, strutLBBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutRFTop, strutRFBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutRBTop, strutRBBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutLFBot, strutRFBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutLBBot, strutRBBot, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutLFTop, strutRFTop, cx, cy, scale, pitchR, yawR, rollR, mainColor)
+    drawLine3D(strutLBTop, strutRBTop, cx, cy, scale, pitchR, yawR, rollR, mainColor)
 
 end
 
@@ -534,6 +693,7 @@ local function openPage(opts)
     state.movementPaused = false
     state.resumeMovementPending = false
     state.autoRecenterPending = true
+    state.simStartAt = os.clock()
     state.viewYawOffset = 0
 
     if app.formFields then for i = 1, #app.formFields do app.formFields[i] = nil end end
