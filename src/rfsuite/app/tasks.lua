@@ -50,13 +50,11 @@ local function mainMenuIconEnableDisable()
     local app = rfsuite.app
     if app.uiState ~= app.uiStatus.mainMenu and app.uiState ~= app.uiStatus.pages then return end
 
-    if rfsuite.session.mspBusy then return end
-
     -- Focus handling:
     -- Calling :focus() repeatedly breaks keyboard navigation (it keeps snapping back).
     -- So we compute the desired focus target, and only apply focus once per "menu state key".
     local function desiredFocusIndex()
-        local lm = app.lastMenu or "mainmenu"
+        local lm = (app.uiState == app.uiStatus.mainMenu) and "mainmenu" or (app.lastMenu or "mainmenu")
         local idx = rfsuite.preferences.menulastselected[lm] or rfsuite.preferences.menulastselected["mainmenu"]
         return idx
     end
@@ -65,9 +63,9 @@ local function mainMenuIconEnableDisable()
         local idx = desiredFocusIndex()
         if not idx or not app.formFields or not app.formFields[idx] then return end
 
-        local lm = app.lastMenu or "mainmenu"
-        local formKey = tostring(app.formFields) -- changes when the form is rebuilt
-        local key = tostring(modeTag) .. "|" .. tostring(lm) .. "|" .. tostring(idx) .. "|" .. formKey
+        local lm = (app.uiState == app.uiStatus.mainMenu) and "mainmenu" or (app.lastMenu or "mainmenu")
+        local focusEpoch = tostring(app._menuFocusEpoch or 0)
+        local key = tostring(modeTag) .. "|" .. tostring(lm) .. "|" .. tostring(idx) .. "|" .. focusEpoch
 
         -- Reset focus latch if we have entered a new menu/mode/form combination
         if app._mainMenuFocusKey ~= key then
@@ -83,18 +81,11 @@ local function mainMenuIconEnableDisable()
 
     if app.uiState == app.uiStatus.mainMenu then
         local apiV = tostring(rfsuite.session.apiVersion)
+        local connected = (rfsuite.session and rfsuite.session.isConnected) == true
+        local postConnectComplete = (rfsuite.session and rfsuite.session.postConnectComplete) == true
 
-        if not rfsuite.tasks.active() then
-            for i, v in pairs(app.formFieldsBGTask) do
-                if app.formFields[i] then
-                    app.formFields[i]:enable(v == true)
-                elseif v == false then
-                    log("Main Menu Icon " .. i .. " not found in formFields", "debug")
-                end
-            end
-            focusOnce("bgtask")
-
-        elseif not rfsuite.session.isConnected then
+        -- Offline: only allow items explicitly marked offline.
+        if not connected then
             for i, v in pairs(app.formFieldsOffline) do
                 if app.formFields[i] then
                     app.formFields[i]:enable(v == true)
@@ -104,7 +95,8 @@ local function mainMenuIconEnableDisable()
             end
             focusOnce("offline")
 
-        elseif not rfsuite.session.postConnectComplete then
+        -- Connected but still in post-connect: still honor offline-only accessibility.
+        elseif not postConnectComplete then
             for i, v in pairs(app.formFieldsOffline) do
                 if app.formFields[i] then
                     app.formFields[i]:enable(v == true)
@@ -114,6 +106,7 @@ local function mainMenuIconEnableDisable()
             end
             focusOnce("postconnect")
 
+        -- Fully connected + supported API: enable everything.
         elseif rfsuite.session.apiVersion and rfsuite.utils.stringInArray(rfsuite.config.supportedMspApiVersion, apiV) then
             app.offlineMode = false
             for i in pairs(app.formFieldsOffline) do
@@ -124,6 +117,19 @@ local function mainMenuIconEnableDisable()
                 end
             end
             focusOnce("online")
+
+        else
+            -- Fallback: if we are connected and post-connect complete, never leave icons latched disabled.
+            -- This avoids a rare dead-end where menu icons stay disabled until restart.
+            app.offlineMode = false
+            for i in pairs(app.formFieldsOffline) do
+                if app.formFields[i] then
+                    app.formFields[i]:enable(true)
+                else
+                    log("Main Menu Icon " .. i .. " not found in formFields", "debug")
+                end
+            end
+            focusOnce("online-fallback")
         end
 
     elseif not app.isOfflinePage and not app.triggers.escPowerCycleLoader then

@@ -61,6 +61,7 @@ function app.create()
         app.lastIdx = nil -- last selected button index
         app.lastTitle = nil -- last page title string
         app.lastScript = nil -- last page script path
+        app.menuContextStack = {} -- submenu return stack (parent chain)
         app.uiStatus = {init = 1, mainMenu = 2, pages = 3, confirm = 4}
         app.pageStatus = {display = 1, editing = 2, saving = 3, eepromWrite = 4, rebooting = 5}
         app.uiState = app.uiStatus.init -- current UI state machine
@@ -171,6 +172,8 @@ end
 
 function app.event(widget, category, value, x, y)
 
+
+
     if value == KEY_RTN_LONG then
         log("KEY_RTN_LONG", "info")
         app.utils.invalidatePages()
@@ -201,17 +204,31 @@ function app.event(widget, category, value, x, y)
             log("EVT_CLOSE", "info")
             if app.dialogs.progressDisplay and app.dialogs.progress then app.dialogs.progress:close() end
             if app.dialogs.saveDisplay and app.dialogs.save then app.dialogs.save:close() end
-            if app.Page.onNavMenu then app.Page.onNavMenu(app.Page) end
-            if app.lastMenu == nil then
-                app.ui.openMainMenu()
+            if app.Page.onNavMenu then
+                app.Page.onNavMenu(app.Page)
             else
-                app.ui.openMainMenuSub(app.lastMenu)
+                app.ui.openMenuContext()
             end
             return true
         end
 
         if value == KEY_ENTER_LONG then
             if app.Page.navButtons and app.Page.navButtons.save == false then return true end
+            local dirtyPref = rfsuite.preferences and rfsuite.preferences.general and rfsuite.preferences.general.save_dirty_only
+            local requireDirty = not (dirtyPref == false or dirtyPref == "false")
+
+            -- Block long-press save when page is not dirty on standard API pages.
+            if app.Page and app.Page.canSave and app.Page.canSave(app.Page) == false then
+                system.killEvents(KEY_ENTER_BREAK)
+                return true
+            end
+            if requireDirty and not app._pageUsesCustomOpen and app.Page and app.Page.apidata and app.Page.apidata.formdata and app.Page.apidata.formdata.fields then
+                if app.pageDirty ~= true then
+                    system.killEvents(KEY_ENTER_BREAK)
+                    return true
+                end
+            end
+
             log("EVT_ENTER_LONG (PAGES)", "info")
             if app.dialogs.progressDisplay and app.dialogs.progress then app.dialogs.progress:close() end
             if app.dialogs.saveDisplay and app.dialogs.save then app.dialogs.save:close() end

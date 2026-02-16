@@ -25,6 +25,7 @@ local preferences = rfsuite.preferences
 local utils = rfsuite.utils
 local tasks = rfsuite.tasks
 local apiCore
+local navigation = assert(loadfile("app/lib/navigation.lua"))()
 
 local MSP_DEBUG_PLACEHOLDER = "MSP Waiting"
 
@@ -173,6 +174,29 @@ local function getApiCore()
     if apiCore then return apiCore end
     apiCore = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api_core.lua"))()
     return apiCore
+end
+
+function ui.openMenuContext(defaultSectionId, showProgress, speed)
+    if showProgress then ui.progressDisplay(nil, nil, speed) end
+
+    local target, parentStack = navigation.popReturnContext(app)
+    if target then
+        local openOpts = {}
+        for k, v in pairs(target) do
+            openOpts[k] = v
+        end
+        openOpts.returnStack = parentStack
+        ui.openPage(openOpts)
+        return
+    end
+
+    local targetSectionId = navigation.resolveMenuContext(app.MainMenu, app.lastMenu, defaultSectionId)
+    if targetSectionId then
+        ui.openMainMenuSub(targetSectionId)
+        return
+    end
+
+    ui.openMainMenu()
 end
 
 local function openProgressDialog(opts)
@@ -357,6 +381,7 @@ function ui.progressDisplaySave(message)
                     app.dialogs.saveDisplay = false
                     app.dialogs.saveWatchDog = nil
                     app.dialogs.save:close()
+                    ui.setPageDirty(false)
                     ui.clearProgressDialog(app.dialogs.save)
                     return
                 end
@@ -367,12 +392,14 @@ function ui.progressDisplaySave(message)
                     app.dialogs.saveDisplay = false
                     app.dialogs.saveWatchDog = nil
                     app.dialogs.save:close()
+                    ui.setPageDirty(false)
                     ui.clearProgressDialog(app.dialogs.save)
 
                 end
             elseif tasks.msp.mspQueue:isProcessed() then
                 if app.dialogs.saveIsWait then
                     app.dialogs.save:close()
+                    ui.setPageDirty(false)
                     ui.clearProgressDialog(app.dialogs.save)
                     app.dialogs.saveDisplay = false
                     app.dialogs.saveProgressCounter = 0
@@ -383,6 +410,7 @@ function ui.progressDisplaySave(message)
                 app.dialogs.saveProgressCounter = app.dialogs.saveProgressCounter + 15
                 if app.dialogs.saveProgressCounter >= 100 then
                     app.dialogs.save:close()
+                    ui.setPageDirty(false)
                     ui.clearProgressDialog(app.dialogs.save)
                     app.dialogs.saveDisplay = false
                     app.dialogs.saveProgressCounter = 0
@@ -616,6 +644,7 @@ function ui.resetPageState(activesection)
     app.lastLabel = nil
     app.isOfflinePage = false
     app.lastMenu = nil
+    navigation.clearReturnStack(app)
     app.lastIdx = nil
     app.lastTitle = nil
     app.lastScript = nil
@@ -640,6 +669,8 @@ end
 function ui.openMainMenu()
 
     ui.resetPageState()
+    app.lastMenu = "mainmenu"
+    app._menuFocusEpoch = (app._menuFocusEpoch or 0) + 1
 
     utils.reportMemoryUsage("app.openMainMenu", "start")
 
@@ -697,53 +728,59 @@ function ui.openMainMenu()
         end
     })
 
-    for pidx, pvalue in ipairs(Menu) do
+    local pidx = 0
+    for _, pvalue in ipairs(Menu) do
+        if pvalue.parent == nil then
+            pidx = pidx + 1
+            local menuIndex = pidx
+            local menuItem = pvalue
 
-        app.formFieldsOffline[pidx] = pvalue.offline or false
-        app.formFieldsBGTask[pidx] = pvalue.bgtask or false
+            app.formFieldsOffline[menuIndex] = menuItem.offline or false
+            app.formFieldsBGTask[menuIndex] = menuItem.bgtask or false
 
-        if pvalue.newline then
-            lc = 0
-            form.addLine("@i18n(app.header_system)@")
-        end
-
-        if lc == 0 then y = form.height() + ((preferences.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall) end
-
-        bx = (buttonW + padding) * lc
-
-        if preferences.general.iconsize ~= 0 then
-            app.gfx_buttons["mainmenu"][pidx] = app.gfx_buttons["mainmenu"][pidx] or lcdLoadMask(pvalue.image)
-        else
-            app.gfx_buttons["mainmenu"][pidx] = nil
-        end
-
-        app.formFields[pidx] = form.addButton(line, {x = bx, y = y, w = buttonW, h = buttonH}, {
-            text = pvalue.title,
-            icon = app.gfx_buttons["mainmenu"][pidx],
-            options = FONT_S,
-            paint = function() end,
-            press = function()
-                preferences.menulastselected["mainmenu"] = pidx
-                local speed = tonumber(pvalue.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
-                if pvalue.module then
-                    app.isOfflinePage = true
-                    local script, speedOverride = resolvePageScript(pvalue)
-                    if speedOverride ~= nil then
-                        speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
-                    end
-                    app.ui.progressDisplay(nil, nil, speed)
-                    app.ui.openPage({idx = pidx, title = pvalue.title, script = pvalue.module .. "/" .. script})
-                else
-                    app.ui.progressDisplay(nil, nil, speed)
-                    app.ui.openMainMenuSub(pvalue.id)
-                end
+            if menuItem.newline then
+                lc = 0
+                form.addLine("@i18n(app.header_system)@")
             end
-        })
 
-        app.formFields[pidx]:enable(false)
+            if lc == 0 then y = form.height() + ((preferences.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall) end
 
-        lc = lc + 1
-        if lc == numPerRow then lc = 0 end
+            bx = (buttonW + padding) * lc
+
+            if preferences.general.iconsize ~= 0 then
+                app.gfx_buttons["mainmenu"][menuIndex] = app.gfx_buttons["mainmenu"][menuIndex] or lcdLoadMask(menuItem.image)
+            else
+                app.gfx_buttons["mainmenu"][menuIndex] = nil
+            end
+
+            app.formFields[menuIndex] = form.addButton(line, {x = bx, y = y, w = buttonW, h = buttonH}, {
+                text = menuItem.title,
+                icon = app.gfx_buttons["mainmenu"][menuIndex],
+                options = FONT_S,
+                paint = function() end,
+                press = function()
+                    preferences.menulastselected["mainmenu"] = menuIndex
+                    local speed = tonumber(menuItem.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
+                    if menuItem.module then
+                        app.isOfflinePage = true
+                        local script, speedOverride = resolvePageScript(menuItem)
+                        if speedOverride ~= nil then
+                            speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
+                        end
+                        app.ui.progressDisplay(nil, nil, speed)
+                        app.ui.openPage({idx = menuIndex, title = menuItem.title, script = menuItem.module .. "/" .. script})
+                    else
+                        app.ui.progressDisplay(nil, nil, speed)
+                        app.ui.openMainMenuSub(menuItem.id)
+                    end
+                end
+            })
+
+            app.formFields[menuIndex]:enable(false)
+
+            lc = lc + 1
+            if lc == numPerRow then lc = 0 end
+        end
     end
 
     app.triggers.closeProgressLoader = true
@@ -757,6 +794,7 @@ end
 function ui.openMainMenuSub(activesection)
 
     ui.resetPageState(activesection)
+    app._menuFocusEpoch = (app._menuFocusEpoch or 0) + 1
 
     utils.reportMemoryUsage("app.openMainMenuSub", "start")
 
@@ -797,11 +835,13 @@ function ui.openMainMenuSub(activesection)
             local w, h = lcdGetWindowSize()
             local windowWidth, windowHeight = w, h
             local padding = app.radio.buttonPadding
+            local parentId = navigation.getParentSectionId(MainMenu, activesection)
 
-            form.addLine(section.title)
+            local header = form.addLine("")
+            app.ui.setHeaderTitle(section.title, header, {menu = true})
 
             local x = windowWidth - 110
-            app.formNavigationFields['menu'] = form.addButton(line, {x = x, y = app.radio.linePaddingTop, w = 100, h = app.radio.navbuttonHeight}, {
+            app.formNavigationFields['menu'] = form.addButton(header, {x = x, y = app.radio.linePaddingTop, w = 100, h = app.radio.navbuttonHeight}, {
                 text = "@i18n(app.navigation_menu)@",
                 icon = nil,
                 options = FONT_S,
@@ -810,7 +850,11 @@ function ui.openMainMenuSub(activesection)
                     app.lastIdx = nil
                     session.lastPage = nil
                     if app.Page and app.Page.onNavMenu then app.Page.onNavMenu(app.Page) end
-                    app.ui.openMainMenu()
+                    if parentId then
+                        app.ui.openMainMenuSub(parentId)
+                    else
+                        app.ui.openMainMenu()
+                    end
                 end
             })
             app.formNavigationFields['menu']:focus()
@@ -819,10 +863,12 @@ function ui.openMainMenuSub(activesection)
 
             for pidx, page in ipairs(MainMenu.pages) do
                 if page.section == idx then
-                    local hideEntry = (page.ethosversion and not utils.ethosVersionAtLeast(page.ethosversion)) or (page.mspversion and utils.apiVersionCompare("<", page.mspversion)) 
+                    local pageIndex = pidx
+                    local pageItem = page
+                    local hideEntry = (pageItem.ethosversion and not utils.ethosVersionAtLeast(pageItem.ethosversion)) or (pageItem.mspversion and utils.apiVersionCompare("<", pageItem.mspversion))
 
-                    local offline = page.offline
-                    app.formFieldsOffline[pidx] = offline or false
+                    local offline = pageItem.offline
+                    app.formFieldsOffline[pageIndex] = offline or false
 
                     if not hideEntry then
                         if lc == 0 then y = form.height() + ((preferences.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall) end
@@ -830,26 +876,36 @@ function ui.openMainMenuSub(activesection)
                         local x = (buttonW + padding) * lc
 
                         if preferences.general.iconsize ~= 0 then
-                            app.gfx_buttons[activesection][pidx] = app.gfx_buttons[activesection][pidx] or lcdLoadMask("app/modules/" .. page.folder .. "/" .. page.image)
+                            if type(pageItem.image) == "string" and pageItem.image:sub(1, 4) == "app/" then
+                                app.gfx_buttons[activesection][pageIndex] = app.gfx_buttons[activesection][pageIndex] or lcdLoadMask(pageItem.image)
+                            elseif pageItem.folder and pageItem.image then
+                                app.gfx_buttons[activesection][pageIndex] = app.gfx_buttons[activesection][pageIndex] or lcdLoadMask("app/modules/" .. pageItem.folder .. "/" .. pageItem.image)
+                            else
+                                app.gfx_buttons[activesection][pageIndex] = nil
+                            end
                         else
-                            app.gfx_buttons[activesection][pidx] = nil
+                            app.gfx_buttons[activesection][pageIndex] = nil
                         end
 
-                        app.formFields[pidx] = form.addButton(line, {x = x, y = y, w = buttonW, h = buttonH}, {
-                            text = page.title,
-                            icon = app.gfx_buttons[activesection][pidx],
+                        app.formFields[pageIndex] = form.addButton(line, {x = x, y = y, w = buttonW, h = buttonH}, {
+                            text = pageItem.title,
+                            icon = app.gfx_buttons[activesection][pageIndex],
                             options = FONT_S,
                             paint = function() end,
                             press = function()
-                                preferences.menulastselected[activesection] = pidx
-                                local speed = tonumber(page.loaderspeed or section.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
+                                preferences.menulastselected[activesection] = pageIndex
+                                local speed = tonumber(pageItem.loaderspeed or section.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
                                 app.isOfflinePage = offline
-                                local script, speedOverride = resolvePageScript(page, section)
+                                local script, speedOverride = resolvePageScript(pageItem, section)
                                 if speedOverride ~= nil then
                                     speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
                                 end
                                 app.ui.progressDisplay(nil, nil, speed)
-                                app.ui.openPage({idx = pidx, title = page.title, script = page.folder .. "/" .. script})
+                                if pageItem.id and not pageItem.folder then
+                                    app.ui.openMainMenuSub(pageItem.id)
+                                else
+                                    app.ui.openPage({idx = pageIndex, title = pageItem.title, script = pageItem.folder .. "/" .. script})
+                                end
                             end
                         })
 
@@ -935,6 +991,74 @@ function ui._prepareFieldLine(f, radioText)
     return posField
 end
 
+function ui._shouldManageDirtySave()
+    if not app.Page then return false end
+    if app.Page.disableSaveUntilDirty == false then return false end
+    local pref = preferences and preferences.general and preferences.general.save_dirty_only
+    if pref == false or pref == "false" then return false end
+    local save = app.formNavigationFields and app.formNavigationFields.save
+    return save and save.enable
+end
+
+function ui.setPageDirty(isDirty)
+    app.pageDirty = isDirty and true or false
+    local save = app.formNavigationFields and app.formNavigationFields.save
+    if save and save.enable then
+        if app.Page and app.Page.canSave then
+            save:enable(app.Page.canSave(app.Page) == true)
+            return
+        end
+        if ui._shouldManageDirtySave() then
+            save:enable(app.pageDirty)
+        end
+    end
+end
+
+function ui.markPageDirty()
+    if app.pageDirty then return end
+    ui.setPageDirty(true)
+end
+
+function ui._installDirtyCallbackWrappers()
+    if ui._dirtyWrappersInstalled then return end
+    if not form then return end
+
+    local function wrapSetter(methodName)
+        local original = form[methodName]
+        if type(original) ~= "function" then return end
+        form[methodName] = function(...)
+            local argc = select("#", ...)
+            local args = {...}
+            local setterIdx = nil
+            for i = argc, 1, -1 do
+                if type(args[i]) == "function" then
+                    setterIdx = i
+                    break
+                end
+            end
+            if setterIdx then
+                local setter = args[setterIdx]
+                args[setterIdx] = function(...)
+                    ui.markPageDirty()
+                    return setter(...)
+                end
+            end
+            return original(table.unpack(args, 1, argc))
+        end
+    end
+
+    wrapSetter("addBooleanField")
+    wrapSetter("addChoiceField")
+    wrapSetter("addNumberField")
+    wrapSetter("addTextField")
+    wrapSetter("addSourceField")
+    wrapSetter("addSensorField")
+    wrapSetter("addColorField")
+    wrapSetter("addSwitchField")
+
+    ui._dirtyWrappersInstalled = true
+end
+
 function ui.fieldBoolean(i,lf)
     local page = app.Page
     local fields = page and page.apidata and page.apidata.formdata.fields or lf
@@ -964,6 +1088,7 @@ function ui.fieldBoolean(i,lf)
     end
 
     formFields[i] = form.addBooleanField(formLines[app.formLineCnt], posField, function() return decode() end, function(valueBool)
+        ui.markPageDirty()
         local value = encode(valueBool == true)
         if f.postEdit then f.postEdit(page, value) end
         if f.onChange then f.onChange(page, value) end
@@ -1004,6 +1129,7 @@ function ui.fieldChoice(i,lf)
         if not active then return nil end
         return app.utils.getFieldValue(active)
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page, value) end
         if f.onChange then f.onChange(page, value) end
         f.value = app.utils.saveFieldValue(fields[i], value)
@@ -1046,6 +1172,7 @@ function ui.fieldSlider(i,lf)
         end
         return app.utils.getFieldValue(fields[i])
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page) end
         if f.onChange then f.onChange(page) end
         f.value = app.utils.saveFieldValue(fields[i], value)
@@ -1096,6 +1223,7 @@ function ui.fieldNumber(i,lf)
         if not active then return nil end
         return app.utils.getFieldValue(active)
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page) end
         if f.onChange then f.onChange(page) end
         f.value = app.utils.saveFieldValue(page.apidata.formdata.fields[i], value)
@@ -1163,6 +1291,7 @@ function ui.fieldSource(i,lf)
         if not active then return nil end
         return app.utils.getFieldValue(active)
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page) end
         if f.onChange then f.onChange(page) end
         f.value = app.utils.saveFieldValue(page.apidata.formdata.fields[i], value)
@@ -1206,6 +1335,7 @@ function ui.fieldSensor(i,lf)
         if not active then return nil end
         return app.utils.getFieldValue(active)
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page) end
         if f.onChange then f.onChange(page) end
         f.value = app.utils.saveFieldValue(page.apidata.formdata.fields[i], value)
@@ -1254,6 +1384,7 @@ function ui.fieldColor(i,lf)
             return color
         end
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page) end
         if f.onChange then f.onChange(page) end
         f.value = app.utils.saveFieldValue(page.apidata.formdata.fields[i], value)
@@ -1297,6 +1428,7 @@ function ui.fieldSwitch(i,lf)
         if not active then return nil end
         return app.utils.getFieldValue(active)
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page) end
         if f.onChange then f.onChange(page) end
         f.value = app.utils.saveFieldValue(page.apidata.formdata.fields[i], value)
@@ -1345,6 +1477,7 @@ function ui.fieldText(i,lf)
         if not active then return nil end
         return app.utils.getFieldValue(active)
     end, function(value)
+        ui.markPageDirty()
         if f.postEdit then f.postEdit(page) end
         if f.onChange then f.onChange(page) end
         f.value = app.utils.saveFieldValue(fields[i], value)
@@ -1386,26 +1519,103 @@ function ui.fieldLabel(f, i, l)
     end
 end
 
+local function textWidth(s)
+    local ok, tw = pcall(lcdGetTextSize, s or "")
+    if ok and type(tw) == "number" then return tw end
+    return #(s or "") * 10
+end
+
+function ui.fitHeaderTitle(rawTitle, maxW)
+    local t = tostring(rawTitle or "")
+    if textWidth(t) <= maxW then return t end
+
+    local parts = {}
+    for part in t:gmatch("([^/]+)") do
+        parts[#parts + 1] = (part:gsub("^%s+", ""):gsub("%s+$", ""))
+    end
+
+    if #parts > 1 then
+        for i = 2, #parts do
+            local candidate = "... / " .. tableConcat(parts, " / ", i, #parts)
+            if textWidth(candidate) <= maxW then return candidate end
+        end
+    end
+
+    local ellipsis = "..."
+    if textWidth(ellipsis) >= maxW then return ellipsis end
+
+    local tail = t
+    while #tail > 1 do
+        local candidate = ellipsis .. tail
+        if textWidth(candidate) <= maxW then return candidate end
+        tail = tail:sub(2)
+    end
+
+    return ellipsis
+end
+
+function ui.getHeaderMetrics(navButtons)
+    local radio = app.radio
+    local w, _ = lcdGetWindowSize()
+    local padding = 5
+    local buttonW = radio.menuButtonWidth or 100
+    local buttonH = radio.navbuttonHeight
+    local buttons = navButtons or {menu = true}
+    local navX = w - 5
+    local reserved = 0
+
+    -- Reserve header title space using visible nav button slot widths.
+    if buttons.help == true then reserved = reserved + buttonW + padding end
+    if buttons.tool == true then reserved = reserved + buttonW + padding end
+    if buttons.reload == true then reserved = reserved + buttonW + padding end
+    if buttons.save == true then reserved = reserved + buttonW + padding end
+    if buttons.menu == true then reserved = reserved + buttonW + padding end
+
+    local titleRightEdge = navX - reserved
+    local titleWidth = math.max(40, titleRightEdge - 8)
+    return {
+        windowWidth = w,
+        buttonW = buttonW,
+        buttonH = buttonH,
+        titleWidth = titleWidth
+    }
+end
+
+function ui.setHeaderTitle(rawTitle, lineRef, navButtons)
+    local radio = app.radio
+    local formFields = app.formFields
+    local metrics = ui.getHeaderMetrics(navButtons)
+    local displayTitle = ui.fitHeaderTitle(rawTitle, metrics.titleWidth)
+    local lineObj = lineRef or (formFields and formFields["menu"]) or nil
+    if not lineObj then return end
+
+    if lineRef and formFields then
+        formFields["title"] = form.addStaticText(lineObj, {x = 0, y = radio.linePaddingTop, w = metrics.titleWidth, h = radio.navbuttonHeight}, displayTitle)
+        return
+    end
+
+    if formFields and formFields["title"] and formFields["title"].value then
+        pcall(function() formFields["title"]:value(displayTitle) end)
+        return
+    end
+
+    if formFields then
+        formFields["title"] = form.addStaticText(lineObj, {x = 0, y = radio.linePaddingTop, w = metrics.titleWidth, h = radio.navbuttonHeight}, displayTitle)
+    else
+        form.addStaticText(lineObj, {x = 0, y = radio.linePaddingTop, w = metrics.titleWidth, h = radio.navbuttonHeight}, displayTitle)
+    end
+end
+
 function ui.fieldHeader(title)
     local radio = app.radio
     local formFields = app.formFields
-    local lcdWidth = app.lcdWidth
-
     if not title then title = "No Title" end
 
-    local w, _ = lcdGetWindowSize()
-    local padding = 5
-    local colStart = mathFloor(w * 59.4 / 100)
-    if radio.navButtonOffset then colStart = colStart - radio.navButtonOffset end
-
-    local buttonW = radio.buttonWidth and radio.menuButtonWidth or ((w - colStart) / 3 - padding)
-    local buttonH = radio.navbuttonHeight
-
-    formFields['menu'] = form.addLine("")
-
-    formFields['title'] = form.addStaticText(formFields['menu'], {x = 0, y = radio.linePaddingTop, w = lcdWidth, h = radio.navbuttonHeight}, title)
-
-    app.ui.navigationButtons(w - 5, radio.linePaddingTop, buttonW, buttonH)
+    local navButtons = (app.Page and app.Page.navButtons) or {menu = true, save = true, reload = true, help = true}
+    local metrics = ui.getHeaderMetrics(navButtons)
+    formFields["menu"] = form.addLine("")
+    ui.setHeaderTitle(title, formFields["menu"], navButtons)
+    app.ui.navigationButtons(metrics.windowWidth - 5, radio.linePaddingTop, metrics.buttonW, metrics.buttonH)
 end
 
 function ui.openPageRefresh(opts)
@@ -1442,11 +1652,22 @@ function ui.openPage(opts)
     local idx = opts.idx
     local title = opts.title
     local script = opts.script
+    local returnContext = opts.returnContext
+    local returnStack = opts.returnStack
     if not script then
         error("ui.openPage requires opts.script")
     end
 
+    if type(returnStack) == "table" then
+        navigation.setReturnStack(app, returnStack)
+    elseif type(returnContext) == "table" and type(returnContext.script) == "string" then
+        navigation.pushReturnContext(app, returnContext)
+    elseif returnContext == false then
+        navigation.clearReturnStack(app)
+    end
+
     utils.reportMemoryUsage("ui.openPage: " .. script, "start")
+    ui._installDirtyCallbackWrappers()
 
     -- Ensure previous page releases resources before loading a new one.
     ui.cleanupCurrentPage()
@@ -1458,22 +1679,40 @@ function ui.openPage(opts)
     if app.formFields then for i = 1, #app.formFields do app.formFields[i] = nil end end
     if app.formLines then for i = 1, #app.formLines do app.formLines[i] = nil end end
 
-    local modulePath = "app/modules/" .. script
+    local modulePath = script
+    if type(modulePath) ~= "string" then
+        error("ui.openPage requires opts.script to be a string")
+    end
+    if modulePath:sub(1, 4) ~= "app/" then
+        modulePath = "app/modules/" .. modulePath
+    end
     app.Page = assert(loadfile(modulePath))(idx)
 
-    local section = script:match("([^/]+)")
+    local sectionScript = script
+    if type(sectionScript) == "string" and sectionScript:sub(1, 12) == "app/modules/" then
+        sectionScript = sectionScript:sub(13)
+    end
+    local section = tostring(sectionScript):match("([^/]+)")
     local helpData = getHelpData(section)
     app.fieldHelpTxt = helpData and helpData.fields or nil
 
     if app.Page.openPage then
+        app._pageUsesCustomOpen = true
 
         utils.reportMemoryUsage("app.Page.openPage: " .. script, "start")
 
         app.Page.openPage(opts)
+        if ui._shouldManageDirtySave() and app.Page.disableSaveUntilDirty ~= false and not app.Page.canSave then
+            app.Page.canSave = function()
+                return app.pageDirty == true
+            end
+        end
+        ui.setPageDirty(false)
         collectgarbage('collect')
         utils.reportMemoryUsage("app.Page.openPage: " .. script, "end")
         return
     end
+    app._pageUsesCustomOpen = false
 
     app.lastIdx = idx
     app.lastTitle = title
@@ -1576,10 +1815,8 @@ function ui.navigationButtons(x, y, w, h)
             press = function()
                 if app.Page and app.Page.onNavMenu then
                     app.Page.onNavMenu(app.Page)
-                elseif app.lastMenu ~= nil then
-                    app.ui.openMainMenuSub(app.lastMenu)
                 else
-                    app.ui.openMainMenu()
+                    app.ui.openMenuContext()
                 end
             end
         })
@@ -1600,6 +1837,9 @@ function ui.navigationButtons(x, y, w, h)
                 end
             end
         })
+        if ui._shouldManageDirtySave() then
+            ui.setPageDirty(false)
+        end
     end
 
     if navButtons.reload == true then
@@ -2083,6 +2323,7 @@ function ui.saveSettings()
                     app.triggers.closeSaveFake = true
                     app.triggers.isSaving = false
                 else
+                    ui.setPageDirty(false)
                     if app.Page.postSave then app.Page.postSave(app.Page) end
                     app.utils.settingsSaved()
                 end
@@ -2163,6 +2404,16 @@ function ui.saveSettings()
 end
 
 function ui.rebootFc()
+    local armflags = tasks and tasks.telemetry and tasks.telemetry.getSensor and tasks.telemetry.getSensor("armflags")
+    local armedByFlags = (armflags == 1 or armflags == 3)
+    if (session and session.isArmed) or armedByFlags then
+        utils.log("Blocked reboot while armed", "info")
+        app.pageState = app.pageStatus.display
+        app.triggers.closeSaveFake = true
+        app.triggers.isSaving = false
+        app.triggers.showSaveArmedWarning = true
+        return false, "armed_blocked"
+    end
 
     app.pageState = app.pageStatus.rebooting
     local ok, reason = tasks.msp.mspQueue:add({
@@ -2180,6 +2431,7 @@ function ui.rebootFc()
         app.triggers.closeSaveFake = true
         app.triggers.isSaving = false
     end
+    return ok, reason
 end
 
 function ui.adminStatsOverlay()

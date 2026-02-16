@@ -187,7 +187,11 @@ local function openPage(opts)
     rfsuite.app.lastTitle = title
     rfsuite.app.lastScript = script
 
-    rfsuite.app.ui.fieldHeader("@i18n(app.modules.telemetry.name)@")
+    local headerTitle = title
+    if type(headerTitle) ~= "string" or headerTitle == "" then
+        headerTitle = "@i18n(app.modules.telemetry.name)@"
+    end
+    rfsuite.app.ui.fieldHeader(headerTitle)
 
     rfsuite.app.formLineCnt = 0
 
@@ -291,6 +295,22 @@ local function getDefaultSensors(sensorListFromApi)
         end
     end
     return defaultSensors
+end
+
+local function applyDefaultSensors()
+    local sensorListFromApi = getDefaultSensors(rfsuite.tasks.telemetry.listSensors())
+    local changed = false
+
+    for _, v in pairs(sensorListFromApi) do
+        if config[v] ~= true then
+            config[v] = true
+            changed = true
+        end
+    end
+
+    if changed and rfsuite.app and rfsuite.app.ui and rfsuite.app.ui.markPageDirty then
+        rfsuite.app.ui.markPageDirty()
+    end
 end
 
 -- shallow-copy helper (snapshots tables so API internals can’t mutate our cache)
@@ -429,14 +449,12 @@ local function wakeup()
     end
 
     if setDefaultSensors == true then
-        local sensorListFromApi = getDefaultSensors(rfsuite.tasks.telemetry.listSensors())
-        for _, v in pairs(sensorListFromApi) do config[v] = true end
+        applyDefaultSensors()
         setDefaultSensors = false
     end
 
     if setDefaultSensors == true then
-        local sensorListFromApi = getDefaultSensors(rfsuite.tasks.telemetry.listSensors())
-        for _, v in pairs(sensorListFromApi) do config[v] = true end
+        applyDefaultSensors()
         setDefaultSensors = false
     end
 end

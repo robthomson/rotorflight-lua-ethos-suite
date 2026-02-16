@@ -148,7 +148,10 @@ local function openPage(opts)
                     value = rfsuite.app.utils.getFieldValue(rfsuite.app.Page.apidata.formdata.fields[i])
                 end
                 return value
-            end, function(value) f.value = rfsuite.app.utils.saveFieldValue(rfsuite.app.Page.apidata.formdata.fields[i], value) end)
+            end, function(value)
+                rfsuite.app.ui.markPageDirty()
+                f.value = rfsuite.app.utils.saveFieldValue(rfsuite.app.Page.apidata.formdata.fields[i], value)
+            end)
             if f.default ~= nil then
                 local default = f.default * rfsuite.app.utils.decimalInc(f.decimals)
                 if f.mult ~= nil then default = math.floor(default * f.mult) end
@@ -170,14 +173,16 @@ local function openPage(opts)
         end
     end
 
+    rfsuite.app.ui.setPageDirty(false)
 end
 
 local function wakeup()
     if activateWakeup == true and rfsuite.tasks.msp.mspQueue:isProcessed() then
-        if rfsuite.session.activeRateProfile ~= nil then
-            if rfsuite.app.formFields['title'] then
-                rfsuite.app.formFields['title']:value(rfsuite.app.Page.title .. " #" .. rfsuite.session.activeRateProfile)
-            end
+        local activeRateProfile = rfsuite.session and rfsuite.session.activeRateProfile
+        if activeRateProfile ~= nil and rfsuite.app.formFields['title'] then
+            local baseTitle = rfsuite.app.lastTitle or (rfsuite.app.Page and rfsuite.app.Page.title) or ""
+            baseTitle = tostring(baseTitle):gsub("%s+#%d+$", "")
+            rfsuite.app.ui.setHeaderTitle(baseTitle .. " #" .. activeRateProfile, nil, rfsuite.app.Page and rfsuite.app.Page.navButtons)
         end
     end
 end
@@ -190,4 +195,10 @@ local function onHelpMenu()
 
 end
 
-return {apidata = apidata, title = "@i18n(app.modules.rates.name)@", reboot = false, eepromWrite = true, refreshOnRateChange = true, rows = mytable.rows, cols = mytable.cols, flagRateChange = flagRateChange, postLoad = postLoad, openPage = openPage, wakeup = wakeup, onHelpMenu = onHelpMenu, API = {}}
+local function canSave()
+    local pref = rfsuite.preferences and rfsuite.preferences.general and rfsuite.preferences.general.save_dirty_only
+    if pref == false or pref == "false" then return true end
+    return rfsuite.app.pageDirty == true
+end
+
+return {apidata = apidata, title = "@i18n(app.modules.rates.name)@", reboot = false, eepromWrite = true, refreshOnRateChange = true, rows = mytable.rows, cols = mytable.cols, flagRateChange = flagRateChange, postLoad = postLoad, openPage = openPage, wakeup = wakeup, onHelpMenu = onHelpMenu, canSave = canSave, API = {}}

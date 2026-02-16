@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 
 local fields = {}
 local total_bytes = rfsuite.preferences.developer.mspexpbytes
@@ -112,4 +113,9 @@ end
 
 local function preUnload() enableWakeup = false end
 
-return {apidata = apidata, title = "Experimental", navButtons = {menu = true, save = true, reload = true, help = true}, eepromWrite = true, postLoad = postLoad, wakeup = wakeup, preUnload = preUnload, API = {}}
+local function onNavMenu()
+    pageRuntime.openMenuContext()
+    return true
+end
+
+return {apidata = apidata, title = "Experimental", navButtons = {menu = true, save = true, reload = true, help = true}, onNavMenu = onNavMenu, eepromWrite = true, postLoad = postLoad, wakeup = wakeup, preUnload = preUnload, API = {}}
