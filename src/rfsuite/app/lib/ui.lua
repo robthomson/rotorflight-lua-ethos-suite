@@ -34,6 +34,10 @@ local HEADER_NAV_HEIGHT_REDUCTION = 4
 local HEADER_NAV_Y_SHIFT = 6
 local HEADER_OVERLAY_Y_OFFSET = 5
 
+local function isManifestMenuRouterScript(script)
+    return type(script) == "string" and (script == "manifest_menu/menu.lua" or script == "app/modules/manifest_menu/menu.lua")
+end
+
 local function resolveScriptFromRules(rules)
     if type(rules) ~= "table" then return nil end
     for _, rule in ipairs(rules) do
@@ -262,6 +266,22 @@ local function getMenuSectionTitleById(sectionId)
     return nil
 end
 
+local function getMenuSectionTitleByMenuId(menuId)
+    if type(menuId) ~= "string" or menuId == "" then return nil end
+    local menu = app and app.MainMenu
+    local sections = menu and menu.sections
+    if type(sections) ~= "table" then return nil end
+
+    for i = 1, #sections do
+        local section = sections[i]
+        if section and section.menuId == menuId and section.title then
+            return composeSectionPath(i, section.title)
+        end
+    end
+
+    return nil
+end
+
 local function getMenuSectionTitleByScript(script)
     if type(script) ~= "string" then return nil end
     if script:sub(1, 12) == "app/modules/" then
@@ -307,6 +327,7 @@ local function getBreadcrumbFromReturnStack()
             if type(ctx.script) == "string" then
                 appendBreadcrumbParts(ctxPathParts, getMenuSectionTitleByScript(ctx.script))
             end
+            appendBreadcrumbParts(ctxPathParts, getMenuSectionTitleByMenuId(ctx.menuId))
             appendBreadcrumbParts(ctxPathParts, ctx.title)
             appendBreadcrumbParts(parts, tableConcat(ctxPathParts, " / "))
         end
@@ -337,6 +358,9 @@ local function resolveHeaderContext(rawTitle, script)
     local parentBreadcrumb = getBreadcrumbFromReturnStack()
     if not parentBreadcrumb or parentBreadcrumb == "" then
         parentBreadcrumb = getMenuSectionTitleById(app and app.lastMenu)
+    end
+    if not parentBreadcrumb or parentBreadcrumb == "" then
+        parentBreadcrumb = getMenuSectionTitleByMenuId(app and (app.activeManifestMenuId or app.pendingManifestMenuId))
     end
     if not parentBreadcrumb or parentBreadcrumb == "" then
         parentBreadcrumb = getMenuSectionTitleByScript(script or (app and app.lastScript))
@@ -375,7 +399,10 @@ local function drawHeaderBreadcrumbOverlay(startY, reserveRightWidth)
     if not app then return false, startY end
     local breadcrumb = app.headerParentBreadcrumb
     if type(breadcrumb) ~= "string" or trimText(breadcrumb) == "" then
-        breadcrumb = getBreadcrumbFromReturnStack() or getMenuSectionTitleById(app.lastMenu) or getMenuSectionTitleByScript(app.lastScript)
+        breadcrumb = getBreadcrumbFromReturnStack() or
+            getMenuSectionTitleById(app.lastMenu) or
+            getMenuSectionTitleByMenuId(app and (app.activeManifestMenuId or app.pendingManifestMenuId)) or
+            getMenuSectionTitleByScript(app.lastScript)
         breadcrumb = stripBreadcrumbLeafForDisplay(breadcrumb, app.headerTitle or app.lastTitle)
         if type(breadcrumb) == "string" then app.headerParentBreadcrumb = breadcrumb end
     end
@@ -537,6 +564,12 @@ function ui.openMenuContext(defaultSectionId, showProgress, speed)
         end
         openOpts.returnStack = parentStack
         ui.openPage(openOpts)
+        return
+    end
+
+    -- No explicit target means "back to root menu", not "re-open last section".
+    if type(defaultSectionId) ~= "string" or defaultSectionId == "" then
+        ui.openMainMenu()
         return
     end
 
@@ -1025,7 +1058,7 @@ local function openMenuSectionById(sectionId)
     local section, sectionIndex = navigation.findSection(mainMenu, sectionId)
     if not section then return false end
 
-    -- Manifest-driven sections now resolve directly to module pages.
+    -- Section backed by a concrete module/script page.
     if section.module then
         app.lastMenu = sectionId
         app._menuFocusEpoch = (app._menuFocusEpoch or 0) + 1
@@ -1039,6 +1072,19 @@ local function openMenuSectionById(sectionId)
         app.isOfflinePage = section.offline == true
         app.ui.progressDisplay(nil, nil, speed)
         app.ui.openPage({idx = sectionIndex, title = section.title, script = section.module .. "/" .. script})
+        return true
+    end
+
+    -- Section backed by a manifest menu id loaded through a shared menu module.
+    if type(section.menuId) == "string" and section.menuId ~= "" then
+        app.lastMenu = sectionId
+        app._menuFocusEpoch = (app._menuFocusEpoch or 0) + 1
+
+        local speed = tonumber(section.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
+        app.pendingManifestMenuId = section.menuId
+        app.isOfflinePage = section.offline == true
+        app.ui.progressDisplay(nil, nil, speed)
+        app.ui.openPage({idx = sectionIndex, title = section.title, script = "manifest_menu/menu.lua", menuId = section.menuId})
         return true
     end
 
@@ -1156,6 +1202,9 @@ function ui.openMainMenu(activesection)
                     paint = function() end,
                     press = function()
                         preferences.menulastselected["mainmenu"] = menuIndex
+                        if type(menuItem.id) == "string" and menuItem.id ~= "" then
+                            app.lastMenu = menuItem.id
+                        end
                         local speed = tonumber(menuItem.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
                         if menuItem.module then
                             app.isOfflinePage = true
@@ -1165,6 +1214,11 @@ function ui.openMainMenu(activesection)
                             end
                             app.ui.progressDisplay(nil, nil, speed)
                             app.ui.openPage({idx = menuIndex, title = menuItem.title, script = menuItem.module .. "/" .. script})
+                        elseif type(menuItem.menuId) == "string" and menuItem.menuId ~= "" then
+                            app.isOfflinePage = menuItem.offline == true
+                            app.pendingManifestMenuId = menuItem.menuId
+                            app.ui.progressDisplay(nil, nil, speed)
+                            app.ui.openPage({idx = menuIndex, title = menuItem.title, script = "manifest_menu/menu.lua", menuId = menuItem.menuId})
                         else
                             app.ui.progressDisplay(nil, nil, speed)
                             app.ui.openMainMenu(menuItem.id)
@@ -1915,6 +1969,14 @@ function ui.openPage(opts)
         error("ui.openPage requires opts.script")
     end
 
+    if isManifestMenuRouterScript(script) then
+        if type(opts.menuId) == "string" and opts.menuId ~= "" then
+            app.pendingManifestMenuId = opts.menuId
+        elseif (type(app.pendingManifestMenuId) ~= "string" or app.pendingManifestMenuId == "") and type(app.activeManifestMenuId) == "string" and app.activeManifestMenuId ~= "" then
+            app.pendingManifestMenuId = app.activeManifestMenuId
+        end
+    end
+
     if type(returnStack) == "table" then
         navigation.setReturnStack(app, returnStack)
     elseif type(returnContext) == "table" and type(returnContext.script) == "string" then
@@ -2384,7 +2446,19 @@ function ui.mspApiUpdateFormAttributes()
         end
     end
 
-    app.formNavigationFields['menu']:focus(true)
+    -- During rapid page transitions the menu button may not exist yet.
+    -- Focus the first available navigation field instead of assuming "menu".
+    local navFields = app.formNavigationFields
+    if type(navFields) == "table" then
+        local focusOrder = {"menu", "save", "reload", "tool", "help"}
+        for i = 1, #focusOrder do
+            local navField = navFields[focusOrder[i]]
+            if navField and navField.focus then
+                navField:focus(true)
+                break
+            end
+        end
+    end
 end
 
 function ui.requestPage()
