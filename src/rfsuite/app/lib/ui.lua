@@ -25,8 +25,14 @@ local preferences = rfsuite.preferences
 local utils = rfsuite.utils
 local tasks = rfsuite.tasks
 local apiCore
+local navigation = assert(loadfile("app/lib/navigation.lua"))()
 
 local MSP_DEBUG_PLACEHOLDER = "MSP Waiting"
+local MAIN_MENU_CATEGORY_CONFIGURATION = "@i18n(app.header_configuration)@"
+local MAIN_MENU_CATEGORY_SYSTEM = "@i18n(app.header_system)@"
+local HEADER_NAV_HEIGHT_REDUCTION = 4
+local HEADER_NAV_Y_SHIFT = 6
+local HEADER_OVERLAY_Y_OFFSET = 5
 
 local function resolveScriptFromRules(rules)
     if type(rules) ~= "table" then return nil end
@@ -52,6 +58,329 @@ local function resolvePageScript(page, section)
         if page.script_default then return page.script_default, page.loaderspeed end
     end
     return page.script, page.loaderspeed
+end
+
+local function trimText(value)
+    if type(value) ~= "string" then return "" end
+    return (value:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function splitBreadcrumbTitle(title)
+    local out = {}
+    if type(title) ~= "string" then return out end
+
+    local start = 1
+    while true do
+        local i, j = title:find(" / ", start, true)
+        if not i then
+            local tail = trimText(title:sub(start))
+            if tail ~= "" then out[#out + 1] = tail end
+            break
+        end
+
+        local part = trimText(title:sub(start, i - 1))
+        if part ~= "" then out[#out + 1] = part end
+        start = j + 1
+    end
+
+    return out
+end
+
+local function normalizeBreadcrumbMatchText(value)
+    local text = trimText(value)
+    if text == "" then return "" end
+    text = text:lower()
+    text = text:gsub("[^%w]+", " ")
+    text = text:gsub("%s+", " ")
+    text = trimText(text)
+    if text == "" then return "" end
+
+    local tokens = {}
+    for token in text:gmatch("%S+") do
+        if token ~= "i18n" and token ~= "app" and token ~= "modules" and token ~= "module" and token ~= "name" and token ~= "menu" and token ~= "section" and token ~= "header" then
+            tokens[#tokens + 1] = token
+        end
+    end
+
+    if #tokens > 0 then
+        text = tableConcat(tokens, " ")
+    end
+
+    return trimText(text)
+end
+
+local function breadcrumbLeafMatchesDisplay(leafText, displayText)
+    local leaf = normalizeBreadcrumbMatchText(leafText)
+    local display = normalizeBreadcrumbMatchText(displayText)
+    if leaf == "" or display == "" then return false end
+    if leaf == display then return true end
+
+    if #display > #leaf and display:sub(1, #leaf) == leaf then
+        local nextChar = display:sub(#leaf + 1, #leaf + 1)
+        if nextChar == " " then return true end
+    end
+
+    return false
+end
+
+local function stripBreadcrumbLeafForDisplay(breadcrumb, displayTitle)
+    local crumb = trimText(breadcrumb)
+    local leaf = trimText(displayTitle)
+    if crumb == "" or leaf == "" then return breadcrumb end
+
+    local parts = splitBreadcrumbTitle(crumb)
+    if #parts == 0 then return crumb end
+    if not breadcrumbLeafMatchesDisplay(parts[#parts], leaf) then return crumb end
+
+    parts[#parts] = nil
+    if #parts == 0 then return nil end
+    return tableConcat(parts, " / ")
+end
+
+local function getMainMenuCategoryBySectionIndex(sectionIndex)
+    if type(sectionIndex) ~= "number" then return nil end
+    local menu = app and app.MainMenu
+    local sections = menu and menu.sections
+    if type(sections) ~= "table" then return nil end
+
+    local category = MAIN_MENU_CATEGORY_CONFIGURATION
+    for i = 1, #sections do
+        local section = sections[i]
+        if section and section.newline then category = MAIN_MENU_CATEGORY_SYSTEM end
+        if i == sectionIndex then return category end
+    end
+
+    return nil
+end
+
+local function composeSectionPath(sectionIndex, sectionTitle)
+    local title = trimText(sectionTitle)
+    if title == "" then return nil end
+
+    local category = trimText(getMainMenuCategoryBySectionIndex(sectionIndex))
+    if category == "" then return title end
+    return category .. " / " .. title
+end
+
+local function getHeaderNavButtonHeight()
+    local base = (app and app.radio and app.radio.navbuttonHeight) or 0
+    if base <= 0 then return base end
+    return math.max(20, base - HEADER_NAV_HEIGHT_REDUCTION)
+end
+
+local function getHeaderNavButtonY(baseY)
+    local y = tonumber(baseY) or 0
+    return math.max(0, y - HEADER_NAV_Y_SHIFT)
+end
+
+local function getHeaderTitleY(baseY)
+    -- Keep title aligned with the compact button row.
+    return getHeaderNavButtonY(baseY)
+end
+
+local function getHeaderNavAreaBottom()
+    local baseY = (app and app.radio and app.radio.linePaddingTop) or 0
+    return getHeaderNavButtonY(baseY) + getHeaderNavButtonHeight()
+end
+
+local function appendBreadcrumbParts(parts, candidate)
+    if type(parts) ~= "table" then return end
+    local source = splitBreadcrumbTitle(candidate)
+    if #source == 0 then
+        local item = trimText(candidate)
+        if item ~= "" then source = {item} end
+    end
+
+    local clean = {}
+    for i = 1, #source do
+        local part = trimText(source[i])
+        if part ~= "" then clean[#clean + 1] = part end
+    end
+    if #clean == 0 then return end
+
+    if #parts == 0 then
+        for i = 1, #clean do parts[#parts + 1] = clean[i] end
+        return
+    end
+
+    local maxOverlap = math.min(#parts, #clean)
+    local overlap = 0
+    for o = maxOverlap, 1, -1 do
+        local matches = true
+        for i = 1, o do
+            if parts[#parts - o + i] ~= clean[i] then
+                matches = false
+                break
+            end
+        end
+        if matches then
+            overlap = o
+            break
+        end
+    end
+
+    for i = overlap + 1, #clean do
+        parts[#parts + 1] = clean[i]
+    end
+end
+
+local function getMenuSectionTitleById(sectionId)
+    if not sectionId then return nil end
+    local menu = app and app.MainMenu
+    local sections = menu and menu.sections
+    if type(sections) ~= "table" then return nil end
+
+    for i = 1, #sections do
+        local section = sections[i]
+        if section and section.id == sectionId and section.title then
+            return composeSectionPath(i, section.title)
+        end
+    end
+
+    return nil
+end
+
+local function getMenuSectionTitleByScript(script)
+    if type(script) ~= "string" then return nil end
+    if script:sub(1, 12) == "app/modules/" then
+        script = script:sub(13)
+    end
+    local folder = script:match("^([^/]+)")
+    if not folder or folder == "" then return nil end
+
+    local menu = app and app.MainMenu
+    local pages = menu and menu.pages
+    local sections = menu and menu.sections
+    if type(sections) ~= "table" then return nil end
+
+    if type(pages) == "table" then
+        for i = 1, #pages do
+            local page = pages[i]
+            if page and page.folder == folder then
+                local section = sections[page.section]
+                if section and section.title then return composeSectionPath(page.section, section.title) end
+            end
+        end
+    end
+
+    for i = 1, #sections do
+        local section = sections[i]
+        if section and section.title and section.module == folder then
+            return composeSectionPath(i, section.title)
+        end
+    end
+
+    return nil
+end
+
+local function getBreadcrumbFromReturnStack()
+    if not app or type(app.menuContextStack) ~= "table" then return nil end
+    if #app.menuContextStack == 0 then return nil end
+
+    local parts = {}
+    for i = 1, #app.menuContextStack do
+        local ctx = app.menuContextStack[i]
+        if type(ctx) == "table" then
+            local ctxPathParts = {}
+            if type(ctx.script) == "string" then
+                appendBreadcrumbParts(ctxPathParts, getMenuSectionTitleByScript(ctx.script))
+            end
+            appendBreadcrumbParts(ctxPathParts, ctx.title)
+            appendBreadcrumbParts(parts, tableConcat(ctxPathParts, " / "))
+        end
+    end
+
+    if #parts == 0 then return nil end
+    return tableConcat(parts, " / ")
+end
+
+local function resolveHeaderContext(rawTitle, script)
+    local title = rawTitle
+    if title == nil then title = "No Title" end
+    if type(title) ~= "string" then title = tostring(title) end
+    title = trimText(title)
+    if title == "" then title = "No Title" end
+
+    local parts = splitBreadcrumbTitle(title)
+    local displayTitle = title
+    local parentFromTitle = nil
+    if #parts > 1 then
+        displayTitle = parts[#parts]
+        parts[#parts] = nil
+        parentFromTitle = tableConcat(parts, " / ")
+    elseif #parts == 1 then
+        displayTitle = parts[1]
+    end
+
+    local parentBreadcrumb = getBreadcrumbFromReturnStack()
+    if not parentBreadcrumb or parentBreadcrumb == "" then
+        parentBreadcrumb = getMenuSectionTitleById(app and app.lastMenu)
+    end
+    if not parentBreadcrumb or parentBreadcrumb == "" then
+        parentBreadcrumb = getMenuSectionTitleByScript(script or (app and app.lastScript))
+    end
+    if (not parentBreadcrumb or parentBreadcrumb == "") and parentFromTitle and parentFromTitle ~= "" then
+        parentBreadcrumb = parentFromTitle
+    end
+    parentBreadcrumb = stripBreadcrumbLeafForDisplay(parentBreadcrumb, displayTitle)
+    if parentBreadcrumb == displayTitle then parentBreadcrumb = nil end
+
+    if app then
+        app.headerTitle = displayTitle
+        app.headerParentBreadcrumb = parentBreadcrumb
+    end
+
+    return displayTitle, parentBreadcrumb
+end
+
+local function fitTextToWidth(text, maxWidth)
+    if type(text) ~= "string" or text == "" then return "" end
+    if type(maxWidth) ~= "number" or maxWidth <= 0 then return "" end
+
+    if lcdGetTextSize(text) <= maxWidth then return text end
+
+    local ellipsis = "..."
+    local clipped = text
+    while #clipped > 0 and lcdGetTextSize(clipped .. ellipsis) > maxWidth do
+        clipped = clipped:sub(1, -2)
+    end
+
+    if clipped == "" then return ellipsis end
+    return clipped .. ellipsis
+end
+
+local function drawHeaderBreadcrumbOverlay(startY, reserveRightWidth)
+    if not app then return false, startY end
+    local breadcrumb = app.headerParentBreadcrumb
+    if type(breadcrumb) ~= "string" or trimText(breadcrumb) == "" then
+        breadcrumb = getBreadcrumbFromReturnStack() or getMenuSectionTitleById(app.lastMenu) or getMenuSectionTitleByScript(app.lastScript)
+        breadcrumb = stripBreadcrumbLeafForDisplay(breadcrumb, app.headerTitle or app.lastTitle)
+        if type(breadcrumb) == "string" then app.headerParentBreadcrumb = breadcrumb end
+    end
+    if type(breadcrumb) ~= "string" then return false, startY end
+
+    breadcrumb = trimText(breadcrumb)
+    if breadcrumb == "" then return false, startY end
+
+    local screenW = app.lcdWidth
+    if not screenW or screenW <= 0 then
+        screenW = lcdGetWindowSize()
+    end
+    if not screenW or screenW <= 0 then return false, startY end
+    local reserved = math.max(0, tonumber(reserveRightWidth) or 0)
+    local maxTextWidth = screenW - 8 - reserved
+    if maxTextWidth <= 0 then return false, startY end
+
+    lcdFont(FONT_XXS)
+    lcdColor(lcd.RGB(170, 170, 170))
+
+    local text = fitTextToWidth(breadcrumb, maxTextWidth)
+    if text == "" then return false, startY end
+    lcdDrawText(0, startY, text)
+
+    local _, textH = lcdGetTextSize(text)
+    if not textH or textH <= 0 then textH = 6 end
+    return true, startY + textH + 2
 end
 
 local function getMspStatusExtras()
@@ -173,6 +502,29 @@ local function getApiCore()
     if apiCore then return apiCore end
     apiCore = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api_core.lua"))()
     return apiCore
+end
+
+function ui.openMenuContext(defaultSectionId, showProgress, speed)
+    if showProgress then ui.progressDisplay(nil, nil, speed) end
+
+    local target, parentStack = navigation.popReturnContext(app)
+    if target then
+        local openOpts = {}
+        for k, v in pairs(target) do
+            openOpts[k] = v
+        end
+        openOpts.returnStack = parentStack
+        ui.openPage(openOpts)
+        return
+    end
+
+    local targetSectionId = navigation.resolveMenuContext(app.MainMenu, app.lastMenu, defaultSectionId)
+    if targetSectionId then
+        ui.openMainMenuSub(targetSectionId)
+        return
+    end
+
+    ui.openMainMenu()
 end
 
 local function openProgressDialog(opts)
@@ -620,9 +972,12 @@ function ui.resetPageState(activesection)
     app.lastLabel = nil
     app.isOfflinePage = false
     app.lastMenu = nil
+    navigation.clearReturnStack(app)
     app.lastIdx = nil
     app.lastTitle = nil
     app.lastScript = nil
+    app.headerTitle = nil
+    app.headerParentBreadcrumb = nil
 
     session.lastPage = nil
     app.triggers.isReady = false
@@ -644,6 +999,8 @@ end
 function ui.openMainMenu()
 
     ui.resetPageState()
+    app.lastMenu = "mainmenu"
+    app._menuFocusEpoch = (app._menuFocusEpoch or 0) + 1
 
     utils.reportMemoryUsage("app.openMainMenu", "start")
 
@@ -688,66 +1045,71 @@ function ui.openMainMenu()
 
     local lc, bx, y = 0, 0, 0
 
-    local header = form.addLine("@i18n(app.header_configuration)@")
-
-    local navX = windowWidth - 110
-    app.formNavigationFields['menu'] = form.addButton(header, {x = navX, y = app.radio.linePaddingTop, w = 100, h = app.radio.navbuttonHeight}, {
-        text = "@i18n(app.navigation_menu)@",
-        icon = nil,
-        options = FONT_S,
-        paint = function() end,
-        press = function()
+    local menuOnlyNav = {menu = true, save = false, reload = false, tool = false, help = false}
+    local header = form.addLine("")
+    app.ui.setHeaderTitle("@i18n(app.header_configuration)@", header, menuOnlyNav)
+    app.ui.navigationButtons(windowWidth - 5, getHeaderNavButtonY(app.radio.linePaddingTop), app.radio.menuButtonWidth or 100, getHeaderNavButtonHeight(), {
+        navButtons = menuOnlyNav,
+        onNavMenu = function()
             app.close()
         end
     })
+    app.ui.disableAllNavigationFields()
+    app.ui.enableNavigationField("menu")
 
-    for pidx, pvalue in ipairs(Menu) do
+    local pidx = 0
+    for _, pvalue in ipairs(Menu) do
+        if pvalue.parent == nil then
+            pidx = pidx + 1
+            local menuIndex = pidx
+            local menuItem = pvalue
 
-        app.formFieldsOffline[pidx] = pvalue.offline or false
-        app.formFieldsBGTask[pidx] = pvalue.bgtask or false
+            app.formFieldsOffline[menuIndex] = menuItem.offline or false
+            app.formFieldsBGTask[menuIndex] = menuItem.bgtask or false
 
-        if pvalue.newline then
-            lc = 0
-            form.addLine("@i18n(app.header_system)@")
-        end
-
-        if lc == 0 then y = form.height() + ((preferences.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall) end
-
-        bx = (buttonW + padding) * lc
-
-        if preferences.general.iconsize ~= 0 then
-            app.gfx_buttons["mainmenu"][pidx] = app.gfx_buttons["mainmenu"][pidx] or lcdLoadMask(pvalue.image)
-        else
-            app.gfx_buttons["mainmenu"][pidx] = nil
-        end
-
-        app.formFields[pidx] = form.addButton(line, {x = bx, y = y, w = buttonW, h = buttonH}, {
-            text = pvalue.title,
-            icon = app.gfx_buttons["mainmenu"][pidx],
-            options = FONT_S,
-            paint = function() end,
-            press = function()
-                preferences.menulastselected["mainmenu"] = pidx
-                local speed = tonumber(pvalue.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
-                if pvalue.module then
-                    app.isOfflinePage = true
-                    local script, speedOverride = resolvePageScript(pvalue)
-                    if speedOverride ~= nil then
-                        speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
-                    end
-                    app.ui.progressDisplay(nil, nil, speed)
-                    app.ui.openPage({idx = pidx, title = pvalue.title, script = pvalue.module .. "/" .. script})
-                else
-                    app.ui.progressDisplay(nil, nil, speed)
-                    app.ui.openMainMenuSub(pvalue.id)
-                end
+            if menuItem.newline then
+                lc = 0
+                form.addLine("@i18n(app.header_system)@")
             end
-        })
 
-        app.formFields[pidx]:enable(false)
+            if lc == 0 then y = form.height() + ((preferences.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall) end
 
-        lc = lc + 1
-        if lc == numPerRow then lc = 0 end
+            bx = (buttonW + padding) * lc
+
+            if preferences.general.iconsize ~= 0 then
+                app.gfx_buttons["mainmenu"][menuIndex] = app.gfx_buttons["mainmenu"][menuIndex] or lcdLoadMask(menuItem.image)
+            else
+                app.gfx_buttons["mainmenu"][menuIndex] = nil
+            end
+
+            app.formFields[menuIndex] = form.addButton(line, {x = bx, y = y, w = buttonW, h = buttonH}, {
+                text = menuItem.title,
+                icon = app.gfx_buttons["mainmenu"][menuIndex],
+                options = FONT_S,
+                paint = function() end,
+                press = function()
+                    preferences.menulastselected["mainmenu"] = menuIndex
+                    local speed = tonumber(menuItem.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
+                    if menuItem.module then
+                        app.isOfflinePage = true
+                        local script, speedOverride = resolvePageScript(menuItem)
+                        if speedOverride ~= nil then
+                            speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
+                        end
+                        app.ui.progressDisplay(nil, nil, speed)
+                        app.ui.openPage({idx = menuIndex, title = menuItem.title, script = menuItem.module .. "/" .. script})
+                    else
+                        app.ui.progressDisplay(nil, nil, speed)
+                        app.ui.openMainMenuSub(menuItem.id)
+                    end
+                end
+            })
+
+            app.formFields[menuIndex]:enable(false)
+
+            lc = lc + 1
+            if lc == numPerRow then lc = 0 end
+        end
     end
 
     app.triggers.closeProgressLoader = true
@@ -761,6 +1123,7 @@ end
 function ui.openMainMenuSub(activesection)
 
     ui.resetPageState(activesection)
+    app._menuFocusEpoch = (app._menuFocusEpoch or 0) + 1
 
     utils.reportMemoryUsage("app.openMainMenuSub", "start")
 
@@ -801,32 +1164,37 @@ function ui.openMainMenuSub(activesection)
             local w, h = lcdGetWindowSize()
             local windowWidth, windowHeight = w, h
             local padding = app.radio.buttonPadding
+            local parentId = navigation.getParentSectionId(MainMenu, activesection)
 
-            form.addLine(section.title)
-
-            local x = windowWidth - 110
-            app.formNavigationFields['menu'] = form.addButton(line, {x = x, y = app.radio.linePaddingTop, w = 100, h = app.radio.navbuttonHeight}, {
-                text = "@i18n(app.navigation_menu)@",
-                icon = nil,
-                options = FONT_S,
-                paint = function() end,
-                press = function()
+            local menuOnlyNav = {menu = true, save = false, reload = false, tool = false, help = false}
+            local header = form.addLine("")
+            app.ui.setHeaderTitle(section.title, header, menuOnlyNav)
+            app.ui.navigationButtons(windowWidth - 5, getHeaderNavButtonY(app.radio.linePaddingTop), app.radio.menuButtonWidth or 100, getHeaderNavButtonHeight(), {
+                navButtons = menuOnlyNav,
+                onNavMenu = function()
                     app.lastIdx = nil
                     session.lastPage = nil
                     if app.Page and app.Page.onNavMenu then app.Page.onNavMenu(app.Page) end
-                    app.ui.openMainMenu()
+                    if parentId then
+                        app.ui.openMainMenuSub(parentId)
+                    else
+                        app.ui.openMainMenu()
+                    end
                 end
             })
-            app.formNavigationFields['menu']:focus()
+            app.ui.disableAllNavigationFields()
+            app.ui.enableNavigationField("menu")
 
             local lc, y = 0, 0
 
             for pidx, page in ipairs(MainMenu.pages) do
                 if page.section == idx then
-                    local hideEntry = (page.ethosversion and not utils.ethosVersionAtLeast(page.ethosversion)) or (page.mspversion and utils.apiVersionCompare("<", page.mspversion)) 
+                    local pageIndex = pidx
+                    local pageItem = page
+                    local hideEntry = (pageItem.ethosversion and not utils.ethosVersionAtLeast(pageItem.ethosversion)) or (pageItem.mspversion and utils.apiVersionCompare("<", pageItem.mspversion))
 
-                    local offline = page.offline
-                    app.formFieldsOffline[pidx] = offline or false
+                    local offline = pageItem.offline
+                    app.formFieldsOffline[pageIndex] = offline or false
 
                     if not hideEntry then
                         if lc == 0 then y = form.height() + ((preferences.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall) end
@@ -834,26 +1202,36 @@ function ui.openMainMenuSub(activesection)
                         local x = (buttonW + padding) * lc
 
                         if preferences.general.iconsize ~= 0 then
-                            app.gfx_buttons[activesection][pidx] = app.gfx_buttons[activesection][pidx] or lcdLoadMask("app/modules/" .. page.folder .. "/" .. page.image)
+                            if type(pageItem.image) == "string" and pageItem.image:sub(1, 4) == "app/" then
+                                app.gfx_buttons[activesection][pageIndex] = app.gfx_buttons[activesection][pageIndex] or lcdLoadMask(pageItem.image)
+                            elseif pageItem.folder and pageItem.image then
+                                app.gfx_buttons[activesection][pageIndex] = app.gfx_buttons[activesection][pageIndex] or lcdLoadMask("app/modules/" .. pageItem.folder .. "/" .. pageItem.image)
+                            else
+                                app.gfx_buttons[activesection][pageIndex] = nil
+                            end
                         else
-                            app.gfx_buttons[activesection][pidx] = nil
+                            app.gfx_buttons[activesection][pageIndex] = nil
                         end
 
-                        app.formFields[pidx] = form.addButton(line, {x = x, y = y, w = buttonW, h = buttonH}, {
-                            text = page.title,
-                            icon = app.gfx_buttons[activesection][pidx],
+                        app.formFields[pageIndex] = form.addButton(line, {x = x, y = y, w = buttonW, h = buttonH}, {
+                            text = pageItem.title,
+                            icon = app.gfx_buttons[activesection][pageIndex],
                             options = FONT_S,
                             paint = function() end,
                             press = function()
-                                preferences.menulastselected[activesection] = pidx
-                                local speed = tonumber(page.loaderspeed or section.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
+                                preferences.menulastselected[activesection] = pageIndex
+                                local speed = tonumber(pageItem.loaderspeed or section.loaderspeed) or (app.loaderSpeed and app.loaderSpeed.DEFAULT) or 1.0
                                 app.isOfflinePage = offline
-                                local script, speedOverride = resolvePageScript(page, section)
+                                local script, speedOverride = resolvePageScript(pageItem, section)
                                 if speedOverride ~= nil then
                                     speed = tonumber(speedOverride) or (app.loaderSpeed and app.loaderSpeed[speedOverride]) or speed
                                 end
                                 app.ui.progressDisplay(nil, nil, speed)
-                                app.ui.openPage({idx = pidx, title = page.title, script = page.folder .. "/" .. script})
+                                if pageItem.id and not pageItem.folder then
+                                    app.ui.openMainMenuSub(pageItem.id)
+                                else
+                                    app.ui.openPage({idx = pageIndex, title = pageItem.title, script = pageItem.folder .. "/" .. script})
+                                end
                             end
                         })
 
@@ -1467,26 +1845,123 @@ function ui.fieldLabel(f, i, l)
     end
 end
 
+local function textWidth(s)
+    local ok, tw = pcall(lcdGetTextSize, s or "")
+    if ok and type(tw) == "number" then return tw end
+    return #(s or "") * 10
+end
+
+function ui.fitHeaderTitle(rawTitle, maxW)
+    local t = tostring(rawTitle or "")
+    if textWidth(t) <= maxW then return t end
+
+    local parts = {}
+    for part in t:gmatch("([^/]+)") do
+        parts[#parts + 1] = (part:gsub("^%s+", ""):gsub("%s+$", ""))
+    end
+
+    if #parts > 1 then
+        for i = 2, #parts do
+            local candidate = "... / " .. tableConcat(parts, " / ", i, #parts)
+            if textWidth(candidate) <= maxW then return candidate end
+        end
+    end
+
+    local ellipsis = "..."
+    if textWidth(ellipsis) >= maxW then return ellipsis end
+
+    local tail = t
+    while #tail > 1 do
+        local candidate = ellipsis .. tail
+        if textWidth(candidate) <= maxW then return candidate end
+        tail = tail:sub(2)
+    end
+
+    return ellipsis
+end
+
+function ui.getHeaderMetrics(navButtons)
+    local radio = app.radio
+    local w, _ = lcdGetWindowSize()
+    local padding = 5
+    local buttonW = radio.menuButtonWidth or 100
+    local buttonH = getHeaderNavButtonHeight()
+    local buttons = navButtons or {menu = true}
+    local navX = w - 5
+    local reserved = 0
+
+    local menuOnlyHeader = (type(buttons) == "table")
+        and (buttons.menu == true)
+        and (buttons.save == nil)
+        and (buttons.reload == nil)
+        and (buttons.tool == nil)
+        and (buttons.help == nil)
+
+    -- Standard page headers always allocate full nav slots for stable layout.
+    if menuOnlyHeader then
+        reserved = buttonW + padding
+    else
+        reserved = (buttonW + padding) * 5
+    end
+
+    local titleRightEdge = navX - reserved
+    local titleWidth = math.max(40, titleRightEdge - 8)
+    return {
+        windowWidth = w,
+        buttonW = buttonW,
+        buttonH = buttonH,
+        titleWidth = titleWidth
+    }
+end
+
+function ui.getHeaderNavButtonHeight()
+    return getHeaderNavButtonHeight()
+end
+
+function ui.getHeaderNavButtonY(baseY)
+    return getHeaderNavButtonY(baseY)
+end
+
+function ui.getHeaderTitleY(baseY)
+    return getHeaderTitleY(baseY)
+end
+
+function ui.setHeaderTitle(rawTitle, lineRef, navButtons)
+    local radio = app.radio
+    local formFields = app.formFields
+    local metrics = ui.getHeaderMetrics(navButtons)
+    local resolvedTitle = resolveHeaderContext(rawTitle, app and app.lastScript)
+    local displayTitle = ui.fitHeaderTitle(resolvedTitle, metrics.titleWidth)
+    local titleY = getHeaderTitleY(radio.linePaddingTop)
+    local lineObj = lineRef or (formFields and formFields["menu"]) or nil
+    if not lineObj then return end
+
+    if lineRef and formFields then
+        formFields["title"] = form.addStaticText(lineObj, {x = 0, y = titleY, w = metrics.titleWidth, h = radio.navbuttonHeight}, displayTitle)
+        return
+    end
+
+    if formFields and formFields["title"] and formFields["title"].value then
+        pcall(function() formFields["title"]:value(displayTitle) end)
+        return
+    end
+
+    if formFields then
+        formFields["title"] = form.addStaticText(lineObj, {x = 0, y = titleY, w = metrics.titleWidth, h = radio.navbuttonHeight}, displayTitle)
+    else
+        form.addStaticText(lineObj, {x = 0, y = titleY, w = metrics.titleWidth, h = radio.navbuttonHeight}, displayTitle)
+    end
+end
+
 function ui.fieldHeader(title)
     local radio = app.radio
     local formFields = app.formFields
-    local lcdWidth = app.lcdWidth
 
-    if not title then title = "No Title" end
-
-    local w, _ = lcdGetWindowSize()
-    local padding = 5
-    local colStart = mathFloor(w * 59.4 / 100)
-    if radio.navButtonOffset then colStart = colStart - radio.navButtonOffset end
-
-    local buttonW = radio.buttonWidth and radio.menuButtonWidth or ((w - colStart) / 3 - padding)
-    local buttonH = radio.navbuttonHeight
-
-    formFields['menu'] = form.addLine("")
-
-    formFields['title'] = form.addStaticText(formFields['menu'], {x = 0, y = radio.linePaddingTop, w = lcdWidth, h = radio.navbuttonHeight}, title)
-
-    app.ui.navigationButtons(w - 5, radio.linePaddingTop, buttonW, buttonH)
+    local navButtons = (app.Page and app.Page.navButtons) or {menu = true, save = true, reload = true, help = true}
+    local metrics = ui.getHeaderMetrics(navButtons)
+    formFields["menu"] = form.addLine("")
+    ui.setHeaderTitle(title, formFields["menu"], navButtons)
+    app.ui.navigationButtons(metrics.windowWidth - 5, getHeaderNavButtonY(radio.linePaddingTop), metrics.buttonW, metrics.buttonH)
 end
 
 function ui.openPageRefresh(opts)
@@ -1523,8 +1998,18 @@ function ui.openPage(opts)
     local idx = opts.idx
     local title = opts.title
     local script = opts.script
+    local returnContext = opts.returnContext
+    local returnStack = opts.returnStack
     if not script then
         error("ui.openPage requires opts.script")
+    end
+
+    if type(returnStack) == "table" then
+        navigation.setReturnStack(app, returnStack)
+    elseif type(returnContext) == "table" and type(returnContext.script) == "string" then
+        navigation.pushReturnContext(app, returnContext)
+    elseif returnContext == false then
+        navigation.clearReturnStack(app)
     end
 
     utils.reportMemoryUsage("ui.openPage: " .. script, "start")
@@ -1540,10 +2025,20 @@ function ui.openPage(opts)
     if app.formFields then for i = 1, #app.formFields do app.formFields[i] = nil end end
     if app.formLines then for i = 1, #app.formLines do app.formLines[i] = nil end end
 
-    local modulePath = "app/modules/" .. script
+    local modulePath = script
+    if type(modulePath) ~= "string" then
+        error("ui.openPage requires opts.script to be a string")
+    end
+    if modulePath:sub(1, 4) ~= "app/" then
+        modulePath = "app/modules/" .. modulePath
+    end
     app.Page = assert(loadfile(modulePath))(idx)
 
-    local section = script:match("([^/]+)")
+    local sectionScript = script
+    if type(sectionScript) == "string" and sectionScript:sub(1, 12) == "app/modules/" then
+        sectionScript = sectionScript:sub(13)
+    end
+    local section = tostring(sectionScript):match("([^/]+)")
     local helpData = getHelpData(section)
     app.fieldHelpTxt = helpData and helpData.fields or nil
 
@@ -1623,10 +2118,9 @@ function ui.openPage(opts)
     collectgarbage('collect')
 end
 
-function ui.navigationButtons(x, y, w, h)
+function ui.navigationButtons(x, y, w, h, opts)
 
 
-    local xOffset = 0
     local padding = 5
     local wS = w - (w * 20) / 100
     local helpOffset = 0
@@ -1635,112 +2129,134 @@ function ui.navigationButtons(x, y, w, h)
     local saveOffset = 0
     local menuOffset = 0
 
-    local navButtons
-    if app.Page.navButtons == nil then
-        navButtons = {menu = true, save = true, reload = true, help = true}
+    local navOpts = opts or {}
+    local navButtons = navOpts.navButtons or (app.Page and app.Page.navButtons)
+    local menuEnabled, saveEnabled, reloadEnabled, toolEnabled, helpEnabled
+    if navButtons == nil then
+        menuEnabled = true
+        saveEnabled = true
+        reloadEnabled = true
+        toolEnabled = false
+        helpEnabled = true
     else
-        navButtons = app.Page.navButtons
+        menuEnabled = (navButtons.menu == true)
+        saveEnabled = (navButtons.save == true)
+        reloadEnabled = (navButtons.reload == true)
+        toolEnabled = (navButtons.tool == true)
+        helpEnabled = (navButtons.help == true)
     end
 
-    if navButtons.help ~= nil and navButtons.help == true then xOffset = xOffset + wS + padding end
-    helpOffset = x - xOffset
+    helpOffset = x - (wS + padding)
+    toolOffset = helpOffset - (wS + padding)
+    reloadOffset = toolOffset - (w + padding)
+    saveOffset = reloadOffset - (w + padding)
+    menuOffset = saveOffset - (w + padding)
 
-    if navButtons.tool ~= nil and navButtons.tool == true then xOffset = xOffset + wS + padding end
-    toolOffset = x - xOffset
+    app.formNavigationFields['menu'] = form.addButton(line, {x = menuOffset, y = y, w = w, h = h}, {
+        text = "@i18n(app.navigation_menu)@",
+        icon = nil,
+        options = FONT_S,
+        paint = function() end,
+        press = function()
+            if navOpts.onNavMenu then
+                navOpts.onNavMenu()
+            elseif app.Page and app.Page.onNavMenu then
+                app.Page.onNavMenu(app.Page)
+            else
+                app.ui.openMenuContext()
+            end
+        end
+    })
 
-    if navButtons.reload ~= nil and navButtons.reload == true then xOffset = xOffset + w + padding end
-    reloadOffset = x - xOffset
+    app.formNavigationFields['save'] = form.addButton(line, {x = saveOffset, y = y, w = w, h = h}, {
+        text = "@i18n(app.navigation_save)@",
+        icon = nil,
+        options = FONT_S,
+        paint = function() end,
+        press = function()
+            if app.Page and app.Page.onSaveMenu then
+                app.Page.onSaveMenu(app.Page)
+            else
+                app.triggers.triggerSave = true
+            end
+        end
+    })
 
-    if navButtons.save ~= nil and navButtons.save == true then xOffset = xOffset + w + padding end
-    saveOffset = x - xOffset
+    app.formNavigationFields['reload'] = form.addButton(line, {x = reloadOffset, y = y, w = w, h = h}, {
+        text = "@i18n(app.navigation_reload)@",
+        icon = nil,
+        options = FONT_S,
+        paint = function() end,
+        press = function()
+            if app.Page and app.Page.onReloadMenu then
+                app.Page.onReloadMenu(app.Page)
+            else
+                app.triggers.triggerReload = true
+            end
+            return true
+        end
+    })
 
-    if navButtons.menu ~= nil and navButtons.menu == true then xOffset = xOffset + w + padding end
-    menuOffset = x - xOffset
+    app.formNavigationFields['tool'] = form.addButton(line, {x = toolOffset, y = y, w = wS, h = h}, {
+        text = "@i18n(app.navigation_tools)@",
+        icon = nil,
+        options = FONT_S,
+        paint = function() end,
+        press = function()
+            if app.Page and app.Page.onToolMenu then app.Page.onToolMenu(app.Page) end
+        end
+    })
 
-    if navButtons.menu == true then
-        app.formNavigationFields['menu'] = form.addButton(line, {x = menuOffset, y = y, w = w, h = h}, {
-            text = "@i18n(app.navigation_menu)@",
-            icon = nil,
-            options = FONT_S,
-            paint = function() end,
-            press = function()
-                if app.Page and app.Page.onNavMenu then
-                    app.Page.onNavMenu(app.Page)
-                elseif app.lastMenu ~= nil then
-                    app.ui.openMainMenuSub(app.lastMenu)
+    local section = (type(app.lastScript) == "string") and app.lastScript:match("([^/]+)") or nil
+    local script = (type(app.lastScript) == "string") and app.lastScript:match("/([^/]+)%.lua$") or nil
+    local help = section and getHelpData(section) or nil
+    local hasHelpData = (help and help.help and (help.help[script] or help.help['default'])) and true or false
+    app.formNavigationFields['help'] = form.addButton(line, {x = helpOffset, y = y, w = wS, h = h}, {
+        text = "@i18n(app.navigation_help)@",
+        icon = nil,
+        options = FONT_S,
+        paint = function() end,
+        press = function()
+            if app.Page and app.Page.onHelpMenu then
+                app.Page.onHelpMenu(app.Page)
+            elseif help then
+                if script and help.help[script] then
+                    app.ui.openPageHelp(help.help[script])
                 else
-                    app.ui.openMainMenu()
+                    app.ui.openPageHelp(help.help['default'])
                 end
             end
-        })
+        end
+    })
+
+    local toolCanRun = (toolEnabled and app.Page and app.Page.onToolMenu ~= nil) and true or false
+    local helpCanRun = (helpEnabled and ((app.Page and app.Page.onHelpMenu ~= nil) or hasHelpData)) and true or false
+    local enabledState = {menu = menuEnabled, save = saveEnabled, reload = reloadEnabled, tool = toolCanRun, help = helpCanRun}
+
+    app.formNavigationFields['menu']:enable(enabledState.menu)
+    app.formNavigationFields['save']:enable(enabledState.save)
+    app.formNavigationFields['reload']:enable(enabledState.reload)
+    app.formNavigationFields['tool']:enable(enabledState.tool)
+    app.formNavigationFields['help']:enable(enabledState.help)
+
+    local focused = false
+    local focusOrder = {"menu", "save", "reload", "tool", "help"}
+    for i = 1, #focusOrder do
+        local key = focusOrder[i]
+        local btn = app.formNavigationFields[key]
+        if btn and enabledState[key] then
+            btn:focus()
+            focused = true
+            break
+        end
+    end
+
+    if not focused and app.formNavigationFields['menu'] then
         app.formNavigationFields['menu']:focus()
     end
 
-    if navButtons.save == true then
-        app.formNavigationFields['save'] = form.addButton(line, {x = saveOffset, y = y, w = w, h = h}, {
-            text = "@i18n(app.navigation_save)@",
-            icon = nil,
-            options = FONT_S,
-            paint = function() end,
-            press = function()
-                if app.Page and app.Page.onSaveMenu then
-                    app.Page.onSaveMenu(app.Page)
-                else
-                    app.triggers.triggerSave = true
-                end
-            end
-        })
-        if ui._shouldManageDirtySave() then
-            ui.setPageDirty(false)
-        end
-    end
-
-    if navButtons.reload == true then
-        app.formNavigationFields['reload'] = form.addButton(line, {x = reloadOffset, y = y, w = w, h = h}, {
-            text = "@i18n(app.navigation_reload)@",
-            icon = nil,
-            options = FONT_S,
-            paint = function() end,
-            press = function()
-                if app.Page and app.Page.onReloadMenu then
-                    app.Page.onReloadMenu(app.Page)
-                else
-                    app.triggers.triggerReload = true
-                end
-                return true
-            end
-        })
-    end
-
-    if navButtons.tool == true then app.formNavigationFields['tool'] = form.addButton(line, {x = toolOffset, y = y, w = wS, h = h}, {text = "@i18n(app.navigation_tools)@", icon = nil, options = FONT_S, paint = function() end, press = function() app.Page.onToolMenu() end}) end
-
-    if navButtons.help == true then
-        local section = app.lastScript:match("([^/]+)")
-        local script = app.lastScript:match("/([^/]+)%.lua$")
-
-        local help = getHelpData(section)
-        if help then
-            app.formNavigationFields['help'] = form.addButton(line, {x = helpOffset, y = y, w = wS, h = h}, {
-                text = "@i18n(app.navigation_help)@",
-                icon = nil,
-                options = FONT_S,
-                paint = function() end,
-                press = function()
-                    if app.Page and app.Page.onHelpMenu then
-                        app.Page.onHelpMenu(app.Page)
-                    else
-                        if help.help[script] then
-                            app.ui.openPageHelp(help.help[script])
-                        else
-                            app.ui.openPageHelp(help.help['default'])
-                        end
-                    end
-                end
-            })
-        else
-            app.formNavigationFields['help'] = form.addButton(line, {x = helpOffset, y = y, w = wS, h = h}, {text = "@i18n(app.navigation_help)@", icon = nil, options = FONT_S, paint = function() end, press = function() end})
-            app.formNavigationFields['help']:enable(false)
-        end
+    if ui._shouldManageDirtySave() then
+        ui.setPageDirty(false)
     end
 end
 
@@ -2289,40 +2805,67 @@ end
 
 function ui.adminStatsOverlay()
 
+    local baseY = getHeaderNavAreaBottom() + HEADER_OVERLAY_Y_OFFSET
+    local showStats = preferences and preferences.developer and preferences.developer.overlaystatsadmin and not (session and session.mspBusy)
 
-    if preferences and preferences.developer and preferences.developer.overlaystatsadmin then
+    if not showStats then
+        drawHeaderBreadcrumbOverlay(baseY)
+        return
+    end
 
-        lcdFont(FONT_XXS)
-        lcdColor(lcd.RGB(255, 255, 255))
+    local cpuUsage = (rfsuite.performance and rfsuite.performance.cpuload) or 0
+    local ramUsed = (rfsuite.performance and rfsuite.performance.usedram) or 0
+    local luaRamKB = (rfsuite.performance and rfsuite.performance.luaRamKB) or 0
 
-        local cpuUsage = (rfsuite.performance and rfsuite.performance.cpuload) or 0
-        local ramUsed = (rfsuite.performance and rfsuite.performance.usedram) or 0
-        local luaRamKB = (rfsuite.performance and rfsuite.performance.luaRamKB) or 0
+    local function fmtInt(n) return utils.round(n or 0, 0) end
+    local function fmtKB(n) return string.format("%.0f", n or 0) end
 
-        local cfg = {startY = app.radio.navbuttonHeight + 3, decimalsKB = 0, labelGap = 4, blocks = {LOAD = {x = 0, valueRight = 50}, USED = {x = 70, valueRight = 130}, FREE = {x = 160, valueRight = 230}}}
+    local loadColor = lcd.RGB(180, 230, 255)
+    if cpuUsage >= 85 then
+        loadColor = lcd.RGB(255, 130, 130)
+    elseif cpuUsage >= 70 then
+        loadColor = lcd.RGB(255, 210, 140)
+    end
+    local statColor = lcd.RGB(245, 245, 245)
 
-        local function fmtInt(n) return utils.round(n or 0, 0) end
-        local function fmtKB(n) return string.format("%." .. tostring(cfg.decimalsKB) .. "f", n or 0) end
+    local rows = {
+        {label = "LOAD:", value = tostring(fmtInt(cpuUsage)) .. "%", color = loadColor},
+        {label = "USED:", value = tostring(fmtInt(ramUsed)) .. "kB", color = statColor},
+        {label = "FREE:", value = tostring(fmtKB(luaRamKB)) .. "KB", color = statColor}
+    }
 
-        local rows = {{"LOAD", "LOAD:", tostring(fmtInt(cpuUsage)) .. "%"}, {"USED", "USED", tostring(fmtInt(ramUsed)) .. "kB"}, {"FREE", "FREE", tostring(fmtKB(luaRamKB)) .. "KB"}}
+    local screenW = app.lcdWidth
+    if not screenW or screenW <= 0 then screenW = lcdGetWindowSize() end
+    if not screenW or screenW <= 0 then return end
 
-        local y = cfg.startY
+    lcdFont(FONT_XXS)
+    local labelGap = 4
+    local blockGap = 8
+    local rightPad = 11
+    local blocks = {}
+    local totalWidth = 0
 
-        local function drawBlock(key, label, valueWithUnit)
-            local b = cfg.blocks[key];
-            if not b then return end
+    for i = 1, #rows do
+        local row = rows[i]
+        local labelW = lcdGetTextSize(row.label)
+        local valueW = lcdGetTextSize(row.value)
+        local blockW = labelW + labelGap + valueW
+        blocks[i] = {label = row.label, value = row.value, labelW = labelW, valueW = valueW, width = blockW}
+        if i > 1 then totalWidth = totalWidth + blockGap end
+        totalWidth = totalWidth + blockW
+    end
 
-            lcdDrawText(b.x, y, label)
+    drawHeaderBreadcrumbOverlay(baseY, totalWidth + rightPad + 4)
 
-            local vx = b.x + lcdGetTextSize(label) + cfg.labelGap
-            local vWidth = lcdGetTextSize(valueWithUnit)
-            lcdDrawText(math.max(vx, b.valueRight - vWidth), y, valueWithUnit)
-        end
+    local x = math.max(0, screenW - rightPad - totalWidth)
+    local y = baseY
 
-        for i = 1, #rows do
-            local key, label, v = rows[i][1], rows[i][2], rows[i][3]
-            drawBlock(key, label, v)
-        end
+    for i = 1, #blocks do
+        local block = blocks[i]
+        lcdColor(block.color or statColor)
+        lcdDrawText(x, y, block.label)
+        lcdDrawText(x + block.width - block.valueW, y, block.value)
+        x = x + block.width + blockGap
     end
 end
 

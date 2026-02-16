@@ -3343,10 +3343,10 @@
           "max_length": 16
         },
         "name": {
-          "english": "ESC/Motors",
+          "english": "ESC & Motors",
           "needs_translation": false,
-          "translation": "ESC/Motors",
-          "max_length": 10
+          "translation": "ESC & Motors",
+          "max_length": 12
         },
         "pin_swap": {
           "english": "Pin Swap",
@@ -4836,13 +4836,13 @@
         },
         "help_p1": {
           "english": "Use this page for system-level setup such as craft name, PID loop speed, and feature flags.",
-          "max_length": 93,
+          "max_length": 91,
           "needs_translation": false,
           "translation": "Use this page for system-level setup such as craft name, PID loop speed, and feature flags."
         },
         "help_p2": {
           "english": "Saving writes these values to EEPROM and reboots the flight controller.",
-          "max_length": 69,
+          "max_length": 71,
           "needs_translation": false,
           "translation": "Saving writes these values to EEPROM and reboots the flight controller."
         },
@@ -4905,6 +4905,30 @@
           "max_length": 20,
           "needs_translation": false,
           "translation": "System configuration"
+        }
+      },
+      "hardware_setup": {
+        "name": {
+          "english": "Setup",
+          "max_length": 5,
+          "needs_translation": false,
+          "translation": "Setup"
+        }
+      },
+      "hardware_interfaces": {
+        "name": {
+          "english": "Interfaces",
+          "max_length": 10,
+          "needs_translation": false,
+          "translation": "Interfaces"
+        }
+      },
+      "hardware_system": {
+        "name": {
+          "english": "System",
+          "max_length": 6,
+          "needs_translation": false,
+          "translation": "System"
         }
       },
       "filters": {
@@ -5830,7 +5854,7 @@
           "english": "Failed reading serial ports",
           "needs_translation": false,
           "translation": "Failed reading serial ports",
-          "max_length": 26
+          "max_length": 27
         },
         "error_save_failed": {
           "english": "Save failed",
@@ -5950,7 +5974,7 @@
           "english": "No serial ports reported by FC.",
           "needs_translation": false,
           "translation": "No serial ports reported by FC.",
-          "max_length": 30
+          "max_length": 31
         },
         "port_prefix": {
           "english": "Port",
@@ -8984,9 +9008,9 @@
     "max_length": 4
   },
   "reload": {
-    "english": "reload",
+    "english": "Reload",
     "needs_translation": false,
-    "translation": "reload",
+    "translation": "Reload",
     "max_length": 6
   },
   "sensors": {
