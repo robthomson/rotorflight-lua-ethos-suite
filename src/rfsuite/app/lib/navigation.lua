@@ -28,8 +28,8 @@ function navigation.sectionExists(mainMenu, sectionId)
 end
 
 function navigation.resolveMenuContext(mainMenu, lastMenuId, defaultSectionId)
-    if navigation.sectionExists(mainMenu, lastMenuId) then return lastMenuId end
     if navigation.sectionExists(mainMenu, defaultSectionId) then return defaultSectionId end
+    if navigation.sectionExists(mainMenu, lastMenuId) then return lastMenuId end
     return nil
 end
 
@@ -63,7 +63,7 @@ function navigation.pushReturnContext(appState, ctx)
         return stack
     end
     local top = stack[#stack]
-    if not (top and top.idx == ctx.idx and top.title == ctx.title and top.script == ctx.script) then
+    if not (top and top.idx == ctx.idx and top.title == ctx.title and top.script == ctx.script and top.menuId == ctx.menuId) then
         local entry = {}
         for k, v in pairs(ctx) do
             entry[k] = v
