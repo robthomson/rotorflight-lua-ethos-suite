@@ -64,6 +64,16 @@ local function titleForChild(cfg, pageTitle, item)
     return (pageTitle or "") .. " / " .. (item.name or "")
 end
 
+local function apiVersionMatches(item)
+    local utils = rfsuite.utils
+    if type(item) ~= "table" or not utils or not utils.apiVersionCompare then return true end
+    return (item.apiversion == nil or utils.apiVersionCompare(">=", item.apiversion)) and
+        (item.apiversionlt == nil or utils.apiVersionCompare("<", item.apiversionlt)) and
+        (item.apiversiongt == nil or utils.apiVersionCompare(">", item.apiversiongt)) and
+        (item.apiversionlte == nil or utils.apiVersionCompare("<=", item.apiversionlte)) and
+        (item.apiversiongte == nil or utils.apiVersionCompare(">=", item.apiversiongte))
+end
+
 function container.create(cfg)
     local app = rfsuite.app
     local prefs = rfsuite.preferences
@@ -172,57 +182,60 @@ function container.create(cfg)
         local y = 0
 
         for i, item in ipairs(pages) do
+            local hideEntry = (item.ethosversion and not rfsuite.utils.ethosVersionAtLeast(item.ethosversion)) or
+                (item.mspversion and rfsuite.utils.apiVersionCompare("<", item.mspversion)) or
+                (not apiVersionMatches(item))
+
             app.formFieldsOffline[i] = item.offline or false
             app.formFieldsBGTask[i] = item.bgtask or false
 
-            if lc == 0 then
-                y = form.height() + ((prefs.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall)
-            end
+            if not hideEntry then
+                if lc == 0 then
+                    y = form.height() + ((prefs.general.iconsize == 2) and app.radio.buttonPadding or app.radio.buttonPaddingSmall)
+                end
 
-            local bx = (buttonW + padding) * lc
+                local bx = (buttonW + padding) * lc
 
-            if prefs.general.iconsize ~= 0 then
-                local iconPath = iconPathFor(cfg, item)
-                if iconPath then
-                    app.gfx_buttons[cfg.moduleKey][i] = app.gfx_buttons[cfg.moduleKey][i] or lcd.loadMask(iconPath)
+                if prefs.general.iconsize ~= 0 then
+                    local iconPath = iconPathFor(cfg, item)
+                    if iconPath then
+                        app.gfx_buttons[cfg.moduleKey][i] = app.gfx_buttons[cfg.moduleKey][i] or lcd.loadMask(iconPath)
+                    else
+                        app.gfx_buttons[cfg.moduleKey][i] = nil
+                    end
                 else
                     app.gfx_buttons[cfg.moduleKey][i] = nil
                 end
-            else
-                app.gfx_buttons[cfg.moduleKey][i] = nil
-            end
 
-            app.formFields[i] = form.addButton(line, {x = bx, y = y, w = buttonW, h = buttonH}, {
-                text = item.name,
-                icon = app.gfx_buttons[cfg.moduleKey][i],
-                options = FONT_S,
-                paint = function() end,
-            press = function()
-                prefs.menulastselected[cfg.moduleKey] = i
-                local resolvedScript, speedOverride = resolveItemScript(item)
-                local loaderSpeed = speedOverride or cfg.loaderSpeed or app.loaderSpeed.FAST
-                if type(loaderSpeed) == "string" and app.loaderSpeed then
-                    loaderSpeed = app.loaderSpeed[loaderSpeed] or app.loaderSpeed.FAST
-                end
-                app.ui.progressDisplay(nil, nil, loaderSpeed)
-                app.ui.openPage({
-                    idx = i,
-                    title = titleForChild(cfg, pageTitle, item),
-                    script = scriptPathFor(cfg, item, resolvedScript),
-                    returnContext = {idx = pidx, title = pageTitle, script = script}
+                app.formFields[i] = form.addButton(line, {x = bx, y = y, w = buttonW, h = buttonH}, {
+                    text = item.name,
+                    icon = app.gfx_buttons[cfg.moduleKey][i],
+                    options = FONT_S,
+                    paint = function() end,
+                    press = function()
+                        prefs.menulastselected[cfg.moduleKey] = i
+                        local resolvedScript, speedOverride = resolveItemScript(item)
+                        local loaderSpeed = speedOverride or cfg.loaderSpeed or app.loaderSpeed.FAST
+                        if type(loaderSpeed) == "string" and app.loaderSpeed then
+                            loaderSpeed = app.loaderSpeed[loaderSpeed] or app.loaderSpeed.FAST
+                        end
+                        app.ui.progressDisplay(nil, nil, loaderSpeed)
+                        app.ui.openPage({
+                            idx = i,
+                            title = titleForChild(cfg, pageTitle, item),
+                            script = scriptPathFor(cfg, item, resolvedScript),
+                            returnContext = {idx = pidx, title = pageTitle, script = script}
+                        })
+                    end
                 })
+
+                if item.disabled == true then app.formFields[i]:enable(false) end
+
+                if prefs.menulastselected[cfg.moduleKey] == i then app.formFields[i]:focus() end
+
+                lc = lc + 1
+                if lc == numPerRow then lc = 0 end
             end
-        })
-
-            if item.disabled == true then app.formFields[i]:enable(false) end
-            if item.apiversion and not rfsuite.utils.apiVersionCompare(">=", item.apiversion) then
-                app.formFields[i]:enable(false)
-            end
-
-            if prefs.menulastselected[cfg.moduleKey] == i then app.formFields[i]:focus() end
-
-            lc = lc + 1
-            if lc == numPerRow then lc = 0 end
         end
 
         app.triggers.closeProgressLoader = true
