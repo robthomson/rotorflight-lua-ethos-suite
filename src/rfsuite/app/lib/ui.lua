@@ -535,18 +535,13 @@ local function getMspStatusForDialog()
 end
 
 function ui.registerProgressDialog(handle, baseMessage)
-    if not session then return end
-    session.progressDialog = {
-        handle = handle,
-        baseMessage = baseMessage or ""
-    }
+    if not utils or not utils.registerProgressDialog then return end
+    utils.registerProgressDialog(handle, baseMessage)
 end
 
 function ui.clearProgressDialog(handle)
-    if not session or not session.progressDialog then return end
-    if handle == nil or session.progressDialog.handle == handle then
-        session.progressDialog = nil
-    end
+    if not utils or not utils.clearProgressDialog then return end
+    utils.clearProgressDialog(handle)
 end
 
 function ui.updateProgressDialogMessage(statusOverride)

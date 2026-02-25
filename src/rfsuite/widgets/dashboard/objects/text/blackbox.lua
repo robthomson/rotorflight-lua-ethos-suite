@@ -99,7 +99,11 @@ local function eraseDataflash()
     progressCounter = 0
     progressBaseMessage = "@i18n(app.msg_saving_to_fbl)@"
     progressMspStatusLast = nil
-    rfsuite.app.ui.registerProgressDialog(progress, progressBaseMessage)
+    if rfsuite.utils and rfsuite.utils.registerProgressDialog then
+        rfsuite.utils.registerProgressDialog(progress, progressBaseMessage)
+    elseif rfsuite.app and rfsuite.app.ui and rfsuite.app.ui.registerProgressDialog then
+        rfsuite.app.ui.registerProgressDialog(progress, progressBaseMessage)
+    end
 
     local message = {command = 72, processReply = function() isErase = false end}
     rfsuite.tasks.msp.mspQueue:add(message)
@@ -207,7 +211,11 @@ function render.wakeup(box)
         progress:value(progressCounter)
         if progressCounter >= 100 then
             progress:close()
-            rfsuite.app.ui.clearProgressDialog(progress)
+            if rfsuite.utils and rfsuite.utils.clearProgressDialog then
+                rfsuite.utils.clearProgressDialog(progress)
+            elseif rfsuite.app and rfsuite.app.ui and rfsuite.app.ui.clearProgressDialog then
+                rfsuite.app.ui.clearProgressDialog(progress)
+            end
             progress = nil
             progressBaseMessage = nil
             progressMspStatusLast = nil
