@@ -196,6 +196,7 @@ function app.create()
         app.triggers.wasConnected = false -- last connection state
         app.triggers.isArmed = false -- model armed flag
         app.triggers.showSaveArmedWarning = false -- warn when saving armed
+        app.triggers.rebootInProgress = false -- expected reboot/link drop in progress
 
         -- default speeds for loaders (multipliers of default animation speed)
         app.loaderSpeed = {
@@ -271,7 +272,7 @@ function app.event(widget, category, value, x, y)
             if app.dialogs.saveDisplay and app.dialogs.save then app.dialogs.save:close() end
             if app._forceMenuToMain then
                 app.ui.openMainMenu()
-            elseif app.Page.onNavMenu then
+            elseif app.Page and app.Page.onNavMenu then
                 app.Page.onNavMenu(app.Page)
             else
                 app.ui.openMenuContext()
@@ -280,7 +281,7 @@ function app.event(widget, category, value, x, y)
         end
 
         if value == KEY_ENTER_LONG then
-            if app.Page.navButtons and app.Page.navButtons.save == false then return true end
+            if app.Page and app.Page.navButtons and app.Page.navButtons.save == false then return true end
             local dirtyPref = rfsuite.preferences and rfsuite.preferences.general and rfsuite.preferences.general.save_dirty_only
             local requireDirty = not (dirtyPref == false or dirtyPref == "false")
 
