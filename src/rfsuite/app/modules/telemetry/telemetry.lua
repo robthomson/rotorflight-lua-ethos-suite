@@ -19,6 +19,7 @@ local SAVED_CONFIG = {}
 local saveDirtyOverride = false
 local pendingSaveStateRefresh = 0
 local FEATURE_CONFIG
+local TELEMETRY_CONFIG
 local lastSessionRef = nil
 local lastLinkReady = false
 
@@ -220,6 +221,7 @@ local function resetConfigRuntimeState()
     pendingSaveStateRefresh = 0
     saveDirtyOverride = false
     FEATURE_CONFIG = nil
+    TELEMETRY_CONFIG = nil
     clearTable(PREV_STATE)
     clearTable(config)
     clearTable(SAVED_CONFIG)
@@ -452,9 +454,14 @@ local function wakeup()
 
                 local data = API.data()
                 if type(data) == "table" then
-                    rfsuite.tasks.msp.api.apidata = data
-                    rfsuite.tasks.msp.api.apidata.receivedBytes = {}
-                    rfsuite.tasks.msp.api.apidata.receivedBytesCount = {}
+                    TELEMETRY_CONFIG = {
+                        values = copyTable(data.parsed),
+                        structure = copyTable(data.structure),
+                        buffer = copyTable(data.buffer),
+                        receivedBytesCount = data.receivedBytesCount,
+                        positionmap = copyTable(data.positionmap),
+                        other = copyTable(data.other)
+                    }
                 end
 
                 clearTable(config)
@@ -478,6 +485,7 @@ local function wakeup()
         end)
         API.setErrorHandler(function()
             configLoading = false
+            TELEMETRY_CONFIG = nil
             if rfsuite.app and rfsuite.app.Page then
                 if isLinkReady() then
                     rfsuite.app.Page.configLoaded = true
@@ -547,7 +555,13 @@ local function wakeup()
         end)
         WRITEAPI.setErrorHandler(function(self, buf) rfsuite.utils.log("Write to fbl failed.", "info") end)
 
-        local buffer = rfsuite.tasks.msp.api.apidata["buffer"]
+        local buffer = TELEMETRY_CONFIG and TELEMETRY_CONFIG.buffer
+        if type(buffer) ~= "table" then
+            rfsuite.utils.log("Telemetry save aborted: TELEMETRY_CONFIG buffer missing", "error")
+            triggerSave = false
+            rfsuite.app.triggers.closeSaveFake = true
+            return
+        end
 
         local slotsStrBefore = table.concat(buffer, ",")
 

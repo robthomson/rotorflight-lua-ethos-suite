@@ -1036,6 +1036,27 @@ function ui.cleanupCurrentPage()
         app.Page.apidata = nil
     end
 
+    -- Defensive fallback:
+    -- Some legacy/custom pages may temporarily store raw API read structures directly
+    -- in tasks.msp.api.apidata (flat numeric keys). That shape bypasses per-page key
+    -- cleanup and can hold memory after page transitions.
+    if tasks and tasks.msp and tasks.msp.api and tasks.msp.api.apidata and tasks.msp.api.resetApidata then
+        local apidata = tasks.msp.api.apidata
+        local function hasOnlyNumericKeys(t)
+            if type(t) ~= "table" then return false end
+            local found = false
+            for k in pairs(t) do
+                found = true
+                if type(k) ~= "number" then return false end
+            end
+            return found
+        end
+        if hasOnlyNumericKeys(apidata.structure) or hasOnlyNumericKeys(apidata.positionmap) then
+            utils.log("[cleanup] Resetting malformed MSP apidata cache", "debug")
+            tasks.msp.api.resetApidata()
+        end
+    end
+
     wipeTable(app.formFields)
     wipeTable(app.formLines)
     wipeTable(app.formNavigationFields)
