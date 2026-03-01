@@ -45,12 +45,20 @@ local esc2CheckRetryDelay = 0.6
 local selectorPostConnectReady = nil
 local selectorGuardPending = false
 local selectorGuardOk = nil
+local selectorGuardNeedsReset = false
 local selectorGuardStartedAt = 0
 local selectorGuardTimeout = 2.5
 local writeSeq = 0
 local lastWriteSeq = 0
 local last4WayWriteTarget
 local last4WayWriteOk
+local escReadRecoverRequested = false
+local escReadRecoverAt = 0
+local escReadRecoverCount = 0
+local escDetailsNextReadAt = 0
+local escDetailsApiName
+local escDetailsApi
+local escSwitchApi
 
 local function trimText(value)
     if type(value) ~= "string" then return value end
@@ -105,6 +113,30 @@ local function resetUiState()
     foundESC = false
     foundESCupdateTag = false
     findTimeoutClock = os.clock()
+    escDetailsNextReadAt = 0
+end
+
+local function getEscDetailsPollInterval()
+    local interval = tonumber(ESC and ESC.escDetailsPollInterval)
+    if interval == nil then interval = 0.35 end
+    if interval < 0 then interval = 0 end
+    return interval
+end
+
+local function getEscDetailsRetryInterval()
+    local interval = tonumber(ESC and ESC.escDetailsRetryInterval)
+    if interval == nil then interval = 0.9 end
+    if interval < 0 then interval = 0 end
+    return interval
+end
+
+local function scheduleEscDetailsReadAt(delaySeconds)
+    local delay = tonumber(delaySeconds) or 0
+    if delay < 0 then delay = 0 end
+    local nextAt = os.clock() + delay
+    if nextAt > escDetailsNextReadAt then
+        escDetailsNextReadAt = nextAt
+    end
 end
 
 local function clearEscSession()
@@ -115,18 +147,58 @@ local function clearEscSession()
     escDetails = {}
 end
 
-local function clearEscState()
+local function resetEscReadRecovery()
+    escReadRecoverRequested = false
+    escReadRecoverAt = 0
+    escReadRecoverCount = 0
+end
+
+local function clearEscState(preserveReadRecovery)
     clearEscSession()
     resetUiState()
+    if preserveReadRecovery ~= true then
+        resetEscReadRecovery()
+    end
+end
+
+local function scheduleEscReadRecovery()
+    if not (ESC and ESC.esc4way and ESC.retrySwitchOnReadFail == true) then return end
+    if inSelector then return end
+    local maxRetries = tonumber(ESC.readSwitchRetryCount) or 2
+    if maxRetries < 1 then return end
+    if escReadRecoverCount >= maxRetries then return end
+    escReadRecoverCount = escReadRecoverCount + 1
+    escReadRecoverRequested = true
+    local delay = tonumber(ESC.readSwitchRetryDelay) or 0.25
+    if delay < 0 then delay = 0 end
+    escReadRecoverAt = os.clock() + delay
+    if rfsuite.utils and rfsuite.utils.log then
+        rfsuite.utils.log("ESC 4WIF read retry re-arm #" .. tostring(escReadRecoverCount), "info")
+    end
 end
 
 local mspBusy = false
+
+local function getEscDetailsAPI()
+    if not ESC or not ESC.mspapi then return nil end
+    if escDetailsApi and escDetailsApiName == ESC.mspapi then
+        return escDetailsApi
+    end
+    escDetailsApi = rfsuite.tasks.msp.api.load(ESC.mspapi)
+    if escDetailsApi then
+        escDetailsApiName = ESC.mspapi
+    else
+        escDetailsApiName = nil
+    end
+    return escDetailsApi
+end
 
 local function getESCDetails()
     if not ESC then return end
     if not ESC.mspapi then return end
     if not mspSignature then return end
     if not mspBytes then return end
+    if os.clock() < escDetailsNextReadAt then return end
     if mspBusy == true then
        if rfsuite.tasks.msp.mspQueue:isProcessed() then
            mspBusy = false
@@ -145,12 +217,18 @@ local function getESCDetails()
 
     mspBusy = true
 
-    local API = rfsuite.tasks.msp.api.load(ESC.mspapi)
+    local API = getEscDetailsAPI()
+    if not API then
+        mspBusy = false
+        scheduleEscDetailsReadAt(getEscDetailsRetryInterval())
+        return
+    end
     API.setCompleteHandler(function(self, buf)
 
         local signature = API.readValue("esc_signature")
+        local valid = signature == mspSignature and #buf >= mspBytes
 
-        if signature == mspSignature and #buf >= mspBytes then
+        if valid then
             escDetails.model = ESC.getEscModel(buf)
             escDetails.version = ESC.getEscVersion(buf)
             escDetails.firmware = ESC.getEscFirmware(buf)
@@ -161,18 +239,31 @@ local function getESCDetails()
 
             if escDetails.model ~= nil then
                 foundESC = true
+                resetEscReadRecovery()
+                escDetailsNextReadAt = 0
             end
+        else
+            scheduleEscDetailsReadAt(getEscDetailsRetryInterval())
+            scheduleEscReadRecovery()
         end
         mspBusy = false
 
     end)
 
     API.setErrorHandler(function(self, err)
+        scheduleEscDetailsReadAt(getEscDetailsRetryInterval())
+        scheduleEscReadRecovery()
         mspBusy = false
     end)
 
     API.setUUID("550e8400-e29b-41d4-a716-546a55340500")
-    API.read()
+    local ok = API.read()
+    if ok then
+        scheduleEscDetailsReadAt(getEscDetailsPollInterval())
+    else
+        mspBusy = false
+        scheduleEscDetailsReadAt(getEscDetailsRetryInterval())
+    end
 
 end
 
@@ -273,7 +364,10 @@ local function setESC4WayMode(id)
     lastWriteSeq = seq
     last4WayWriteTarget = target
     last4WayWriteOk = nil
-    local API = rfsuite.tasks.msp.api.load("4WIF_ESC_FWD_PROG")
+    if not escSwitchApi then
+        escSwitchApi = rfsuite.tasks.msp.api.load("4WIF_ESC_FWD_PROG")
+    end
+    local API = escSwitchApi
     if not API then return false, "api_missing" end
     if rfsuite.utils and rfsuite.utils.log then
         rfsuite.utils.log("ESC 4WIF set target: " .. tostring(target), "info")
@@ -304,11 +398,36 @@ local function setESC4WayMode(id)
     return API.write()
 end
 
-local function beginEscSwitch(target)
+local function beginEscSwitch(target, opts)
     if not lastOpts then return end
+    opts = opts or {}
+    local isRecovery = opts.isRecovery == true
+    local preTarget = opts.preSwitchTarget
+    if preTarget == nil and ESC then preTarget = ESC.preSwitchTarget end
+    if preTarget ~= nil then
+        local asNumber = tonumber(preTarget)
+        if asNumber ~= nil then preTarget = asNumber end
+    end
+    local preWriteCount = tonumber(opts.preSwitchWriteCount)
+    if preWriteCount == nil and ESC then preWriteCount = tonumber(ESC.preSwitchWriteCount) end
+    if preWriteCount == nil then
+        preWriteCount = (preTarget ~= nil) and 1 or 0
+    end
+    if preWriteCount < 0 then preWriteCount = 0 end
+    preWriteCount = math.floor(preWriteCount)
+    if preTarget == nil then preWriteCount = 0 end
+    local preDelay = tonumber(opts.preSwitchDelay)
+    if preDelay == nil and ESC then preDelay = tonumber(ESC.preSwitchDelay) end
+    if preDelay == nil then preDelay = 0.6 end
+    local readDelay = tonumber(opts.readDelay)
+    if readDelay == nil and ESC then readDelay = tonumber(ESC.switchReadDelay) end
+    if readDelay == nil then readDelay = 2 end
+    local writeCount = tonumber(opts.switchWriteCount) or tonumber(ESC and ESC.switchWriteCount) or 1
+    if writeCount < 1 then writeCount = 1 end
+    writeCount = math.floor(writeCount)
     if switchState and switchState.target == target then return end
     if rfsuite.app and rfsuite.app.ui and rfsuite.app.ui.progressDisplay then
-        rfsuite.app.ui.progressDisplay("@i18n(app.modules.esc_tools.name)@", "@i18n(app.msg_loading)@", rfsuite.app.loaderSpeed.SLOW)
+        rfsuite.app.ui.progressDisplay("@i18n(app.modules.esc_tools.name)@", "@i18n(app.msg_loading)@", rfsuite.app.loaderSpeed.VSLOW)
         switchLoadingActive = true
         rfsuite.app.triggers.closeProgressLoader = false
     end
@@ -321,10 +440,17 @@ local function beginEscSwitch(target)
     switchState = {
         target = target,
         attempts = 0,
-        maxAttempts = 5,
+        maxAttempts = 10,
         lastAttempt = 0,
         retryDelay = 0.8,
-        readDelay = 2,          -- Time to wait after setting esc target before attempting to read esc details, to allow fbl time to switch esc and respond to msp
+        readDelay = readDelay,  -- Time to wait after setting esc target before attempting to read esc details, to allow fbl time to switch esc and respond to msp
+        preSwitchTarget = preTarget,
+        preSwitchWriteCount = preWriteCount,
+        preSwitchWritesDone = 0,
+        preSwitchDelay = preDelay,
+        switchWriteCount = writeCount,
+        switchWritesDone = 0,
+        nextPhaseReadyAt = 0,
         writeInFlight = false,
         writeStartedAt = 0,
         writeTimeout = 2.5
@@ -332,14 +458,15 @@ local function beginEscSwitch(target)
     rfsuite.session.esc4WaySelected = false
     rfsuite.session.esc4WaySet = false
     rfsuite.session.esc4WaySetComplete = false
-    clearEscState()
+    clearEscState(isRecovery)
     renderLoading(lastOpts.title or "")
 end
 
 local function processEscSwitch()
     if not switchState then return false end
     local now = os.clock()
-    local expectedTarget = switchState.target
+    local inPrePhase = switchState.preSwitchTarget ~= nil and switchState.preSwitchWritesDone < switchState.preSwitchWriteCount
+    local expectedTarget = inPrePhase and switchState.preSwitchTarget or switchState.target
 
     local writeResult = nil
     if switchState.writeInFlight then
@@ -358,6 +485,22 @@ local function processEscSwitch()
     end
 
     if writeResult == true then
+        if inPrePhase then
+            switchState.preSwitchWritesDone = (switchState.preSwitchWritesDone or 0) + 1
+            if switchState.preSwitchWritesDone < (switchState.preSwitchWriteCount or 0) then
+                switchState.nextPhaseReadyAt = now + (switchState.retryDelay or 0.8)
+                return true
+            end
+            switchState.attempts = 0
+            switchState.lastAttempt = now
+            switchState.nextPhaseReadyAt = now + (switchState.preSwitchDelay or 0.6)
+            return true
+        end
+        switchState.switchWritesDone = (switchState.switchWritesDone or 0) + 1
+        if switchState.switchWritesDone < (switchState.switchWriteCount or 1) then
+            switchState.nextPhaseReadyAt = now + (switchState.retryDelay or 0.8)
+            return true
+        end
         rfsuite.session.esc4WayTarget = switchState.target
         rfsuite.session.esc4WaySelected = true
         rfsuite.session.esc4WaySet = true
@@ -380,16 +523,41 @@ local function processEscSwitch()
         return true
     end
 
-    if not switchState.writeInFlight and (switchState.lastAttempt == 0 or (now - switchState.lastAttempt) >= switchState.retryDelay) then
+    local phaseReady = (switchState.nextPhaseReadyAt == 0 or now >= switchState.nextPhaseReadyAt)
+    if not switchState.writeInFlight and phaseReady and (switchState.lastAttempt == 0 or (now - switchState.lastAttempt) >= switchState.retryDelay) then
+        inPrePhase = switchState.preSwitchTarget ~= nil and switchState.preSwitchWritesDone < switchState.preSwitchWriteCount
+        expectedTarget = inPrePhase and switchState.preSwitchTarget or switchState.target
         switchState.attempts = switchState.attempts + 1
         switchState.lastAttempt = now
         rfsuite.session.esc4WaySet = true
         rfsuite.session.esc4WaySetComplete = false
         switchState.writeInFlight = true
         switchState.writeStartedAt = now
-        setESC4WayMode(switchState.target)
+        setESC4WayMode(expectedTarget)
     end
 
+    return true
+end
+
+local function getSelectedEsc4WayTarget()
+    local target = tonumber(rfsuite.session and rfsuite.session.esc4WayTarget)
+    if target ~= 1 then target = 0 end
+    return target
+end
+
+local function processEscReadRecovery()
+    if not escReadRecoverRequested then return false end
+    if inSelector then return false end
+    if switchState then return false end
+    if os.clock() < escReadRecoverAt then return false end
+    escReadRecoverRequested = false
+    beginEscSwitch(getSelectedEsc4WayTarget(), {
+        isRecovery = true,
+        preSwitchTarget = ESC and ESC.preSwitchTarget,
+        preSwitchWriteCount = ESC and ESC.preSwitchWriteCount,
+        preSwitchDelay = ESC and ESC.preSwitchDelay,
+        switchWriteCount = ESC and ESC.switchWriteCount
+    })
     return true
 end
 
@@ -446,9 +614,12 @@ local function loadEscConfig(folder)
         return false
     end
     ESC = moduleOrErr
+    escDetailsApi = nil
+    escDetailsApiName = nil
 
     if ESC.mspapi ~= nil then
-        local API = rfsuite.tasks.msp.api.load(ESC.mspapi)
+        local API = getEscDetailsAPI()
+        if not API then return false end
         mspSignature = API.mspSignature
         simulatorResponse = API.simulatorResponse or {0}
         mspBytes = #simulatorResponse
@@ -570,6 +741,9 @@ renderToolPage = function(opts)
                         return
                     end
 
+                    if rfsuite.session then
+                        rfsuite.session.esc4WaySkipEntrySwitchOnce = true
+                    end
                     rfsuite.app.ui.openPage(childOpts)
 
                 end
@@ -614,13 +788,13 @@ openSelector = function()
     clearEscState()
     selectorGuardPending = false
     selectorGuardOk = nil
+    selectorGuardNeedsReset = false
     selectorGuardStartedAt = 0
-    local modeResetRequested = setESC4WayMode(100)
-    if modeResetRequested then
-        selectorGuardPending = true
-        selectorGuardStartedAt = os.clock()
+    if ESC and ESC.skipSelectorGuardModeReset == true then
+        selectorGuardOk = true
     else
         selectorGuardOk = false
+        selectorGuardNeedsReset = true
     end
 
     rfsuite.app.lastIdx = parentIdx
@@ -688,7 +862,8 @@ openSelector = function()
                 if item.target == 1 and esc2Available ~= true then return end
                 inSelector = false
                 rfsuite.preferences.menulastselected["esc4way"] = childIdx
-                rfsuite.app.ui.progressDisplay(nil, nil, rfsuite.app.loaderSpeed.VSLOW)
+                local loaderSpeed = ((rfsuite.app.loaderSpeed and rfsuite.app.loaderSpeed.VSLOW) or 0.5) * 0.25
+                rfsuite.app.ui.progressDisplay(nil, nil, loaderSpeed)
                 beginEscSwitch(item.target)
                 return
             end
@@ -732,9 +907,23 @@ local function openPage(opts)
         return
     end
 
+    local skipEntrySwitchOnce = false
+    if rfsuite.session and rfsuite.session.esc4WaySkipEntrySwitchOnce == true then
+        skipEntrySwitchOnce = true
+    end
+    if rfsuite.session then
+        rfsuite.session.esc4WaySkipEntrySwitchOnce = nil
+    end
+
     if ESC and ESC.esc4way then
         if not rfsuite.session.esc4WaySelected then
             openSelector()
+            return
+        end
+        if ESC.force4WaySwitchOnEntry == true and not skipEntrySwitchOnce then
+            beginEscSwitch(getSelectedEsc4WayTarget(), {
+                switchWriteCount = ESC.switchWriteCount
+            })
             return
         end
     end
@@ -743,6 +932,9 @@ local function openPage(opts)
 end
 
 local function onNavMenu()
+    if rfsuite.session then
+        rfsuite.session.esc4WaySkipEntrySwitchOnce = nil
+    end
     if ESC and ESC.esc4way then
         if not inSelector then
             rfsuite.session.esc4WaySelected = nil
@@ -764,6 +956,9 @@ end
 local function onReloadMenu()
     rfsuite.app.Page = nil
     resetUiState()
+    if rfsuite.session then
+        rfsuite.session.esc4WaySkipEntrySwitchOnce = nil
+    end
     rfsuite.session.esc4WaySelected = nil
     rfsuite.session.esc4WaySet = nil
     rfsuite.session.esc4WaySetComplete = nil
@@ -774,7 +969,19 @@ end
 local function wakeup()
 
     if processEscSwitch() then return end
+    if processEscReadRecovery() then return end
     if inSelector then
+        if selectorGuardNeedsReset and not selectorGuardPending then
+            selectorGuardNeedsReset = false
+            local modeResetRequested = setESC4WayMode(100)
+            if modeResetRequested then
+                selectorGuardPending = true
+                selectorGuardStartedAt = os.clock()
+            else
+                selectorGuardOk = false
+            end
+            applySelectorButtonStates()
+        end
         if selectorGuardPending then
             local now = os.clock()
             if last4WayWriteTarget == 100 and last4WayWriteOk ~= nil then
@@ -804,6 +1011,9 @@ local function wakeup()
         if (not switchState) and (not escReadReadyAt or os.clock() >= escReadReadyAt) then
             local opts = pendingChildOpen
             pendingChildOpen = nil
+            if rfsuite.session then
+                rfsuite.session.esc4WaySkipEntrySwitchOnce = true
+            end
             rfsuite.app.ui.openPage(opts)
             return
         end
