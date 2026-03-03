@@ -29,6 +29,15 @@ local lastMode = rfsuite.flightmode.current or "preflight"
 local currentMode = rfsuite.flightmode.current or "preflight"
 local lastSensorMode
 
+local function normalizeBatteryProfileIndex(value)
+    local n = tonumber(value)
+    if not n then return nil end
+    n = math_floor(n)
+    if n >= 1 and n <= 6 then return n - 1 end
+    if n >= 0 and n <= 5 then return n end
+    return nil
+end
+
 local dischargeCurveTable = {}
 for i = 0, 120 do
     local v = 3.00 + i * 0.01
@@ -80,6 +89,12 @@ local function smartFuelCalc()
 
     if not telemetry then telemetry = rfsuite.tasks.telemetry end
 
+    local batType = telemetry and telemetry.getSensor and telemetry.getSensor("battery_profile")
+    local normalizedBatType = normalizeBatteryProfileIndex(batType)
+    if normalizedBatType ~= nil then
+        rfsuite.session.activeBatteryType = normalizedBatType
+    end
+
     if not rfsuite.session.isConnected or not rfsuite.session.batteryConfig then
         resetVoltageTracking()
         return nil
@@ -87,7 +102,16 @@ local function smartFuelCalc()
 
     local bc = rfsuite.session.batteryConfig
 
-    local configSig = table.concat({bc.batteryCellCount, bc.batteryCapacity, bc.consumptionWarningPercentage, bc.vbatmaxcellvoltage, bc.vbatmincellvoltage, bc.vbatfullcellvoltage}, ":")
+    local packCapacity = bc.batteryCapacity
+    local activeProfile = rfsuite.session.activeBatteryType
+    if activeProfile and bc.profiles and bc.profiles[activeProfile] then
+        local pCap = bc.profiles[activeProfile]
+        if pCap and pCap > 0 then
+            packCapacity = pCap
+        end
+    end
+
+    local configSig = table.concat({bc.batteryCellCount, packCapacity, bc.consumptionWarningPercentage, bc.vbatmaxcellvoltage, bc.vbatmincellvoltage, bc.vbatfullcellvoltage}, ":")
 
     if configSig ~= batteryConfigCache then
         batteryConfigCache = configSig
@@ -160,7 +184,7 @@ local function smartFuelCalc()
         end
     end
 
-    local cellCount, packCapacity, reserve, maxCellV, minCellV, fullCellV = bc.batteryCellCount, bc.batteryCapacity, bc.consumptionWarningPercentage, bc.vbatmaxcellvoltage, bc.vbatmincellvoltage, bc.vbatfullcellvoltage
+    local cellCount, reserve, maxCellV, minCellV, fullCellV = bc.batteryCellCount, bc.consumptionWarningPercentage, bc.vbatmaxcellvoltage, bc.vbatmincellvoltage, bc.vbatfullcellvoltage
 
     if reserve > 60 then
         reserve = 35

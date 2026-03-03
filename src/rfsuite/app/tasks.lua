@@ -118,6 +118,17 @@ local function profileRateChangeDetection()
             app.triggers.reload = not app.Page.refreshFullOnRateChange
             app.triggers.reloadFull = app.Page.refreshFullOnRateChange
         end
+
+    end
+end
+
+local function batteryProfileChangeDetection()
+    local app = rfsuite.app
+    local now = os.clock()
+    local interval = rfsuite.tasks.telemetry.getSensorSource("battery_profile") and 0.1 or 1.5
+    if (now - (app.batteryProfileCheckScheduler or 0)) >= interval then
+        app.batteryProfileCheckScheduler = now
+        app.utils.getCurrentBatteryType()
     end
 end
 
@@ -542,7 +553,7 @@ end
 
 local tasks = {}
 
-tasks.list = {exitApp, profileRateChangeDetection,  triggerSaveDialogs, armedSaveWarning, triggerReloadDialogs, telemetryAndPageStateUpdates, performReloadActions, criticalRamMonitor, playPendingAudioAlerts, wakeupUITasks, mainMenuIconEnableDisable, requestPage}
+tasks.list = {exitApp, profileRateChangeDetection,  batteryProfileChangeDetection, triggerSaveDialogs, armedSaveWarning, triggerReloadDialogs, telemetryAndPageStateUpdates, performReloadActions, criticalRamMonitor, playPendingAudioAlerts, wakeupUITasks, mainMenuIconEnableDisable, requestPage}
 
 function tasks.wakeup()
 
