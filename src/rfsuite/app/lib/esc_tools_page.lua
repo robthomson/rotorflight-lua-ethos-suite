@@ -470,7 +470,11 @@ function escToolsPage.createIsolatedSaveMenuHandler(folder, escConfig)
         local app = rfsuite.app
         if not (app and app.ui and type(app.ui.saveSettings) == "function") then return end
         if saveState.running then return end
+        if not page then page = app.Page end
         if not page then return end
+        if not app.Page and app.uiState == app.uiStatus.pages then
+            app.Page = page
+        end
         if app.pageState == app.pageStatus.saving then return end
 
         saveState.running = true
@@ -577,6 +581,10 @@ function escToolsPage.createIsolatedSaveMenuHandler(folder, escConfig)
                 {
                     label = "@i18n(app.btn_ok_long)@",
                     action = function()
+                        local appNow = rfsuite.app
+                        if appNow and not appNow.Page and appNow.uiState == appNow.uiStatus.pages and targetPage then
+                            appNow.Page = targetPage
+                        end
                         beginSave(targetPage)
                         return true
                     end
@@ -601,25 +609,7 @@ function escToolsPage.createIsolatedSaveMenuHandler(folder, escConfig)
 end
 
 function escToolsPage.createSubmenuHandlers(folder)
-    local ESC = loadEscConfig(folder)
-    local clear4WaySessionOnExit = ESC and ESC.esc4way == true
-
-    local function clearEscSession()
-        if not clear4WaySessionOnExit then return end
-        local session = rfsuite.session
-        if not session then return end
-        session.esc4WaySkipEntrySwitchOnce = nil
-        session.esc4WaySelected = nil
-        session.esc4WaySet = nil
-        session.esc4WaySetComplete = nil
-        session.esc4WayTarget = nil
-        session.esc4WayMotorCount = nil
-        session.escDetails = nil
-        session.escBuffer = nil
-    end
-
     local function onNavMenu()
-        clearEscSession()
         pageRuntime.openMenuContext({defaultSection = "system"})
         return true
     end
