@@ -422,6 +422,10 @@ function app.close()
         end
     end
 
+    -- Release module-level static caches owned by this app instance.
+    app._telemetryStaticCache = nil
+    rfsuite._telemetryStaticCache = nil
+
     app.uiState = app.uiStatus.init
 
     closeTransientDialogs()
@@ -442,8 +446,6 @@ function app.close()
     app.triggers.profileswitchLast = nil
 
     if rfsuite.tasks.msp then rfsuite.tasks.msp.api.resetApidata() end
-
-    app.utils = nil
 
     rfsuite.utils.reportMemoryUsage("app.close", "end")
 
