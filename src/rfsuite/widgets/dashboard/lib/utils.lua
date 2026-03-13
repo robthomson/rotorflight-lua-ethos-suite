@@ -734,6 +734,35 @@ function utils.getParam(box, key, ...)
     end
 end
 
+function utils.isElectricEngine()
+    local batteryPrefs = rfsuite and rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.battery
+    local modelType = batteryPrefs and tonumber(batteryPrefs.smartfuel_model_type) or 0
+
+    if modelType == 0 then
+        local bc = rfsuite and rfsuite.session and rfsuite.session.batteryConfig
+        if not bc then return false end
+        local cellCount = tonumber(bc.batteryCellCount) or 0
+        if cellCount ~= 0 then return true end
+        local packCapacity = tonumber(bc.batteryCapacity) or 0
+        if packCapacity > 0 then return true end
+        local profiles = bc.profiles
+        if type(profiles) == "table" then
+            for _, v in ipairs(profiles) do
+                local cap
+                if type(v) == "table" then
+                    if type(v.capacity) == "number" then cap = v.capacity
+                    elseif type(v.capacity) == "string" then cap = tonumber(v.capacity:match("(%d+)")) end
+                elseif type(v) == "number" then cap = v
+                end
+                if cap and cap > 0 then return true end
+            end
+        end
+        return false
+    end
+
+    return modelType == 1
+end
+
 function utils.applyOffset(x, y, box)
     local ox = utils.getParam(box, "offsetx") or 0
     local oy = utils.getParam(box, "offsety") or 0
