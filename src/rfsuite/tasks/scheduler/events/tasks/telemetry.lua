@@ -30,20 +30,73 @@ local system_playHaptic = system.playHaptic
 local lastSmartfuelSel = nil
 local cachedSmartfuelThresholds = nil
 
-local function resolveBatteryCapacity(typeIndex)
-    local profiles = rfsuite.session.batteryConfig and rfsuite.session.batteryConfig.profiles
-    if not profiles then return nil end
-    local v = profiles[typeIndex]
-    if v == nil and type(typeIndex) == "number" then
-        v = profiles[typeIndex]
-    end
+local function extractCapacityValue(v)
     if type(v) == "number" then return v end
     if type(v) == "string" then return tonumber(v:match("(%d+)")) end
     if type(v) == "table" then
         if type(v.capacity) == "number" then return v.capacity end
+        if type(v.capacity) == "string" then return tonumber(v.capacity:match("(%d+)")) end
         if type(v.name) == "string" then return tonumber(v.name:match("(%d+)")) end
     end
     return nil
+end
+
+local function hasAnyProfileCapacityConfigured(profiles)
+    if type(profiles) ~= "table" then return false end
+    for _, profile in pairs(profiles) do
+        local cap = extractCapacityValue(profile)
+        if cap and cap > 0 then return true end
+    end
+    return false
+end
+
+local function hasAnyBatteryProfileCapacityConfigured(bc)
+    return bc and hasAnyProfileCapacityConfigured(bc.profiles) or false
+end
+
+local function hasAnyBatteryCapacityConfigured(bc)
+    if not bc then return false end
+    local packCapacity = tonumber(bc.batteryCapacity) or 0
+    if packCapacity > 0 then return true end
+    return hasAnyProfileCapacityConfigured(bc.profiles)
+end
+
+local function smartfuelIsElectricModel()
+    local bc = rfsuite.session and rfsuite.session.batteryConfig
+    if not bc then return false end
+
+    local cellCount = tonumber(bc.batteryCellCount) or 0
+    if cellCount ~= 0 then return true end
+
+    return hasAnyBatteryCapacityConfigured(bc)
+end
+
+local function getSmartfuelCalloutAudio()
+    local batteryPrefs = (rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.battery) or {}
+    local modelType = tonumber(batteryPrefs.smartfuel_model_type) or 0
+
+    local useBatteryCallout
+    if modelType == 0 then
+        useBatteryCallout = smartfuelIsElectricModel()
+    elseif modelType == 1 then
+        useBatteryCallout = true
+    else
+        useBatteryCallout = false
+    end
+
+    if useBatteryCallout then return "events", "alerts/battery.wav" end
+    return "status", "alerts/fuel.wav"
+end
+
+local function getSmartfuelEmptyAudio()
+    if smartfuelIsElectricModel() then return "status", "alerts/batteryempty.wav" end
+    return "status", "alerts/lowfuel.wav"
+end
+
+local function resolveBatteryCapacity(typeIndex)
+    local profiles = rfsuite.session.batteryConfig and rfsuite.session.batteryConfig.profiles
+    if not profiles then return nil end
+    return extractCapacityValue(profiles[typeIndex])
 end
 
 local function buildSmartfuelThresholds(sel)
@@ -79,20 +132,22 @@ local function smartfuelCallout(value)
     local eventPrefs = rfsuite.preferences.events or {}
     local smartfuelcallout = tonumber(eventPrefs.smartfuelcallout) or 0
     local thresholds = buildSmartfuelThresholds(smartfuelcallout)
+    local calloutPkg, calloutFile = getSmartfuelCalloutAudio()
 
     if value <= 0 then
         local now = os_clock()
         local repeats = tonumber(eventPrefs.smartfuelrepeats) or 1
         local haptic = eventPrefs.smartfuelhaptic and true or false
+        local emptyPkg, emptyFile = getSmartfuelEmptyAudio()
 
         if not lastLowFuelAnnounced then
-            utils.playFile("status", "alerts/lowfuel.wav")
+            utils.playFile(emptyPkg, emptyFile)
             if haptic then system_playHaptic(". . . .") end
             lastLowFuelRepeat = now
             lastLowFuelRepeatCount = 1
             lastLowFuelAnnounced = true
         elseif lastLowFuelRepeatCount < repeats and (now - lastLowFuelRepeat) >= 10 then
-            utils.playFile("status", "alerts/lowfuel.wav")
+            utils.playFile(emptyPkg, emptyFile)
             if haptic then system_playHaptic(". . . .") end
             lastLowFuelRepeat = now
             lastLowFuelRepeatCount = lastLowFuelRepeatCount + 1
@@ -105,7 +160,7 @@ local function smartfuelCallout(value)
     end
 
     if lastSmartfuelAnnounced == nil then
-        utils.playFile("status", "alerts/fuel.wav")
+        utils.playFile(calloutPkg, calloutFile)
         system_playNumber(math_floor(value + 0.5), UNIT_PERCENT)
         lastSmartfuelAnnounced = math_floor(value + 0.5)
         return
@@ -121,7 +176,7 @@ local function smartfuelCallout(value)
     end
 
     if calloutValue then
-        utils.playFile("status", "alerts/fuel.wav")
+        utils.playFile(calloutPkg, calloutFile)
         system_playNumber(calloutValue, UNIT_PERCENT)
         lastSmartfuelAnnounced = calloutValue
     end
@@ -281,6 +336,8 @@ local eventTable = {
         event = function(value)
             local key = "battery_profile"
             if value == lastValues[key] then return end
+            local bc = rfsuite.session and rfsuite.session.batteryConfig
+            if not hasAnyBatteryProfileCapacityConfigured(bc) then return end
             utils.playFile("events", "alerts/battery.wav")
             local cap = resolveBatteryCapacity(math_floor(value) - 1)
             if cap and system_playNumber then

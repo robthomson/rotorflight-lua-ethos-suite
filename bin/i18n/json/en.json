@@ -101,6 +101,24 @@
         "needs_translation": false,
         "translation": "Calculate Fuel Using"
       },
+      "tbl_auto": {
+        "english": "Auto",
+        "max_length": 4,
+        "needs_translation": false,
+        "translation": "Auto"
+      },
+      "tbl_electric": {
+        "english": "Electric",
+        "max_length": 8,
+        "needs_translation": false,
+        "translation": "Electric"
+      },
+      "tbl_nitro": {
+        "english": "Nitro",
+        "max_length": 5,
+        "needs_translation": false,
+        "translation": "Nitro"
+      },
       "sag_multiplier": {
         "english": "Raise or lower to adjust for the amount of voltage sag you see in flight.",
         "max_length": 73,
@@ -6716,6 +6734,12 @@
           "translation": "Max Cell Voltage",
           "max_length": 16
         },
+        "model_type": {
+          "english": "Power Type",
+          "needs_translation": false,
+          "translation": "Power Type",
+          "max_length": 10
+        },
         "min_cell_voltage": {
           "english": "Min Cell Voltage",
           "needs_translation": false,
@@ -6745,6 +6769,12 @@
           "needs_translation": false,
           "translation": "Sources",
           "max_length": 7
+        },
+        "preferences_name": {
+          "english": "Preferences",
+          "needs_translation": false,
+          "translation": "Preferences",
+          "max_length": 11
         },
         "timer": {
           "english": "Flight Time Alarm",
@@ -8780,6 +8810,12 @@
           "needs_translation": false,
           "translation": "Display"
         },
+        "panel_engine": {
+          "english": "Engine",
+          "max_length": 6,
+          "needs_translation": false,
+          "translation": "Engine"
+        },
         "panel_integration": {
           "english": "Integration",
           "max_length": 11,
@@ -9043,6 +9079,18 @@
           "max_length": 20,
           "needs_translation": false,
           "translation": "MSP Activity Display"
+        },
+        "txt_smartfuel_autodetect_model_type": {
+          "english": "Autodetect Model Type",
+          "max_length": 21,
+          "needs_translation": false,
+          "translation": "Autodetect Model Type"
+        },
+        "txt_smartfuel_force_nitro": {
+          "english": "Force Model Type: Nitro",
+          "max_length": 23,
+          "needs_translation": false,
+          "translation": "Force Model Type: Nitro"
         },
         "txt_objectprofiler": {
           "english": "Log dashboard speed",
@@ -9820,10 +9868,10 @@
         "translation": "Altitide Max"
       },
       "battery": {
-        "english": "Battery Profile",
-        "max_length": 15,
+        "english": "Battery",
+        "max_length": 7,
         "needs_translation": false,
-        "reverse_text": false
+        "translation": "Battery"
       },
       "battery_profile": {
         "english": "Battery Profile",
