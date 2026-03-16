@@ -70,6 +70,7 @@ local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
 local last_txbatt_type = nil
+local lastIsElectric = nil
 
 local layout = {cols = 4, rows = 14, padding = 4}
 
@@ -108,17 +109,13 @@ local function buildBoxes(W)
             min = function()
                 local override = getUserVoltageOverride("v_min")
                 if override then return override end
-                local cfg = rfsuite.session.batteryConfig
-                local cells = (cfg and cfg.batteryCellCount) or 3
-                local minV = (cfg and cfg.vbatmincellvoltage) or 3.0
+                local cells, minV = utils.getBatteryVoltageBounds(3, 3.0, 4.2)
                 return max(0, cells * minV)
             end,
             max = function()
                 local override = getUserVoltageOverride("v_max")
                 if override then return override end
-                local cfg = rfsuite.session.batteryConfig
-                local cells = (cfg and cfg.batteryCellCount) or 3
-                local maxV = (cfg and cfg.vbatfullcellvoltage) or 4.2
+                local cells, _, maxV = utils.getBatteryVoltageBounds(3, 3.0, 4.2)
                 return max(0, cells * maxV)
             end,
 
@@ -168,7 +165,7 @@ local function buildBoxes(W)
             max = 100,
             font = "FONT_XXL",
             fillbgcolor = colorMode.fillbgcolor,
-            title = "@i18n(widgets.dashboard.fuel):upper()@",
+            title = utils.isElectricEngine() and "@i18n(widgets.dashboard.battery):upper()@" or "@i18n(widgets.dashboard.fuel):upper()@",
             titlepos = "bottom",
             titlecolor = colorMode.titlecolor,
             textcolor = colorMode.titlecolor,
@@ -197,10 +194,12 @@ end
 local function boxes()
     local config = rfsuite and rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences[theme_section]
     local W = lcd.getWindowSize()
-    if boxes_cache == nil or themeconfig ~= config or lastScreenW ~= W then
+    local isElectric = utils.isElectricEngine()
+    if boxes_cache == nil or themeconfig ~= config or lastScreenW ~= W or lastIsElectric ~= isElectric then
         boxes_cache = buildBoxes(W)
         themeconfig = config
         lastScreenW = W
+        lastIsElectric = isElectric
     end
     return boxes_cache
 end

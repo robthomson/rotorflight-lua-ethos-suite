@@ -70,6 +70,7 @@ local boxes_cache = nil
 local header_boxes_cache = nil
 local themeconfig = nil
 local last_txbatt_type = nil
+local lastIsElectric = nil
 
 local layout = {cols = 8, rows = 4, padding = 4}
 
@@ -125,17 +126,13 @@ local function buildBoxes(W)
             min = function()
                 local override = getUserVoltageOverride("v_min")
                 if override then return override end
-                local cfg = rfsuite.session.batteryConfig
-                local cells = (cfg and cfg.batteryCellCount) or 3
-                local minV = (cfg and cfg.vbatmincellvoltage) or 3.0
+                local cells, minV = utils.getBatteryVoltageBounds(3, 3.0, 4.2)
                 return max(0, cells * minV)
             end,
             max = function()
                 local override = getUserVoltageOverride("v_max")
                 if override then return override end
-                local cfg = rfsuite.session.batteryConfig
-                local cells = (cfg and cfg.batteryCellCount) or 3
-                local maxV = (cfg and cfg.vbatfullcellvoltage) or 4.2
+                local cells, _, maxV = utils.getBatteryVoltageBounds(3, 3.0, 4.2)
                 return max(0, cells * maxV)
             end,
 
@@ -171,7 +168,7 @@ local function buildBoxes(W)
                 }
             }
         }, {col = 3, row = 3, rowspan = 2, colspan = 3, type = "text", subtype = "telemetry", source = "current", nosource = "-", title = "@i18n(widgets.dashboard.current):upper()@", unit = "A", titlepos = "bottom", font = opts.font, titlecolor = colorMode.textcolor, textcolor = colorMode.textcolor},
-        {col = 6, row = 1, rowspan = 2, colspan = 3, type = "text", subtype = "telemetry", source = "smartfuel", nosource = "-", title = "@i18n(widgets.dashboard.fuel):upper()@", unit = "%", titlepos = "bottom", font = opts.font, transform = "floor", thresholds = {{value = 30, textcolor = colorMode.fillcritcolor}, {value = 60, textcolor = colorMode.fillwarncolor}, {value = 100, textcolor = colorMode.fillcolor}}, titlecolor = colorMode.textcolor, textcolor = colorMode.textcolor},
+        {col = 6, row = 1, rowspan = 2, colspan = 3, type = "text", subtype = "telemetry", source = "smartfuel", nosource = "-", title = utils.isElectricEngine() and "@i18n(widgets.dashboard.battery):upper()@" or "@i18n(widgets.dashboard.fuel):upper()@", unit = "%", titlepos = "bottom", font = opts.font, transform = "floor", thresholds = {{value = 30, textcolor = colorMode.fillcritcolor}, {value = 60, textcolor = colorMode.fillwarncolor}, {value = 100, textcolor = colorMode.fillcolor}}, titlecolor = colorMode.textcolor, textcolor = colorMode.textcolor},
         {col = 6, row = 3, colspan = 3, rowspan = 2, type = "text", subtype = "telemetry", source = "rpm", nosource = "-", title = "@i18n(widgets.dashboard.rpm):upper()@", unit = "rpm", titlepos = "bottom", font = opts.font, transform = "floor", titlecolor = colorMode.textcolor, textcolor = colorMode.textcolor}
     }
 
@@ -180,10 +177,12 @@ end
 local function boxes()
     local config = rfsuite and rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences[theme_section]
     local W = lcd.getWindowSize()
-    if boxes_cache == nil or themeconfig ~= config or lastScreenW ~= W then
+    local isElectric = utils.isElectricEngine()
+    if boxes_cache == nil or themeconfig ~= config or lastScreenW ~= W or lastIsElectric ~= isElectric then
         boxes_cache = buildBoxes(W)
         themeconfig = config
         lastScreenW = W
+        lastIsElectric = isElectric
     end
     return boxes_cache
 end
