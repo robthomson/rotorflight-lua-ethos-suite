@@ -23,8 +23,7 @@ local apidata = {
         formdata = {
                 labels = {}, 
                 fields = {
-                    {t = "@i18n(app.modules.rates_advanced.rate_table)@", mspapi = 1, apikey = "rates_type", type = 1, ratetype = 1, postEdit = function(self) self.flagRateChange(self, true) end},
-                    {t = "@i18n(app.modules.rates_advanced.cyclic_polarity)@", mspapi = 1, apikey = "cyclic_polarity", type = 1}
+                    {t = "@i18n(app.modules.rates_advanced.rate_table)@", mspapi = 1, apikey = "rates_type", type = 1, ratetype = 1, postEdit = function(self) self.flagRateChange(self, true) end}
                 }
         }
     }
