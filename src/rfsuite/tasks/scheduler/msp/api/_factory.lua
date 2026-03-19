@@ -22,7 +22,7 @@ end
 
 local function defaultReadComplete(state, minBytes)
     local data = state.mspData
-    return data ~= nil and data.buffer ~= nil and #data.buffer >= (minBytes or 0)
+    return data ~= nil and (data.receivedBytesCount or 0) >= (minBytes or 0)
 end
 
 local function resolveWriteUUID(spec, state)
