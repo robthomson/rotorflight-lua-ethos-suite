@@ -61,16 +61,11 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
         options = {}
     end
 
-    local enableDeltaCache = true
-    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
-    if api and api.isDeltaCacheEnabled then
-        enableDeltaCache = api.isDeltaCacheEnabled(API_NAME)
-    end
-    local keepBuffers = (enableDeltaCache == true)
+    local keepBuffers = false
     local apidata = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata
     if apidata then
         apidata._lastReadMode = apidata._lastReadMode or {}
-        apidata._lastReadMode[API_NAME] = keepBuffers and "delta" or "no-delta"
+        apidata._lastReadMode[API_NAME] = "parsed"
     end
 
     local chunked            = (options.chunked == true)
@@ -129,12 +124,12 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
                 -- All fields parsed
                 local final = {
                     parsed = state.parsedData,
-                    buffer = keepBuffers and buf or nil,
+                    buffer = nil,
                     structure = structure,
-                    positionmap = keepBuffers and state.positionmap or nil,
+                    positionmap = nil,
                     processed = state.processed,
                     other = state.other,
-                    receivedBytesCount = keepBuffers and math_floor((buf.offset or 1) - 1) or nil
+                    receivedBytesCount = math_floor((buf.offset or 1) - 1)
                 }
                 if completionCallback then completionCallback(final) end
             else
@@ -180,12 +175,12 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
 
     local final = {
         parsed = parsedData,
-        buffer = keepBuffers and buf or nil,
+        buffer = nil,
         structure = structure,
-        positionmap = keepBuffers and position_map or nil,
+        positionmap = nil,
         processed = processed,
         other = other,
-        receivedBytesCount = keepBuffers and math_floor(buf.offset - 1) or nil
+        receivedBytesCount = math_floor(buf.offset - 1)
     }
 
     completionCallback(final)
@@ -392,26 +387,11 @@ function core.buildWritePayload(apiname, payload, api_structure, options)
 
     local buildOptions = normalizeWriteBuildOptions(options)
 
-    local positionmap       = rfsuite.tasks.msp.api.apidata.positionmap and rfsuite.tasks.msp.api.apidata.positionmap[apiname]
-    local receivedBytes     = rfsuite.tasks.msp.api.apidata.receivedBytes and rfsuite.tasks.msp.api.apidata.receivedBytes[apiname]
-    local receivedBytesCount= rfsuite.tasks.msp.api.apidata.receivedBytesCount and rfsuite.tasks.msp.api.apidata.receivedBytesCount[apiname]
-
-    local useDelta = positionmap and receivedBytes and receivedBytesCount
-    if buildOptions.noDelta == true then useDelta = false end
-
     local apidata = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata
-
-    if useDelta then
-        if apidata then
-            apidata._lastWriteMode = apidata._lastWriteMode or {}
-            apidata._lastWriteMode[apiname] = "delta"
-        end
-        return core.buildDeltaPayload(apiname, payload, api_structure, positionmap, receivedBytes, receivedBytesCount)
-    end
 
     if apidata then
         apidata._lastWriteMode = apidata._lastWriteMode or {}
-        apidata._lastWriteMode[apiname] = (buildOptions.noDelta == true) and "rebuild" or "full"
+        apidata._lastWriteMode[apiname] = (buildOptions.completionCallback and buildOptions.noDelta == true) and "rebuild-chunked" or "full"
     end
 
     if buildOptions.completionCallback and buildOptions.noDelta == true then

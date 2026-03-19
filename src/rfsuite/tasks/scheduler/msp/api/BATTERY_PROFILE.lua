@@ -126,7 +126,7 @@ end
 
 local function setValue(fieldName, value) payloadData[fieldName] = value end
 
-local function readComplete() return mspData ~= nil and #mspData.buffer >= MSP_MIN_BYTES end
+local function readComplete() return mspData ~= nil and (mspData.receivedBytesCount or 0) >= MSP_MIN_BYTES end
 
 local function writeComplete() return mspWriteComplete end
 

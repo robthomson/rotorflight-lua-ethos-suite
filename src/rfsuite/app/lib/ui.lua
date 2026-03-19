@@ -2980,8 +2980,6 @@ function ui.requestPage()
         tasks.msp.api.apidata.values = {}
         tasks.msp.api.apidata.structure = {}
         tasks.msp.api.apidata.receivedBytesCount = {}
-        tasks.msp.api.apidata.receivedBytes = {}
-        tasks.msp.api.apidata.positionmap = {}
         tasks.msp.api.apidata.other = {}
     end
 
@@ -3043,20 +3041,7 @@ function ui.requestPage()
             return
         end
 
-        local enableDeltaCache = nil
-        if apiMeta and apiMeta.enableDeltaCache ~= nil then
-            enableDeltaCache = apiMeta.enableDeltaCache
-        elseif app.Page.apidata and app.Page.apidata.enableDeltaCache ~= nil then
-            enableDeltaCache = app.Page.apidata.enableDeltaCache
-        end
-        if enableDeltaCache ~= nil and type(enableDeltaCache) ~= "boolean" then
-            enableDeltaCache = nil
-        end
-
         local API = tasks.msp.api.load(apiKey, {loadHelp = true})
-        if API and API.enableDeltaCache and enableDeltaCache ~= nil then
-            API.enableDeltaCache(enableDeltaCache)
-        end
 
         if app and app.Page and app.Page.apidata then app.Page.apidata.retryCount = app.Page.apidata.retryCount or {} end
 
@@ -3093,25 +3078,10 @@ function ui.requestPage()
                 return
             end
             --log("[SUCCESS] API: " .. apiKey .. " completed successfully.", "debug")
-            local cacheEnabled = enableDeltaCache
-            if cacheEnabled == nil and tasks.msp.api.isDeltaCacheEnabled then
-                cacheEnabled = tasks.msp.api.isDeltaCacheEnabled(apiKey)
-            end
-            if type(cacheEnabled) ~= "boolean" then cacheEnabled = nil end
-            if cacheEnabled == nil then cacheEnabled = true end
-
             local data = API.data()
             tasks.msp.api.apidata.values[apiKey] = data.parsed
             tasks.msp.api.apidata.structure[apiKey] = data.structure
-            if cacheEnabled == true then
-                tasks.msp.api.apidata.receivedBytes[apiKey] = data.buffer
-                tasks.msp.api.apidata.receivedBytesCount[apiKey] = data.receivedBytesCount
-                tasks.msp.api.apidata.positionmap[apiKey] = data.positionmap
-            else
-                tasks.msp.api.apidata.receivedBytes[apiKey] = nil
-                tasks.msp.api.apidata.receivedBytesCount[apiKey] = nil
-                tasks.msp.api.apidata.positionmap[apiKey] = nil
-            end
+            tasks.msp.api.apidata.receivedBytesCount[apiKey] = data.receivedBytesCount
             tasks.msp.api.apidata.other[apiKey] = data.other or {}
             app.Page.apidata.retryCount[apiKey] = 0
             state.currentIndex = state.currentIndex + 1
@@ -3227,17 +3197,6 @@ function ui.saveSettings(sourcePage)
         local payloadStructure = tasks.msp.api.apidata.structure[apiNAME]
 
         local API = tasks.msp.api.load(apiNAME)
-        if API and API.enableDeltaCache then
-            local enableDeltaCache = nil
-            if apiMeta and apiMeta.enableDeltaCache ~= nil then
-                enableDeltaCache = apiMeta.enableDeltaCache
-            elseif page.apidata and page.apidata.enableDeltaCache ~= nil then
-                enableDeltaCache = page.apidata.enableDeltaCache
-            end
-            if type(enableDeltaCache) == "boolean" then
-                API.enableDeltaCache(enableDeltaCache)
-            end
-        end
         if API and API.setRebuildOnWrite and apiMeta and apiMeta.rebuildOnWrite ~= nil then
             if type(apiMeta.rebuildOnWrite) == "boolean" then
                 API.setRebuildOnWrite(apiMeta.rebuildOnWrite)
