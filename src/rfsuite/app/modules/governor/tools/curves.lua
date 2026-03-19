@@ -101,9 +101,6 @@ local function loadData()
             APIDATA["GOVERNOR_CONFIG"] = {}
             APIDATA["GOVERNOR_CONFIG"]['values']             = copyTable(d.parsed)
             APIDATA["GOVERNOR_CONFIG"]['structure']          = copyTable(d.structure)
-            APIDATA["GOVERNOR_CONFIG"]['buffer']             = copyTable(d.buffer)
-            APIDATA["GOVERNOR_CONFIG"]['receivedBytesCount'] = d.receivedBytesCount
-            APIDATA["GOVERNOR_CONFIG"]['positionmap']        = copyTable(d.positionmap)
             APIDATA["GOVERNOR_CONFIG"]['other']              = copyTable(d.other)
 
 

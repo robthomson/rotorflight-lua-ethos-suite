@@ -8,7 +8,6 @@ local rfsuite = require("rfsuite")
 
 -- Optimized locals to reduce global/table lookups
 local utils = rfsuite.utils
-local math_min = math.min
 local math_floor = math.floor
 local table_insert = table.insert
 local string_format = string.format
@@ -61,7 +60,6 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
         options = {}
     end
 
-    local keepBuffers = false
     local apidata = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata
     if apidata then
         apidata._lastReadMode = apidata._lastReadMode or {}
@@ -79,7 +77,6 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
         local state = {
             index = 1,
             parsedData = {},
-            positionmap = keepBuffers and {} or nil,
             processed = processed or {},
             other = other or {},
             currentByte = 1,
@@ -109,9 +106,6 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
                 local startByte = state.currentByte
                 local endByte = startByte + size - 1
 
-                if keepBuffers then
-                    state.positionmap[field.field] = {start = startByte, size = size}
-                end
                 state.currentByte = endByte + 1
 
                 processedFields = processedFields + 1
@@ -126,7 +120,6 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
                     parsed = state.parsedData,
                     buffer = nil,
                     structure = structure,
-                    positionmap = nil,
                     processed = state.processed,
                     other = state.other,
                     receivedBytesCount = math_floor((buf.offset or 1) - 1)
@@ -149,7 +142,6 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
     buf.offset = 1
 
     local typeSizes = get_type_size()
-    local position_map = keepBuffers and {} or nil
     local current_byte = 1
 
     for _, field in ipairs(structure) do
@@ -164,11 +156,7 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
         local data = readFunction(buf, field.byteorder or "little")
         parsedData[field.field] = data
 
-        local size = typeSizes[field.type]
-        if keepBuffers then
-            position_map[field.field] = {start = current_byte, size = size}
-        end
-        current_byte = current_byte + size
+        current_byte = current_byte + typeSizes[field.type]
 
         ::continue::
     end
@@ -177,7 +165,6 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
         parsed = parsedData,
         buffer = nil,
         structure = structure,
-        positionmap = nil,
         processed = processed,
         other = other,
         receivedBytesCount = math_floor(buf.offset - 1)
@@ -403,93 +390,6 @@ function core.buildWritePayload(apiname, payload, api_structure, options)
     end
 
     return core.buildFullPayload(apiname, payload, api_structure)
-end
-
--- Build delta payload (patch only changed bytes)
-function core.buildDeltaPayload(apiname, payload, api_structure, positionmap, receivedBytes, receivedBytesCount)
-    local byte_stream = {}
-
-    -- Clone previous data for patching
-    for i = 1, receivedBytesCount or 0 do
-        byte_stream[i] = receivedBytes and receivedBytes[i] or 0
-    end
-
-    -- Determine which fields are editable
-    local editableFields = {}
-    for idx, formField in ipairs(rfsuite.app.formFields) do
-        local pageField = rfsuite.app.Page.apidata.formdata.fields[idx]
-        if pageField and pageField.apikey then
-            local key = pageField.apikey:match("([^%-]+)%-%>") or pageField.apikey
-            editableFields[key] = true
-        end
-    end
-
-    -- Build lookup of actual UI fields
-    local actual_fields = {}
-    if rfsuite.app.Page and rfsuite.app.Page.apidata then
-        for _, field in ipairs(rfsuite.app.Page.apidata.formdata.fields) do
-            if field.api and not field.apikey then
-                local mspapi, apikey = string.match(field.api, "([^:]+):(.+)")
-                for i, api in ipairs(rfsuite.app.Page.apidata.api) do
-                    if api == mspapi then mspapi = i; break end
-                end
-                field.apikey = apikey
-                field.mspapi = mspapi
-                utils.log("[buildDeltaPayload] Converted API field", "info")
-            end
-
-            if field.apikey then actual_fields[field.apikey] = field end
-        end
-    end
-
-    -- Patch only changed values
-    for _, field_def in ipairs(api_structure) do
-        local name = field_def.field
-
-        -- Skip non-editable
-        if not editableFields[name] then goto continue end
-
-        -- Sync field constraints if UI-side defines them
-        local actual_field = actual_fields[name]
-        if actual_field then
-            field_def.scale  = field_def.scale  or actual_field.scale
-            field_def.mult   = field_def.mult   or actual_field.mult
-            field_def.step   = field_def.step   or actual_field.step
-            field_def.min    = field_def.min    or actual_field.min
-            field_def.max    = field_def.max    or actual_field.max
-        end
-
-        -- Apply scale and quantization
-        local value = payload[name] or field_def.default or 0
-        local scale = field_def.scale or 1
-        value = math_floor(value * scale + 0.5)
-
-        -- Write into temporary buffer
-        local writeFunction = mspHelper["write" .. field_def.type]
-        if not writeFunction then error("Unknown type " .. field_def.type) end
-
-        local tmp = {}
-        if field_def.byteorder then writeFunction(tmp, value, field_def.byteorder)
-        else writeFunction(tmp, value) end
-
-        -- Patch into correct positions
-        local pm = positionmap[name]
-        if type(pm) == "table" and pm.start and pm.size then
-            local maxBytes = math_min(pm.size, #tmp)
-            for i = 1, maxBytes do
-                local pos = pm.start + i - 1
-                if pos <= receivedBytesCount then byte_stream[pos] = tmp[i] end
-            end
-        elseif pm then
-            for idx, pos in ipairs(pm) do
-                if pos <= receivedBytesCount then byte_stream[pos] = tmp[idx] end
-            end
-        end
-
-        ::continue::
-    end
-
-    return byte_stream
 end
 
 -- Build complete payload from scratch

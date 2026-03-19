@@ -135,9 +135,7 @@ local function clearEscApiCache()
     if type(apidata) ~= "table" then return end
     if apidata.values then apidata.values[apiName] = nil end
     if apidata.structure then apidata.structure[apiName] = nil end
-    if apidata.receivedBytes then apidata.receivedBytes[apiName] = nil end
     if apidata.receivedBytesCount then apidata.receivedBytesCount[apiName] = nil end
-    if apidata.positionmap then apidata.positionmap[apiName] = nil end
     if apidata.other then apidata.other[apiName] = nil end
     if apidata._lastReadMode then apidata._lastReadMode[apiName] = nil end
     if apidata._lastWriteMode then apidata._lastWriteMode[apiName] = nil end

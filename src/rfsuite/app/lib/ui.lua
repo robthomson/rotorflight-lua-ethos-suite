@@ -1101,13 +1101,11 @@ function ui.cleanupCurrentPage()
             return total
         end
         utils.log(string.format(
-            "[mem] cleanup start: %.1f KB | page=%s | apidata v=%d s=%d b=%d bc=%d p=%d o=%d | apiCache file=%d chunk=%d | help=%d gfx=%d mask=%d cbq=%d",
+            "[mem] cleanup start: %.1f KB | page=%s | apidata v=%d s=%d bc=%d o=%d | apiCache file=%d chunk=%d | help=%d gfx=%d mask=%d cbq=%d",
             mem_kb, tostring(pageLabel),
             tcount(apidata and apidata.values),
             tcount(apidata and apidata.structure),
-            tcount(apidata and apidata.receivedBytes),
             tcount(apidata and apidata.receivedBytesCount),
-            tcount(apidata and apidata.positionmap),
             tcount(apidata and apidata.other),
             tcount(apiLoader and apiLoader._fileExistsCache),
             tcount(apiLoader and apiLoader._chunkCache),
@@ -1142,9 +1140,7 @@ function ui.cleanupCurrentPage()
                     else
                         if apidata.values then apidata.values[apiKey] = nil end
                         if apidata.structure then apidata.structure[apiKey] = nil end
-                        if apidata.receivedBytes then apidata.receivedBytes[apiKey] = nil end
                         if apidata.receivedBytesCount then apidata.receivedBytesCount[apiKey] = nil end
-                        if apidata.positionmap then apidata.positionmap[apiKey] = nil end
                         if apidata.other then apidata.other[apiKey] = nil end
                     end
                 end
@@ -1228,13 +1224,11 @@ function ui.cleanupCurrentPage()
                 )
             end
             utils.log(string.format(
-                "[mem] cleanup end: %.1f KB | page=%s | apidata v=%d s=%d b=%d bc=%d p=%d o=%d | apiCache file=%d chunk=%d | help=%d gfx=%d mask=%d cbq=%d%s",
+                "[mem] cleanup end: %.1f KB | page=%s | apidata v=%d s=%d bc=%d o=%d | apiCache file=%d chunk=%d | help=%d gfx=%d mask=%d cbq=%d%s",
                 mem_kb, tostring(pageLabel),
                 tcount(apidata and apidata.values),
                 tcount(apidata and apidata.structure),
-                tcount(apidata and apidata.receivedBytes),
                 tcount(apidata and apidata.receivedBytesCount),
-                tcount(apidata and apidata.positionmap),
                 tcount(apidata and apidata.other),
                 tcount(apiLoader and apiLoader._fileExistsCache),
                 tcount(apiLoader and apiLoader._chunkCache),

@@ -6,7 +6,7 @@
 
 local apidata = {
     api = {
-        {id = 1, name = "RC_TUNING", enableDeltaCache = false, rebuildOnWrite = true},
+        {id = 1, name = "RC_TUNING", rebuildOnWrite = true},
     },
     formdata = {
         name = "@i18n(app.modules.rates.raceflight)@",

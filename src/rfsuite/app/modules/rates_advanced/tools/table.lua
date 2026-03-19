@@ -18,7 +18,7 @@ if rfsuite.session.activeRateTable == nil then rfsuite.session.activeRateTable =
 
 local apidata = {
         api = {
-            {id = 1, name = "RC_TUNING", enableDeltaCache = false, rebuildOnWrite = true},
+            {id = 1, name = "RC_TUNING", rebuildOnWrite = true},
         },
         formdata = {
                 labels = {}, 

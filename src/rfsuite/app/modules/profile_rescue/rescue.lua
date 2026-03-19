@@ -9,7 +9,7 @@ local activateWakeup = false
 
 local apidata = {
     api = {
-        {id = 1, name = "RESCUE_PROFILE", enableDeltaCache = false, rebuildOnWrite = true},
+        {id = 1, name = "RESCUE_PROFILE", rebuildOnWrite = true},
     },  
     formdata = {
         labels = {

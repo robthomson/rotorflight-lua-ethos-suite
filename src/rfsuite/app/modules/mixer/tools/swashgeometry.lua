@@ -386,9 +386,6 @@ local function loadNext(i)
 
         APIDATA[IDX]['values']             = copyTable(d.parsed)
         APIDATA[IDX]['structure']          = copyTable(d.structure)
-        APIDATA[IDX]['buffer']             = copyTable(d.buffer)
-        APIDATA[IDX]['receivedBytesCount'] = d.receivedBytesCount
-        APIDATA[IDX]['positionmap']        = copyTable(d.positionmap)
         APIDATA[IDX]['other']              = copyTable(d.other)
 
         loadNext(i + 1)

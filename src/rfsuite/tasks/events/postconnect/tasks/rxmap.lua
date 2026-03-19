@@ -26,7 +26,6 @@ function rxmap.wakeup()
     if not rfsuite.utils.rxmapReady() and mspCallMade == false then
         mspCallMade = true
         local API = rfsuite.tasks.msp.api.load(API_NAME)
-        if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
 
             local aileron = API.readValue("aileron")

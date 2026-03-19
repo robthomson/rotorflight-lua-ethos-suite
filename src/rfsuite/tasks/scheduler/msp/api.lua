@@ -26,8 +26,6 @@ api._helpChunkCache = {}
 api._helpChunkCacheOrder = {}
 api._helpChunkCacheMax = 5
 api._helpDataCache = {}
-api._deltaCacheDefault = true
-api._deltaCacheByApi = {}
 api._ported = {}
 api.apidata = {}
 api._core = nil
@@ -266,31 +264,6 @@ local function validateModule(apiName, module)
     return module
 end
 
-function api.enableDeltaCache(enable)
-    if enable == nil then return end
-    api._deltaCacheDefault = (enable == true)
-end
-
-function api.setApiDeltaCache(apiName, enable)
-    if type(apiName) ~= "string" or apiName == "" then return end
-    if enable == nil then
-        api._deltaCacheByApi[apiName] = nil
-        return
-    end
-    api._deltaCacheByApi[apiName] = (enable == true)
-end
-
-function api.isDeltaCacheEnabled(apiName)
-    if apiName and api._deltaCacheByApi[apiName] ~= nil then
-        return api._deltaCacheByApi[apiName]
-    end
-    local app = rfsuite and rfsuite.app
-    if not (app and app.guiIsRunning) then
-        return false
-    end
-    return api._deltaCacheDefault == true
-end
-
 function api.register(apiName, modulePath)
     if type(apiName) ~= "string" or apiName == "" then return false end
     if type(modulePath) ~= "string" or modulePath == "" then return false end
@@ -345,9 +318,6 @@ function api.load(apiName, loadOpts)
         return nil
     end
 
-    module.enableDeltaCache = function(enable) api.setApiDeltaCache(apiName, enable) end
-    module.isDeltaCacheEnabled = function() return api.isDeltaCacheEnabled(apiName) end
-
     return module
 end
 
@@ -358,9 +328,7 @@ function api.clearEntry(apiName)
     if type(d) == "table" then
         if d.values then d.values[apiName] = nil end
         if d.structure then d.structure[apiName] = nil end
-        if d.receivedBytes then d.receivedBytes[apiName] = nil end
         if d.receivedBytesCount then d.receivedBytesCount[apiName] = nil end
-        if d.positionmap then d.positionmap[apiName] = nil end
         if d.other then d.other[apiName] = nil end
         if d._lastReadMode then d._lastReadMode[apiName] = nil end
         if d._lastWriteMode then d._lastWriteMode[apiName] = nil end
@@ -380,12 +348,6 @@ function api.resetApidata()
     end
     if d.receivedBytesCount then
         for k in pairs(d.receivedBytesCount) do d.receivedBytesCount[k] = nil end
-    end
-    if d.receivedBytes then
-        for k in pairs(d.receivedBytes) do d.receivedBytes[k] = nil end
-    end
-    if d.positionmap then
-        for k in pairs(d.positionmap) do d.positionmap[k] = nil end
     end
     if d.other then
         for k in pairs(d.other) do d.other[k] = nil end

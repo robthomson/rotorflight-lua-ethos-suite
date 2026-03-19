@@ -27,7 +27,6 @@ function fcversion.wakeup()
         mspCallMade = true
 
         local API = rfsuite.tasks.msp.api.load(API_NAME)
-        if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
             rfsuite.session.fcVersion = API.readVersion()
             rfsuite.session.rfVersion = API.readRfVersion()

@@ -63,8 +63,6 @@ return factory.create({
         state.mspData = {
             parsed = parsed,
             structure = READ_STRUCT,
-            buffer = parsed,
-            positionmap = {},
             other = {},
             receivedBytesCount = #MSP_API_STRUCTURE_READ_DATA
         }
@@ -97,8 +95,6 @@ return factory.create({
         state.mspData = {
             parsed = parsed,
             structure = READ_STRUCT,
-            buffer = parsed,
-            positionmap = {},
             other = {},
             receivedBytesCount = #MSP_API_STRUCTURE_READ_DATA
         }

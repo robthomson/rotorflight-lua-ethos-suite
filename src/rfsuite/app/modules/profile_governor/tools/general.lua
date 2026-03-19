@@ -46,7 +46,7 @@ end
 
 apidata = {
     api = {
-        {id = 1, name = "GOVERNOR_PROFILE", enableDeltaCache = false, rebuildOnWrite = true},
+        {id = 1, name = "GOVERNOR_PROFILE", rebuildOnWrite = true},
     },    
     formdata = {
         labels = {

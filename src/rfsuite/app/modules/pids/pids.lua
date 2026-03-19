@@ -9,7 +9,7 @@ local activateWakeup = false
 
 local apidata = {
     api = {
-        {id = 1, name = "PID_TUNING", enableDeltaCache = false, rebuildOnWrite = true},
+        {id = 1, name = "PID_TUNING", rebuildOnWrite = true},
     },
     formdata = {
         labels = {},

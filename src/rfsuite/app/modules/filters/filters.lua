@@ -6,7 +6,7 @@
 
 local apidata = {
     api = {
-        {id = 1, name = "FILTER_CONFIG", enableDeltaCache = false, rebuildOnWrite = true},
+        {id = 1, name = "FILTER_CONFIG", rebuildOnWrite = true},
     },
     formdata = {
         labels = {
