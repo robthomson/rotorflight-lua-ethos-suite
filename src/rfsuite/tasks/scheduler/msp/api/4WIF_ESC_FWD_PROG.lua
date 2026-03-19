@@ -19,7 +19,7 @@ local MSP_API_STRUCTURE_WRITE = {
 -- LuaFormatter on
 
 local function buildWritePayload(payloadData, _, _, state)
-    return core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, state.rebuildOnWrite == true)
+    return core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, state)
 end
 
 return factory.create({

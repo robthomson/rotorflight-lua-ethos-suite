@@ -3203,6 +3203,14 @@ function ui.saveSettings(sourcePage)
         app.utils.settingsSaved(page)
     end
 
+    local function finalizeSaveFailure()
+        app.triggers.savePendingAsync = false
+        setSaveProcessing(false)
+        app.pageState = app.pageStatus.display
+        app.triggers.closeSaveFake = true
+        app.triggers.isSaving = false
+    end
+
     for apiID, apiEntry in ipairs(apiList) do
 
         local apiMeta = type(apiEntry) == "table" and apiEntry or nil
@@ -3235,48 +3243,58 @@ function ui.saveSettings(sourcePage)
                 API.setRebuildOnWrite(apiMeta.rebuildOnWrite)
             end
         end
-        API.setErrorHandler(function(self, buf) app.triggers.saveFailed = true end)
-        API.setCompleteHandler(function(self, buf)
+        local requestFinished = false
+        local function finishRequest(success, err)
+            if requestFinished then return end
+            requestFinished = true
             completedRequests = completedRequests + 1
-            --log("API " .. apiNAME .. " write complete", "debug")
-            API = nil
-
-            if completedRequests == totalRequests then
-                --log("All API requests have been completed!", "debug")
-                if enqueueFailures > 0 or app.triggers.saveFailed then
-                    app.triggers.savePendingAsync = false
-                    setSaveProcessing(false)
-                    app.pageState = app.pageStatus.display
-                    app.triggers.closeSaveFake = true
-                    app.triggers.isSaving = false
-                else
-                    ui.setPageDirty(false)
-                    local postSaveDone = false
-                    local function completePostSave()
-                        if postSaveDone then return end
-                        postSaveDone = true
-                        app.triggers.savePendingAsync = false
-                        finalizeSaveSuccess()
-                    end
-                    if page and page.postSave then
-                        local ok, result = pcall(page.postSave, page, completePostSave)
-                        if not ok then
-                            log("postSave error: " .. tostring(result), "info")
-                            app.triggers.savePendingAsync = false
-                            completePostSave()
-                        elseif result == false or result == "pending" then
-                            -- postSave signaled async completion and will call completePostSave().
-                            app.triggers.savePendingAsync = true
-                        else
-                            app.triggers.savePendingAsync = false
-                            completePostSave()
-                        end
-                    else
-                        app.triggers.savePendingAsync = false
-                        completePostSave()
-                    end
+            if success ~= true then
+                app.triggers.saveFailed = true
+                if err then
+                    log("API " .. apiNAME .. " write failed: " .. tostring(err), "info")
                 end
             end
+            API = nil
+
+            if completedRequests ~= totalRequests then return end
+
+            if enqueueFailures > 0 or app.triggers.saveFailed then
+                finalizeSaveFailure()
+                return
+            end
+
+            ui.setPageDirty(false)
+            local postSaveDone = false
+            local function completePostSave()
+                if postSaveDone then return end
+                postSaveDone = true
+                app.triggers.savePendingAsync = false
+                finalizeSaveSuccess()
+            end
+            if page and page.postSave then
+                local ok, result = pcall(page.postSave, page, completePostSave)
+                if not ok then
+                    log("postSave error: " .. tostring(result), "info")
+                    app.triggers.savePendingAsync = false
+                    completePostSave()
+                elseif result == false or result == "pending" then
+                    -- postSave signaled async completion and will call completePostSave().
+                    app.triggers.savePendingAsync = true
+                else
+                    app.triggers.savePendingAsync = false
+                    completePostSave()
+                end
+            else
+                app.triggers.savePendingAsync = false
+                completePostSave()
+            end
+        end
+        API.setErrorHandler(function(self, err)
+            finishRequest(false, err)
+        end)
+        API.setCompleteHandler(function(self, buf)
+            --log("API " .. apiNAME .. " write complete", "debug")
+            finishRequest(true)
         end)
 
         local fieldMap = {}
@@ -3337,17 +3355,8 @@ function ui.saveSettings(sourcePage)
 
         if not ok then
             enqueueFailures = enqueueFailures + 1
-            completedRequests = completedRequests + 1
-            app.triggers.saveFailed = true
             log("API " .. apiNAME .. " enqueue rejected: " .. tostring(reason), "info")
-            if completedRequests == totalRequests then
-                if page and page.apidata and page.apidata.apiState then
-                    page.apidata.apiState.isProcessing = false
-                end
-                app.pageState = app.pageStatus.display
-                app.triggers.closeSaveFake = true
-                app.triggers.isSaving = false
-            end
+            finishRequest(false, reason)
         end
 
         utils.reportMemoryUsage("ui.saveSettings " .. apiNAME, "end")

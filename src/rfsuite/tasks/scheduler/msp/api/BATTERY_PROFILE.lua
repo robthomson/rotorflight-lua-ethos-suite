@@ -73,14 +73,50 @@ local function read()
     return rfsuite.tasks.msp.mspQueue:add(message)
 end
 
-local function write(suppliedPayload)
-    local payload = suppliedPayload or core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, MSP_REBUILD_ON_WRITE)
+local function emitWriteError(err)
+    local handler = handlers.getErrorHandler and handlers.getErrorHandler()
+    if handler then
+        handler(nil, err)
+    end
+end
 
+local function enqueueWriteMessage(payload)
     local uuid = MSP_API_UUID or rfsuite.utils and rfsuite.utils.uuid and rfsuite.utils.uuid() or tostring(os_clock())
-
     local message = {command = MSP_API_CMD_WRITE, apiname = API_NAME, payload = payload, processReply = processReplyStaticWrite, errorHandler = errorHandlerStatic, simulatorResponse = {}, uuid = uuid, timeout = MSP_API_MSG_TIMEOUT, getCompleteHandler = handlers.getCompleteHandler, getErrorHandler = handlers.getErrorHandler}
-
     return rfsuite.tasks.msp.mspQueue:add(message)
+end
+
+local function write(suppliedPayload)
+    mspWriteComplete = false
+
+    local payload = suppliedPayload
+    if payload == nil then
+        local err
+        payload, err = core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, {
+            rebuildOnWrite = MSP_REBUILD_ON_WRITE,
+            _writeBuildCompletionCallback = function(asyncPayload, asyncErr)
+                if asyncPayload == nil then
+                    emitWriteError(asyncErr or "build_payload_failed")
+                    return
+                end
+
+                local ok, reason = enqueueWriteMessage(asyncPayload)
+                if not ok then
+                    emitWriteError(reason or "enqueue_failed")
+                end
+            end
+        })
+
+        if payload == nil then
+            if err == "pending" then
+                return true, "pending_build"
+            end
+            emitWriteError(err or "build_payload_failed")
+            return false, err or "build_payload_failed"
+        end
+    end
+
+    return enqueueWriteMessage(payload)
 end
 
 local function readValue(fieldName)

@@ -48,7 +48,7 @@ local function buildReadPayload(payloadData, _, _, _, axis)
 end
 
 local function buildWritePayload(payloadData, _, _, state)
-    return core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, state.rebuildOnWrite == true)
+    return core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, state)
 end
 
 return factory.create({

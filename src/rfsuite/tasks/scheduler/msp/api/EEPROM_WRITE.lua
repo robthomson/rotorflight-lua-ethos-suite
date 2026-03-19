@@ -14,7 +14,7 @@ local API_NAME = "EEPROM_WRITE"
 local MSP_API_STRUCTURE_WRITE = {}
 
 local function buildWritePayload(payloadData, _, _, state)
-    return core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, state.rebuildOnWrite == true)
+    return core.buildWritePayload(API_NAME, payloadData, MSP_API_STRUCTURE_WRITE, state)
 end
 
 return factory.create({

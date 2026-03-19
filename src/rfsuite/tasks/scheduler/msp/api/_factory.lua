@@ -12,6 +12,7 @@ local tostring = tostring
 local pairs = pairs
 local error = error
 local os_clock = os.clock
+local table_unpack = table.unpack or unpack
 
 local function getMspHelper()
     local tasks = rfsuite and rfsuite.tasks
@@ -203,44 +204,80 @@ function factory.create(spec)
             end
         end
 
+        state.mspWriteComplete = false
+
+        local extraArgs = {...}
+
+        local function clearAsyncWriteBuildState()
+            state._writeBuildCompletionCallback = nil
+            state.writeBuildFieldsPerTick = nil
+        end
+
+        local function enqueueWritePayload(payload)
+            local message = {
+                command = spec.writeCmd,
+                apiname = spec.name,
+                payload = payload,
+                processReply = handleWriteReply,
+                errorHandler = messageErrorHandler,
+                simulatorResponse = resolveSimulatorResponse(spec.simulatorResponseWrite or {}, state, "write", suppliedPayload, table_unpack(extraArgs)),
+                uuid = resolveWriteUUID(spec, state),
+                timeout = state.timeout
+            }
+
+            local writeUuidResolver = spec.resolveWriteUUID
+            if type(writeUuidResolver) == "function" then
+                message.uuid = writeUuidResolver(state, suppliedPayload, table_unpack(extraArgs))
+            end
+
+            local timeoutResolver = spec.resolveWriteTimeout
+            if type(timeoutResolver) == "function" then
+                message.timeout = timeoutResolver(state, suppliedPayload, table_unpack(extraArgs))
+            end
+
+            return rfsuite.tasks.msp.mspQueue:add(message)
+        end
+
         local payload = suppliedPayload
         if payload == nil then
             local builder = spec.buildWritePayload
             if builder then
                 local helper = getMspHelper()
                 local buildErr
-                payload, buildErr = builder(state.payloadData, state.mspData, helper, state, ...)
+
+                if state.rebuildOnWrite == true then
+                    state.writeBuildFieldsPerTick = spec.writeBuildFieldsPerTick
+                    state._writeBuildCompletionCallback = function(asyncPayload, asyncErr)
+                        clearAsyncWriteBuildState()
+                        if asyncPayload == nil then
+                            dispatchError(nil, asyncErr or "build_payload_failed")
+                            return
+                        end
+
+                        local ok, reason = enqueueWritePayload(asyncPayload)
+                        if not ok then
+                            dispatchError(nil, reason or "enqueue_failed")
+                        end
+                    end
+                end
+
+                payload, buildErr = builder(state.payloadData, state.mspData, helper, state, table_unpack(extraArgs))
                 if payload == nil then
+                    if buildErr == "pending" then
+                        return true, "pending_build"
+                    end
+                    clearAsyncWriteBuildState()
                     dispatchError(nil, buildErr or "build_payload_failed")
                     return false, buildErr or "build_payload_failed"
                 end
+
+                clearAsyncWriteBuildState()
             else
                 payload = {}
             end
         end
 
-        local message = {
-            command = spec.writeCmd,
-            apiname = spec.name,
-            payload = payload,
-            processReply = handleWriteReply,
-            errorHandler = messageErrorHandler,
-            simulatorResponse = resolveSimulatorResponse(spec.simulatorResponseWrite or {}, state, "write", suppliedPayload, ...),
-            uuid = resolveWriteUUID(spec, state),
-            timeout = state.timeout
-        }
-
-        local writeUuidResolver = spec.resolveWriteUUID
-        if type(writeUuidResolver) == "function" then
-            message.uuid = writeUuidResolver(state, suppliedPayload, ...)
-        end
-
-        local timeoutResolver = spec.resolveWriteTimeout
-        if type(timeoutResolver) == "function" then
-            message.timeout = timeoutResolver(state, suppliedPayload, ...)
-        end
-
-        return rfsuite.tasks.msp.mspQueue:add(message)
+        return enqueueWritePayload(payload)
     end
 
     local function data()

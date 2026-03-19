@@ -220,20 +220,184 @@ end
 -- Payload builders
 ------------------------------------------------------------
 
+local DEFAULT_WRITE_BUILD_FIELDS_PER_TICK = 6
+
+local function buildActualFieldMap()
+    local actual_fields = {}
+    local page = rfsuite.app and rfsuite.app.Page
+    local apidata = page and page.apidata
+    local formdata = apidata and apidata.formdata
+    local fields = formdata and formdata.fields
+    if type(fields) ~= "table" then
+        return actual_fields
+    end
+
+    for _, field in ipairs(fields) do
+        if field.apikey then
+            actual_fields[field.apikey] = field
+        end
+    end
+
+    return actual_fields
+end
+
+local function syncUiMetadata(field_def, actual, includeDecimals)
+    if not actual then return end
+
+    field_def.scale = field_def.scale or actual.scale
+    field_def.mult = field_def.mult or actual.mult
+    field_def.step = field_def.step or actual.step
+    field_def.min = field_def.min or actual.min
+    field_def.max = field_def.max or actual.max
+    if includeDecimals then
+        field_def.decimals = field_def.decimals or actual.decimals
+    end
+end
+
+local function resolveScaledWriteValue(payload, field_def, actual)
+    local value = payload[field_def.field] or field_def.default or 0
+    local scale = field_def.scale or 1
+
+    if not actual and field_def.decimals then
+        scale = scale / utils.decimalInc(field_def.decimals)
+    end
+
+    return math_floor(value * scale + 0.5)
+end
+
+local function appendEncodedField(byte_stream, tmp, field_def, value)
+    local writeFunction = mspHelper["write" .. field_def.type]
+    if not writeFunction then
+        return nil, "Unknown type " .. tostring(field_def.type)
+    end
+
+    for i = 1, #tmp do
+        tmp[i] = nil
+    end
+
+    if field_def.byteorder then
+        writeFunction(tmp, value, field_def.byteorder)
+    else
+        writeFunction(tmp, value)
+    end
+
+    for i = 1, #tmp do
+        table_insert(byte_stream, tmp[i])
+    end
+
+    return true
+end
+
+local function normalizeWriteBuildOptions(options)
+    if type(options) == "table" then
+        local completionCallback = options._writeBuildCompletionCallback or options.completionCallback
+        local fieldsPerTick = tonumber(options.writeBuildFieldsPerTick or options.fieldsPerTick)
+        if fieldsPerTick == nil or fieldsPerTick < 1 then
+            fieldsPerTick = DEFAULT_WRITE_BUILD_FIELDS_PER_TICK
+        else
+            fieldsPerTick = math_floor(fieldsPerTick)
+        end
+
+        return {
+            noDelta = options.rebuildOnWrite == true or options.noDelta == true,
+            completionCallback = completionCallback,
+            fieldsPerTick = fieldsPerTick
+        }
+    end
+
+    return {
+        noDelta = (options == true),
+        completionCallback = nil,
+        fieldsPerTick = DEFAULT_WRITE_BUILD_FIELDS_PER_TICK
+    }
+end
+
+local function finalizeChunkedBuild(state, payload, err)
+    local done = state and state.completionCallback
+    if not done then return end
+    state.completionCallback = nil
+    done(payload, err)
+end
+
+local processNextFullBuildChunk
+
+function core.buildFullPayloadChunked(apiname, payload, api_structure, options, completionCallback)
+    if type(completionCallback) ~= "function" then
+        return false, "completion_callback_missing"
+    end
+
+    local opts = normalizeWriteBuildOptions(options)
+    local buildState = {
+        apiname = apiname,
+        payload = payload,
+        api_structure = api_structure,
+        index = 1,
+        byte_stream = {},
+        actual_fields = buildActualFieldMap(),
+        tmp = {},
+        fieldsPerTick = opts.fieldsPerTick,
+        completionCallback = completionCallback
+    }
+
+    buildState.step = function()
+        processNextFullBuildChunk(buildState)
+    end
+
+    core.scheduleWakeup(buildState.step)
+    return true
+end
+
+processNextFullBuildChunk = function(state)
+    local processedFields = 0
+    local api_structure = state.api_structure
+    local payload = state.payload
+    local actual_fields = state.actual_fields
+    local byte_stream = state.byte_stream
+    local tmp = state.tmp
+
+    while state.index <= #api_structure and processedFields < state.fieldsPerTick do
+        local field_def = api_structure[state.index]
+        state.index = state.index + 1
+
+        local name = field_def.field
+        local actual = actual_fields[name]
+        syncUiMetadata(field_def, actual, true)
+
+        local value = resolveScaledWriteValue(payload, field_def, actual)
+        local ok, err = appendEncodedField(byte_stream, tmp, field_def, value)
+        if not ok then
+            finalizeChunkedBuild(state, nil, err)
+            return
+        end
+
+        processedFields = processedFields + 1
+        utils.log(string_format("[buildFullPayloadChunked] Wrote field '%s' = %d", name, value), "debug")
+    end
+
+    if state.index > #api_structure then
+        finalizeChunkedBuild(state, byte_stream)
+        return
+    end
+
+    core.scheduleWakeup(state.step)
+end
+
 -- Choose full vs delta payload based on available previous data
-function core.buildWritePayload(apiname, payload, api_structure, noDelta)
+function core.buildWritePayload(apiname, payload, api_structure, options)
     if not rfsuite.app.Page then
         utils.log("[buildWritePayload] No page context", "info")
         -- tasks have no UI context; always build a full payload
         return core.buildFullPayload(apiname, payload, api_structure)
     end
 
+    local buildOptions = normalizeWriteBuildOptions(options)
+
     local positionmap       = rfsuite.tasks.msp.api.apidata.positionmap and rfsuite.tasks.msp.api.apidata.positionmap[apiname]
     local receivedBytes     = rfsuite.tasks.msp.api.apidata.receivedBytes and rfsuite.tasks.msp.api.apidata.receivedBytes[apiname]
     local receivedBytesCount= rfsuite.tasks.msp.api.apidata.receivedBytesCount and rfsuite.tasks.msp.api.apidata.receivedBytesCount[apiname]
 
     local useDelta = positionmap and receivedBytes and receivedBytesCount
-    if noDelta == true then useDelta = false end
+    if buildOptions.noDelta == true then useDelta = false end
 
     local apidata = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata
 
@@ -247,8 +411,17 @@ function core.buildWritePayload(apiname, payload, api_structure, noDelta)
 
     if apidata then
         apidata._lastWriteMode = apidata._lastWriteMode or {}
-        apidata._lastWriteMode[apiname] = (noDelta == true) and "rebuild" or "full"
+        apidata._lastWriteMode[apiname] = (buildOptions.noDelta == true) and "rebuild" or "full"
     end
+
+    if buildOptions.completionCallback and buildOptions.noDelta == true then
+        local ok, err = core.buildFullPayloadChunked(apiname, payload, api_structure, buildOptions, buildOptions.completionCallback)
+        if not ok then
+            return nil, err or "build_payload_failed"
+        end
+        return nil, "pending"
+    end
+
     return core.buildFullPayload(apiname, payload, api_structure)
 end
 
@@ -344,48 +517,19 @@ function core.buildFullPayload(apiname, payload, api_structure)
     local byte_stream = {}
     utils.log("[buildFullPayload] Rebuilding entire payload", "debug")
 
-    -- Lookup UI field definitions if available
-    local actual_fields = {}
-    if rfsuite.app.Page and rfsuite.app.Page.apidata then
-        for _, field in ipairs(rfsuite.app.Page.apidata.formdata.fields) do
-            if field.apikey then
-                actual_fields[field.apikey] = field
-            end
-        end
-    end
+    local actual_fields = buildActualFieldMap()
+    local tmp = {}
 
     for _, field_def in ipairs(api_structure) do
         local name = field_def.field
 
-        -- Sync UI metadata
         local actual = actual_fields[name]
-        if actual then
-            field_def.scale    = field_def.scale    or actual.scale
-            field_def.mult     = field_def.mult     or actual.mult
-            field_def.step     = field_def.step     or actual.step
-            field_def.min      = field_def.min      or actual.min
-            field_def.max      = field_def.max      or actual.max
-            field_def.decimals = field_def.decimals or actual.decimals
-        end
+        syncUiMetadata(field_def, actual, true)
 
-        local value = payload[name] or field_def.default or 0
-        local scale = field_def.scale or 1
+        local value = resolveScaledWriteValue(payload, field_def, actual)
 
-        -- Decimal-handling fallback
-        if not actual and field_def.decimals then
-            scale = scale / utils.decimalInc(field_def.decimals)
-        end
-
-        value = math_floor(value * scale + 0.5)
-
-        local writeFunction = mspHelper["write" .. field_def.type]
-        if not writeFunction then error("Unknown type " .. field_def.type) end
-
-        local tmp = {}
-        if field_def.byteorder then writeFunction(tmp, value, field_def.byteorder)
-        else writeFunction(tmp, value) end
-
-        for _, b in ipairs(tmp) do table_insert(byte_stream, b) end
+        local ok, err = appendEncodedField(byte_stream, tmp, field_def, value)
+        if not ok then error(err) end
 
         utils.log(string_format("[buildFullPayload] Wrote field '%s' = %d", name, value), "debug")
     end

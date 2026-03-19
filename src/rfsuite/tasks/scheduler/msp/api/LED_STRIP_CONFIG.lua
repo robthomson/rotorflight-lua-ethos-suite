@@ -45,7 +45,7 @@ end
 local function buildWritePayload(payloadData, _, _, state)
     local writeStructure = MSP_API_STRUCTURE_WRITE
     if writeStructure == nil then return {} end
-    return core.buildWritePayload(API_NAME, payloadData, writeStructure, state.rebuildOnWrite == true)
+    return core.buildWritePayload(API_NAME, payloadData, writeStructure, state)
 end
 
 return factory.create({

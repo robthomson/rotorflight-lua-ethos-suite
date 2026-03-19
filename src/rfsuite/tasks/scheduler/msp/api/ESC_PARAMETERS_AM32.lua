@@ -277,7 +277,7 @@ local function buildWritePayload(payloadData, mspData, _, state)
         effectivePayload = cloned
     end
 
-    return core.buildWritePayload(API_NAME, effectivePayload, MSP_API_STRUCTURE_WRITE, state.rebuildOnWrite == true)
+    return core.buildWritePayload(API_NAME, effectivePayload, MSP_API_STRUCTURE_WRITE, state)
 end
 
 return factory.create({
