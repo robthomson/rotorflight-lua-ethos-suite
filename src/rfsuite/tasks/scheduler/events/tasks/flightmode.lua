@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local rxState = (rfsuite.shared and rfsuite.shared.rx) or assert(loadfile("shared/rx.lua"))()
 
 local arg = {...}
 
@@ -28,8 +29,7 @@ function flightmode.inFlight()
     local governor = telemetry.getSensor("governor")
     if isGovernorActive(governor) then return true end
 
-    local rx = rfsuite.session.rx
-    local throttle = rx and rx.values and rx.values.throttle
+    local throttle = rxState.getValues().throttle
 
     if throttle and throttle > throttleThreshold then return true end
 

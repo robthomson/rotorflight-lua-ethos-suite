@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local rxState = (rfsuite.shared and rfsuite.shared.rx) or assert(loadfile("shared/rx.lua"))()
 
 local rxmap = {}
 
@@ -20,11 +21,7 @@ local function clearApiEntry()
 end
 
 local function getRxMap()
-    local session = rfsuite.session
-    local rx = session and session.rx
-    if not rx then return nil end
-    rx.map = rx.map or {}
-    return rx.map
+    return rxState.getMap()
 end
 
 local function clearTableInPlace(tbl)
@@ -81,18 +78,12 @@ function rxmap.wakeup()
 end
 
 function rxmap.reset()
-    local session = rfsuite.session
-    local rx = session and session.rx
-
     clearApiEntry()
-    if rx and rx.map then
-        for _, key in ipairs(RX_CHANNEL_KEYS) do
-            rx.map[key] = nil
-        end
+    local rxMap = rxState.getMap()
+    for _, key in ipairs(RX_CHANNEL_KEYS) do
+        rxMap[key] = nil
     end
-    if rx and rx.values then
-        clearTableInPlace(rx.values)
-    end
+    clearTableInPlace(rxState.getValues())
     mspCallMade = false
 end
 

@@ -8,6 +8,7 @@ local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadf
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local rxState = (rfsuite.shared and rfsuite.shared.rx) or assert(loadfile("shared/rx.lua"))()
 
 local arg = {...}
 
@@ -372,7 +373,6 @@ local eventTable = {
         interval = 10,
         window = 5,
         event = function(value, interval, window)
-            local session = rfsuite.session
             local bcCache = batteryConfigCache
             if not bcCache.config then return end
 
@@ -386,10 +386,11 @@ local eventTable = {
 
             local avgVoltage = updateRollingAverage("voltage", cellVoltage, window)
 
-            local collective = session.rx.values['collective'] or 0
-            local aileron = session.rx.values['aileron'] or 0
-            local elevator = session.rx.values['elevator'] or 0
-            local rudder = session.rx.values['rudder'] or 0
+            local rxValues = rxState.getValues()
+            local collective = rxValues.collective or 0
+            local aileron = rxValues.aileron or 0
+            local elevator = rxValues.elevator or 0
+            local rudder = rxValues.rudder or 0
 
             local suppression = (rfsuite.preferences.general.gimbalsupression or 0.95) * 1024
             if math_abs(collective) > suppression or math_abs(aileron) > suppression or math_abs(elevator) > suppression or math_abs(rudder) > suppression then return end

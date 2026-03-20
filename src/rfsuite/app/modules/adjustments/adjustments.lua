@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local rxState = (rfsuite.shared and rfsuite.shared.rx) or assert(loadfile("shared/rx.lua"))()
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware"})
 
@@ -224,8 +225,7 @@ end
 
 local function auxIndexToMember(auxIndex)
     local idx = clamp(auxIndex or 0, 0, AUX_CHANNEL_COUNT_FALLBACK - 1)
-    local rx = rfsuite.session and rfsuite.session.rx
-    local map = rx and rx.map or nil
+    local map = rxState.getMap()
 
     if map then
         if idx == 0 and map.aux1 ~= nil then return map.aux1 end

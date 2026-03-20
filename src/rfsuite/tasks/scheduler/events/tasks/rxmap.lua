@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local rxState = (rfsuite.shared and rfsuite.shared.rx) or assert(loadfile("shared/rx.lua"))()
 
 local arg = {...}
 
@@ -16,7 +17,7 @@ local initialized = false
 local utils = rfsuite.utils
 
 local function initChannelSources()
-    local rxMap = rfsuite.session.rx.map
+    local rxMap = rxState.getMap()
     for _, name in ipairs(channelNames) do
         local member = rxMap[name]
         if member then
@@ -32,7 +33,7 @@ function rxmap.wakeup()
 
     if not initialized then initChannelSources() end
 
-    local values = rfsuite.session.rx.values
+    local values = rxState.getValues()
 
     for name, src in pairs(channelSources) do
         if src then

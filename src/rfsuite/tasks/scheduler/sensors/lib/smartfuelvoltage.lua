@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
+local rxState = (rfsuite.shared and rfsuite.shared.rx) or assert(loadfile("shared/rx.lua"))()
 
 local os_clock = os.clock
 local math_abs = math.abs
@@ -74,7 +75,7 @@ local function isVoltageStable()
 end
 
 local function getStickLoadFactor()
-    local rx = rfsuite.session.rx.values
+    local rx = rxState.getValues()
     if not rx then return 0 end
     local sum = 1.0 * math_abs(rx.aileron or 0) + 1.0 * math_abs(rx.elevator or 0) + 1.2 * math_abs(rx.collective or 0)
     return math_min(1.0, sum / 3000)

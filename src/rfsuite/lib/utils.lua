@@ -20,6 +20,7 @@ function utils.session()
     local blackboxState = rfsuite.shared and rfsuite.shared.blackbox
     local craftState = rfsuite.shared and rfsuite.shared.craft
     local modelPreferencesState = rfsuite.shared and rfsuite.shared.modelPreferences
+    local rxState = rfsuite.shared and rfsuite.shared.rx
     local telemetryConfigState = rfsuite.shared and rfsuite.shared.telemetryConfig
 
     local function prefBool(value, default)
@@ -121,6 +122,7 @@ function utils.session()
         if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
         if mspStatus and mspStatus.reset then mspStatus.reset() end
         if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
+        if rxState and rxState.reset then rxState.reset() end
         if telemetryConfigState and telemetryConfigState.reset then telemetryConfigState.reset() end
         rfsuite.session = session
         return session
@@ -206,6 +208,7 @@ function utils.session()
     if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
     if mspStatus and mspStatus.reset then mspStatus.reset() end
     if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
+    if rxState and rxState.reset then rxState.reset() end
     if telemetryConfigState and telemetryConfigState.reset then telemetryConfigState.reset() end
 
     return rfsuite.session
@@ -213,7 +216,9 @@ function utils.session()
 end
 
 function utils.rxmapReady()
-    if rfsuite.session.rx and rfsuite.session.rx.map and (rfsuite.session.rx.map.collective or rfsuite.session.rx.map.elevator or rfsuite.session.rx.map.throttle or rfsuite.session.rx.map.rudder) then return true end
+    local rxState = rfsuite.shared and rfsuite.shared.rx
+    local rxMap = rxState and rxState.getMap and rxState.getMap() or (rfsuite.session.rx and rfsuite.session.rx.map)
+    if rxMap and (rxMap.collective or rxMap.elevator or rxMap.throttle or rxMap.rudder) then return true end
     return false
 end
 
