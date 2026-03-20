@@ -447,7 +447,13 @@ function app.close()
     app.triggers.invalidConnectionSetup = false
     app.triggers.profileswitchLast = nil
 
-    if rfsuite.tasks.msp then rfsuite.tasks.msp.api.resetApidata() end
+    if rfsuite.tasks.msp and rfsuite.tasks.msp.api then
+        if rfsuite.tasks.msp.api.releaseAppMemory then
+            rfsuite.tasks.msp.api.releaseAppMemory()
+        else
+            rfsuite.tasks.msp.api.resetApidata()
+        end
+    end
     if app.runtime and app.runtime.reset then
         app.runtime.reset()
     end

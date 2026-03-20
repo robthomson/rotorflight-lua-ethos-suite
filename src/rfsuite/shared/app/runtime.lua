@@ -13,7 +13,9 @@ local runtime = {
     progressDialog = nil,
     lastPage = nil,
     telemetryStaticCache = nil,
-    mixerTrimsState = nil
+    mixerTrimsState = nil,
+    mixerLegacyTailState = nil,
+    governorGeneralState = nil
 }
 
 function runtime.reset()
@@ -21,6 +23,8 @@ function runtime.reset()
     runtime.lastPage = nil
     runtime.telemetryStaticCache = nil
     runtime.mixerTrimsState = nil
+    runtime.mixerLegacyTailState = nil
+    runtime.governorGeneralState = nil
     return runtime
 end
 

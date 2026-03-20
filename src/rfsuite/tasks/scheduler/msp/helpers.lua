@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local system = system
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 
 -- Optimized locals to reduce global/table lookups
@@ -12,8 +13,9 @@ local utils = rfsuite.utils
 local helpers = {}
 
 function helpers.governorMode(callback)
-    
-    if (rfsuite.session.governorMode == nil ) then
+    local currentMode = flightState.getGovernorMode()
+
+    if currentMode == nil then
         local msp = rfsuite.tasks.msp
         local API = msp and msp.api.load("GOVERNOR_CONFIG")
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
@@ -22,13 +24,12 @@ function helpers.governorMode(callback)
             if governorMode then 
                 utils.log("Governor mode: " .. governorMode, "debug") 
             end
-            rfsuite.session.governorMode = governorMode
-            if callback then callback(governorMode) end
+            if callback then callback(flightState.setGovernorMode(governorMode)) end
         end)
         API.setUUID("e2a1c5b3-7f4a-4c8e-9d2a-3b6f8e2d9a1c")
         API.read()
     else
-        if callback then callback(rfsuite.session.governorMode) end    
+        if callback then callback(currentMode) end
     end
 end
 
@@ -120,32 +121,36 @@ function helpers.servoBusEnabled(callback)
 end
 
 function helpers.mixerConfig(callback)
-    if (rfsuite.session.tailMode == nil or rfsuite.session.swashMode == nil) then
+    local tailMode = flightState.getTailMode()
+    local swashMode = flightState.getSwashMode()
+
+    if tailMode == nil or swashMode == nil then
         local msp = rfsuite.tasks.msp
         local API = msp and msp.api.load("MIXER_CONFIG")
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
-            rfsuite.session.tailMode = API.readValue("tail_rotor_mode")
-            rfsuite.session.swashMode = API.readValue("swash_type")
+            local resolvedTailMode = API.readValue("tail_rotor_mode")
+            local resolvedSwashMode = API.readValue("swash_type")
             if system and system.getVersion and system.getVersion().simulation then
                 local dev = rfsuite.preferences and rfsuite.preferences.developer
                 local override = dev and dev.tailmode_override
                 override = tonumber(override)
                 if override == 0 or override == 1 then
-                    rfsuite.session.tailMode = override
+                    resolvedTailMode = override
                     utils.log("Tail mode override (developer): " .. tostring(override), "debug")
                 end
             end
-            if rfsuite.session.tailMode and rfsuite.session.swashMode then
-                utils.log("Tail mode: " .. rfsuite.session.tailMode, "debug")
-                utils.log("Swash mode: " .. rfsuite.session.swashMode, "debug")
+            resolvedTailMode, resolvedSwashMode = flightState.setMixerConfig(resolvedTailMode, resolvedSwashMode)
+            if resolvedTailMode and resolvedSwashMode then
+                utils.log("Tail mode: " .. resolvedTailMode, "debug")
+                utils.log("Swash mode: " .. resolvedSwashMode, "debug")
             end
-            if callback then callback(rfsuite.session.tailMode,rfsuite.session.swashMode) end
+            if callback then callback(resolvedTailMode, resolvedSwashMode) end
         end)
         API.setUUID("fbccd634-c9b7-4b48-8c02-08ef560dc515")
         API.read()
     else
-        if callback then callback(rfsuite.session.tailMode,rfsuite.session.swashMode) end    
+        if callback then callback(tailMode, swashMode) end
     end
 end
 

@@ -47,6 +47,7 @@ rfsuite.shared.session = assert(loadfile("shared/session.lua"))()
 rfsuite.session = rfsuite.shared.session
 rfsuite.shared.app = assert(loadfile("shared/app/runtime.lua"))()
 rfsuite.shared.activelook = assert(loadfile("shared/activelook.lua"))()
+rfsuite.shared.flight = assert(loadfile("shared/flight.lua"))()
 
 rfsuite.ini = assert(loadfile("lib/ini.lua", "t", _ENV))(config)
 

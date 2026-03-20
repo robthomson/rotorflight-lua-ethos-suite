@@ -4,11 +4,13 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
 local focused = false
 local mixerCompatibilityStatus = false
+local configRequestPending = false
 
 local MIXER_PITCH_RATE
 local MIXER_PITCH_MIN
@@ -76,6 +78,8 @@ return {
     onOpenPost = function()
         focused = false
         mixerCompatibilityStatus = false
+        configRequestPending = false
+        initTime = os.clock()
         MIXER_PITCH_RATE = nil
         MIXER_PITCH_MIN = nil
         MIXER_PITCH_MAX = nil
@@ -100,9 +104,14 @@ return {
             return true
         end
 
-        if rfsuite.session.tailMode == nil or rfsuite.session.swashMode == nil then
+        if flightState.getTailMode() == nil or flightState.getSwashMode() == nil then
             if rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.helpers then
+                if configRequestPending then
+                    return true
+                end
+                configRequestPending = true
                 rfsuite.tasks.msp.helpers.mixerConfig(function(tailMode, swashMode)
+                    configRequestPending = false
                     rfsuite.utils.log("Received tail mode: " .. tostring(tailMode), "info")
                     rfsuite.utils.log("Received swash mode: " .. tostring(swashMode), "info")
                 end)

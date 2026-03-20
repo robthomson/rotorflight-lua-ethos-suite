@@ -35,7 +35,9 @@ api._helpDataCache = {}
 api._deltaCacheDefault = true
 api._deltaCacheByApi = {}
 api._ported = {}
+api._store = nil
 api.apidata = {}
+api.retainedData = {}
 api._core = nil
 api._factory = nil
 
@@ -43,6 +45,39 @@ local defaultApiPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/schedule
 local defaultApiHelpPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/apihelp/"
 local defaultCorePath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/shared/msp/api/core.lua"
 local defaultFactoryPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/shared/msp/api/factory.lua"
+local defaultStorePath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/shared/msp/store.lua"
+
+local function ensureApidata()
+    local d
+
+    if not api._store then
+        local storeLoader, err = loadfile(defaultStorePath)
+        if storeLoader then
+            api._store = storeLoader()
+            rfsuite.shared = rfsuite.shared or {}
+            rfsuite.shared.mspstore = api._store
+        else
+            utils.log("[mspstore] load failed: " .. tostring(err), "info")
+        end
+    end
+
+    if api._store and api._store.getPage then
+        api.apidata = api._store.getPage()
+        api.retainedData = api._store.getRetained and api._store.getRetained() or api.retainedData
+        return api.apidata
+    end
+
+    d = api.apidata
+    d.values = d.values or {}
+    d.structure = d.structure or {}
+    d.receivedBytesCount = d.receivedBytesCount or {}
+    d.receivedBytes = d.receivedBytes or {}
+    d.positionmap = d.positionmap or {}
+    d.other = d.other or {}
+    d._lastReadMode = d._lastReadMode or {}
+    d._lastWriteMode = d._lastWriteMode or {}
+    return d
+end
 
 local function logApiIo(apiName, op, source)
     if not (utils and utils.log) then return end
@@ -78,6 +113,7 @@ local function attachSharedApiObjects()
     local tasks = rfsuite and rfsuite.tasks
     local msp = tasks and tasks.msp
 
+    ensureApidata()
     if msp then
         if api._core then
             msp.apicore = api._core
@@ -421,6 +457,7 @@ function api.load(apiName, loadOpts)
     module.enableDeltaCache = function(enable) api.setApiDeltaCache(apiName, enable) end
     module.isDeltaCacheEnabled = function() return api.isDeltaCacheEnabled(apiName) end
 
+    ensureApidata()
     attachSharedApiObjects()
     return module
 end
@@ -429,7 +466,7 @@ function api.clearEntry(apiName)
     local d
     if type(apiName) ~= "string" or apiName == "" then return false end
 
-    d = api.apidata
+    d = ensureApidata()
     if type(d) == "table" then
         if d.values then d.values[apiName] = nil end
         if d.structure then d.structure[apiName] = nil end
@@ -445,28 +482,32 @@ function api.clearEntry(apiName)
 end
 
 function api.resetApidata()
-    local d = api.apidata
+    local d
+    local k
 
-    if d.values then
-        for k in pairs(d.values) do d.values[k] = nil end
-    end
-    if d.structure then
-        for k in pairs(d.structure) do d.structure[k] = nil end
-    end
-    if d.receivedBytesCount then
-        for k in pairs(d.receivedBytesCount) do d.receivedBytesCount[k] = nil end
-    end
-    if d.receivedBytes then
-        for k in pairs(d.receivedBytes) do d.receivedBytes[k] = nil end
-    end
-    if d.positionmap then
-        for k in pairs(d.positionmap) do d.positionmap[k] = nil end
-    end
-    if d.other then
-        for k in pairs(d.other) do d.other[k] = nil end
+    if api._store and api._store.resetPage then
+        api._store.resetPage()
+        api.apidata = api._store.getPage()
+        return api.apidata
     end
 
-    api.apidata = {}
+    d = ensureApidata()
+    if d.values then for k in pairs(d.values) do d.values[k] = nil end end
+    if d.structure then for k in pairs(d.structure) do d.structure[k] = nil end end
+    if d.receivedBytesCount then for k in pairs(d.receivedBytesCount) do d.receivedBytesCount[k] = nil end end
+    if d.receivedBytes then for k in pairs(d.receivedBytes) do d.receivedBytes[k] = nil end end
+    if d.positionmap then for k in pairs(d.positionmap) do d.positionmap[k] = nil end end
+    if d.other then for k in pairs(d.other) do d.other[k] = nil end end
+    if d._lastReadMode then for k in pairs(d._lastReadMode) do d._lastReadMode[k] = nil end end
+    if d._lastWriteMode then for k in pairs(d._lastWriteMode) do d._lastWriteMode[k] = nil end end
+    return d
+end
+
+function api.releaseAppMemory()
+    api.resetApidata()
+    api.clearHelpCache()
+    api.clearChunkCache()
+    api.clearFileExistsCache()
 end
 
 function api.getFieldHelp(apiName, fieldName)
@@ -497,6 +538,8 @@ end
 rfsuite.shared = rfsuite.shared or {}
 rfsuite.shared.mspapi = api
 rfsuite.mspapi = api
+api.ensureApidata = ensureApidata
+ensureApidata()
 package.loaded[API_SINGLETON_KEY] = api
 
 return api
