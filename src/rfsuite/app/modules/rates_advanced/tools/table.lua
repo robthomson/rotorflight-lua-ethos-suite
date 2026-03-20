@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware"})
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local rfutils = rfsuite.utils
@@ -15,7 +16,19 @@ local extraMsgOnSave = nil
 local resetRates = false
 local doFullReload = false
 
-if rfsuite.session.activeRateTable == nil then rfsuite.session.activeRateTable = rfsuite.config.defaultRateProfile end
+local function getActiveRateTable()
+    local activeRateTable = appRuntime and appRuntime.ratesActiveTable
+    if activeRateTable == nil then
+        activeRateTable = rfsuite.config.defaultRateProfile
+        if appRuntime then appRuntime.ratesActiveTable = activeRateTable end
+    end
+    return activeRateTable
+end
+
+local function setActiveRateTable(value)
+    if appRuntime then appRuntime.ratesActiveTable = value end
+    return value
+end
 
 local apidata = {
         api = {
@@ -121,7 +134,8 @@ local function postLoad(self)
         return
     end
 
-    local activeRateTable = tonumber(rfsuite.session.activeRateTable) or rfsuite.session.activeRateTable
+    local activeRateTableRaw = getActiveRateTable()
+    local activeRateTable = tonumber(activeRateTableRaw) or activeRateTableRaw
     local requestedRateTable = tonumber(v) or v
 
     rfsuite.utils.log("Active Rate Table: " .. tostring(activeRateTable), "debug")
@@ -129,7 +143,7 @@ local function postLoad(self)
     if requestedRateTable ~= activeRateTable then
         rfsuite.utils.log("Switching Rate Table: " .. tostring(requestedRateTable), "info")
         rfsuite.app.triggers.reloadFull = true
-        rfsuite.session.activeRateTable = requestedRateTable
+        setActiveRateTable(requestedRateTable)
         return
     end
 
@@ -157,7 +171,7 @@ end
 
 local function flagRateChange(self)
 
-    if math.floor(rfsuite.app.Page.apidata.formdata.fields[1].value) == math.floor(rfsuite.session.activeRateTable) then
+    if math.floor(rfsuite.app.Page.apidata.formdata.fields[1].value) == math.floor(getActiveRateTable()) then
         self.extraMsgOnSave = nil
         rfsuite.app.ui.enableAllFields()
         resetRates = false

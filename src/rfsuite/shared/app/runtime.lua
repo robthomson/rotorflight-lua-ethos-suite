@@ -21,6 +21,7 @@ local runtime = {
     profileGovernorGeneralState = nil,
     profileGovernorFlagsState = nil,
     servoTableLast = nil,
+    ratesActiveTable = nil,
     showBatteryTypeStartup = nil,
     showConfirmationDialog = nil,
     dashboardBatteryDialogShown = false
@@ -44,6 +45,7 @@ function runtime.reset()
     runtime.profileGovernorGeneralState = nil
     runtime.profileGovernorFlagsState = nil
     runtime.servoTableLast = nil
+    runtime.ratesActiveTable = nil
     runtime.showBatteryTypeStartup = prefBool(prefs.show_battery_profile_startup, true)
     runtime.showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
     runtime.dashboardBatteryDialogShown = false

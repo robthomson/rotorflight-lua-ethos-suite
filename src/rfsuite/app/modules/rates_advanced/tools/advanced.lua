@@ -7,12 +7,25 @@ local rfsuite = require("rfsuite")
 local lcd = lcd
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware"})
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local activateWakeup = false
 local doFullReload = false
 
-if rfsuite.session.activeRateTable == nil then rfsuite.session.activeRateTable = rfsuite.config.defaultRateProfile end
+local function getActiveRateTable()
+    local activeRateTable = appRuntime and appRuntime.ratesActiveTable
+    if activeRateTable == nil then
+        activeRateTable = rfsuite.config.defaultRateProfile
+        if appRuntime then appRuntime.ratesActiveTable = activeRateTable end
+    end
+    return activeRateTable
+end
+
+local function setActiveRateTable(value)
+    if appRuntime then appRuntime.ratesActiveTable = value end
+    return value
+end
 
 local rows
 if rfsuite.utils.apiVersionCompare(">=", {12, 0, 8}) then
@@ -156,7 +169,7 @@ local function openPage(opts)
     local posX = screenWidth - paddingRight
     local posY = paddingTop
 
-    rfsuite.session.colWidth = w - paddingRight
+    local colWidth = w - paddingRight
 
     local c = 1
     while loc > 0 do
@@ -167,7 +180,7 @@ local function openPage(opts)
 
         lcd.font(FONT_STD)
 
-        colLabel = rightAlignText(rfsuite.session.colWidth, colLabel)
+        colLabel = rightAlignText(colWidth, colLabel)
 
         local posTxt = positions_r[c] + paddingRight
 
@@ -229,7 +242,8 @@ local function postLoad(self)
         return
     end
 
-    local activeRateTable = tonumber(rfsuite.session.activeRateTable) or rfsuite.session.activeRateTable
+    local activeRateTableRaw = getActiveRateTable()
+    local activeRateTable = tonumber(activeRateTableRaw) or activeRateTableRaw
     local requestedRateTable = tonumber(v) or v
 
     rfsuite.utils.log("Active Rate Table: " .. tostring(activeRateTable), "debug")
@@ -237,7 +251,7 @@ local function postLoad(self)
     if requestedRateTable ~= activeRateTable then
         rfsuite.utils.log("Switching Rate Table: " .. tostring(requestedRateTable), "info")
         rfsuite.app.triggers.reloadFull = true
-        rfsuite.session.activeRateTable = requestedRateTable
+        setActiveRateTable(requestedRateTable)
         return
     end
 

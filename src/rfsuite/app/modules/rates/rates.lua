@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local lcd = lcd
 local rfutils = rfsuite.utils
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local tables = {}
@@ -47,10 +48,23 @@ tables[4] = "app/modules/rates/ratetables/actual.lua"
 tables[5] = "app/modules/rates/ratetables/quick.lua"
 tables[6] = "app/modules/rates/ratetables/rotorflight.lua"
 
-if rfsuite.session.activeRateTable == nil then rfsuite.session.activeRateTable = rfsuite.config.defaultRateProfile end
+local function getActiveRateTable()
+    local activeRateTable = appRuntime and appRuntime.ratesActiveTable
+    if activeRateTable == nil then
+        activeRateTable = rfsuite.config.defaultRateProfile
+        if appRuntime then appRuntime.ratesActiveTable = activeRateTable end
+    end
+    return activeRateTable
+end
 
-rfsuite.utils.log("Loading Rate Table: " .. tables[rfsuite.session.activeRateTable], "debug")
-apidata = assert(loadfile(tables[rfsuite.session.activeRateTable]))()
+local function setActiveRateTable(value)
+    if appRuntime then appRuntime.ratesActiveTable = value end
+    return value
+end
+
+local initialRateTable = getActiveRateTable()
+rfsuite.utils.log("Loading Rate Table: " .. tables[initialRateTable], "debug")
+apidata = assert(loadfile(tables[initialRateTable]))()
 local mytable = apidata.formdata
 
 local function postLoad(self)
@@ -64,7 +78,7 @@ local function postLoad(self)
         return
     end
 
-    local activeRateTable = tonumber(rfsuite.session.activeRateTable) or rfsuite.session.activeRateTable
+    local activeRateTable = tonumber(getActiveRateTable()) or getActiveRateTable()
     local requestedRateTable = tonumber(v) or v
 
     rfsuite.utils.log("Active Rate Table: " .. tostring(activeRateTable), "debug")
@@ -72,7 +86,7 @@ local function postLoad(self)
     if requestedRateTable ~= activeRateTable then
         rfsuite.utils.log("Switching Rate Table: " .. tostring(requestedRateTable), "info")
         rfsuite.app.triggers.reloadFull = true
-        rfsuite.session.activeRateTable = requestedRateTable
+        setActiveRateTable(requestedRateTable)
         return
     end
 
@@ -140,7 +154,7 @@ local function openPage(opts)
     local posX = screenWidth - paddingRight
     local posY = paddingTop
 
-    rfsuite.session.colWidth = w - paddingRight
+    local colWidth = w - paddingRight
 
     while loc > 0 do
         local colLabel = rfsuite.app.Page.apidata.formdata.cols[loc]
@@ -149,7 +163,7 @@ local function openPage(opts)
 
         lcd.font(FONT_STD)
 
-        colLabel = rightAlignText(rfsuite.session.colWidth, colLabel)
+        colLabel = rightAlignText(colWidth, colLabel)
 
         local posTxt = positions[loc] + paddingRight
 
@@ -249,7 +263,7 @@ local function onHelpMenu()
 
     local helpPath = "app/modules/rates/help.lua"
     local help = assert(loadfile(helpPath))()
-    rfsuite.app.ui.openPageHelp(help.help["table"][rfsuite.session.activeRateTable])
+    rfsuite.app.ui.openPageHelp(help.help["table"][getActiveRateTable()])
 
 end
 
