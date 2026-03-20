@@ -170,7 +170,7 @@ local function postLoad(self)
         end
     end
 
-    local activeType = clampProfileIndex((flightState.getActiveBatteryType and flightState.getActiveBatteryType()) or rfsuite.session.activeBatteryType)
+    local activeType = clampProfileIndex(flightState.getActiveBatteryType and flightState.getActiveBatteryType())
     local editingType = activeType
     if editingType == nil then
         editingType = clampProfileIndex(getFieldValue(self, "batteryProfile")) or 0
@@ -188,7 +188,7 @@ end
 local function wakeup(self)
     if enableWakeup == false then return end
 
-    local activeType = clampProfileIndex((flightState.getActiveBatteryType and flightState.getActiveBatteryType()) or rfsuite.session.activeBatteryType)
+    local activeType = clampProfileIndex(flightState.getActiveBatteryType and flightState.getActiveBatteryType())
     local editingType = clampProfileIndex(getFieldValue(self, "batteryProfile"))
     local needsInvalidate = false
 

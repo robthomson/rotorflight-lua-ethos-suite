@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local lcd = lcd
 
 local function loadMask(path)
@@ -35,6 +36,8 @@ end
 local function buildServoTable()
     servoTable = {}
     servoTable['sections'] = {}
+    local swashMode = flightState.getSwashMode and flightState.getSwashMode()
+    local tailMode = flightState.getTailMode and flightState.getTailMode()
 
     local totalServoCount = tonumber(rfsuite.session.servoCount or 0) or 0
     pwmServoCount = totalServoCount
@@ -61,16 +64,16 @@ local function buildServoTable()
 
         servoTable[i]['disabled'] = false
 
-        if rfsuite.session.swashMode == 0 then
+        if swashMode == 0 then
 
-        elseif rfsuite.session.swashMode == 1 then
+        elseif swashMode == 1 then
 
-            if rfsuite.session.tailMode == 0 then
+            if tailMode == 0 then
                 servoTable[4]['title'] = "@i18n(app.modules.servos.tail)@"
                 servoTable[4]['image'] = "tail.png"
                 servoTable[4]['section'] = 1
             end
-        elseif rfsuite.session.swashMode == 2 or rfsuite.session.swashMode == 3 or rfsuite.session.swashMode == 4 then
+        elseif swashMode == 2 or swashMode == 3 or swashMode == 4 then
 
             servoTable[1]['title'] = "@i18n(app.modules.servos.cyc_pitch)@"
             servoTable[1]['image'] = "cpitch.png"
@@ -81,7 +84,7 @@ local function buildServoTable()
             servoTable[3]['title'] = "@i18n(app.modules.servos.cyc_right)@"
             servoTable[3]['image'] = "cright.png"
 
-            if rfsuite.session.tailMode == 0 then
+            if tailMode == 0 then
 
                 if servoTable[4] == nil then servoTable[4] = {} end
                 servoTable[4]['title'] = "@i18n(app.modules.servos.tail)@"
@@ -89,9 +92,9 @@ local function buildServoTable()
             else
 
             end
-        elseif rfsuite.session.swashMode == 5 or rfsuite.session.swashMode == 6 then
+        elseif swashMode == 5 or swashMode == 6 then
 
-            if rfsuite.session.tailMode == 0 then
+            if tailMode == 0 then
                 servoTable[4]['title'] = "@i18n(app.modules.servos.tail)@"
                 servoTable[4]['image'] = "tail.png"
             else
@@ -102,20 +105,21 @@ local function buildServoTable()
 end
 
 local function swashMixerType()
+    local swashMode = flightState.getSwashMode and flightState.getSwashMode()
     local txt
-    if rfsuite.session.swashMode == 0 then
+    if swashMode == 0 then
         txt = "NONE"
-    elseif rfsuite.session.swashMode == 1 then
+    elseif swashMode == 1 then
         txt = "DIRECT"
-    elseif rfsuite.session.swashMode == 2 then
+    elseif swashMode == 2 then
         txt = "CPPM 120°"
-    elseif rfsuite.session.swashMode == 3 then
+    elseif swashMode == 3 then
         txt = "CPPM 135°"
-    elseif rfsuite.session.swashMode == 4 then
+    elseif swashMode == 4 then
         txt = "CPPM 140°"
-    elseif rfsuite.session.swashMode == 5 then
+    elseif swashMode == 5 then
         txt = "FPPM 90° L"
-    elseif rfsuite.session.swashMode == 6 then
+    elseif swashMode == 6 then
         txt = "FPPM 90° R"
     else
         txt = "UNKNOWN"

@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local enableWakeup = false
 local triggerSave = false
@@ -30,14 +31,12 @@ local LAYOUT
 -- handler for tail mode change
 -- needs to be up here or we get a nil reference
 local function tailChanged()
-
-    rfsuite.session.tailMode = FORMDATA[LAYOUTINDEX.TAIL_ROTOR_MODE]
-
+    flightState.setMixerConfig(FORMDATA[LAYOUTINDEX.TAIL_ROTOR_MODE], nil)
     needsReboot = true
 end
 
 local function isTailMotorizedMode()
-    return (tonumber(rfsuite.session.tailMode) or -1) >= 1
+    return (tonumber(flightState.getTailMode and flightState.getTailMode()) or -1) >= 1
 end
 
 if isTailMotorizedMode() then
@@ -512,7 +511,7 @@ local function wakeup()
     end 
 
     -- we are compromised without this - go back to main
-    if rfsuite.session.tailMode == nil then
+    if flightState.getTailMode() == nil then
         pageRuntime.openMenuContext()
         return
     end    

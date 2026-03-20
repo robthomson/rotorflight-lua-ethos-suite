@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local activateWakeup = false
 
@@ -149,10 +150,11 @@ end
 
 local function wakeup()
     if activateWakeup == true and rfsuite.tasks.msp.mspQueue:isProcessed() then
-        if rfsuite.session.activeProfile ~= nil then
+        local activeProfile = flightState.getActiveProfile and flightState.getActiveProfile()
+        if activeProfile ~= nil then
             local titleField = rfsuite.app.formFields['title']
             if titleField then
-                rfsuite.app.ui.setHeaderTitle(rfsuite.app.Page.title .. " #" .. rfsuite.session.activeProfile)
+                rfsuite.app.ui.setHeaderTitle(rfsuite.app.Page.title .. " #" .. activeProfile)
             end
         end
     end

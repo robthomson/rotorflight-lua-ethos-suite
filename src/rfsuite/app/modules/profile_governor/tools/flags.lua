@@ -83,7 +83,7 @@ local function wakeup()
         return
     end
 
-    local activeProfile = rfsuite.session and rfsuite.session.activeProfile
+    local activeProfile = flightState.getActiveProfile and flightState.getActiveProfile()
     if activeProfile ~= nil then
         local baseTitle = rfsuite.app.lastTitle or (rfsuite.app.Page and rfsuite.app.Page.title) or ""
         rfsuite.app.ui.setHeaderTitle(baseTitle .. " #" .. activeProfile, nil, rfsuite.app.Page and rfsuite.app.Page.navButtons)

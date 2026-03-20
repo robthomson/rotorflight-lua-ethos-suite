@@ -4,9 +4,9 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local enableWakeup = false
-local session = rfsuite.session
 
 local apidata = {
     api = {
@@ -32,7 +32,7 @@ local function enableFields() for i, _ in ipairs(rfsuite.app.formFields) do if t
 
 local function setGovernorMode(self)
     local currentIndex = math.floor(rfsuite.app.Page.apidata.formdata.fields[1].value)
-    session.governorMode = currentIndex
+    flightState.setGovernorMode(currentIndex)
     rfsuite.utils.log("Governor mode set to: " .. currentIndex, "info")
     if currentIndex == 0 then
         disableFields()
@@ -50,9 +50,9 @@ end
 
 local function postSave(self)
 
-    if session.governorMode ~= rfsuite.app.Page.apidata.formdata.fields[1].value then
-        session.governorMode = rfsuite.app.Page.apidata.formdata.fields[1].value
-        rfsuite.utils.log("Governor mode: " .. session.governorMode, "info")
+    if flightState.getGovernorMode() ~= rfsuite.app.Page.apidata.formdata.fields[1].value then
+        local updatedMode = flightState.setGovernorMode(rfsuite.app.Page.apidata.formdata.fields[1].value)
+        rfsuite.utils.log("Governor mode: " .. tostring(updatedMode), "info")
     end
     return payload
 end
@@ -61,7 +61,7 @@ local function wakeup(self)
     if not enableWakeup then return end
 
 
-    if session.governorMode == nil then
+    if flightState.getGovernorMode() == nil then
         if tasks and tasks.msp and tasks.msp.helpers then
             tasks.msp.helpers.governorMode(function(governorMode)
                 utils.log("Received governor mode: " .. tostring(governorMode), "info")

@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local lcd = lcd
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local function loadMask(path)
     local ui = rfsuite.app and rfsuite.app.ui
@@ -380,7 +381,7 @@ local function ensureTailMode(callback)
         end)
         return
     end
-    if callback then callback(rfsuite.session and rfsuite.session.tailMode or nil) end
+    if callback then callback(flightState.getTailMode and flightState.getTailMode() or nil) end
 end
 
 local function isPostConnectComplete()

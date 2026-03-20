@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 local lcd = lcd
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware"})
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local activateWakeup = false
 local doFullReload = false
@@ -247,7 +248,7 @@ end
 local function wakeup()
     if activateWakeup and rfsuite.tasks.msp.mspQueue:isProcessed() then
 
-        local activeRateProfile = rfsuite.session and rfsuite.session.activeRateProfile
+        local activeRateProfile = flightState.getActiveRateProfile and flightState.getActiveRateProfile()
         if activeRateProfile ~= nil then
             local baseTitle = rfsuite.app.lastTitle or (rfsuite.app.Page and rfsuite.app.Page.title) or ""
             baseTitle = tostring(baseTitle):gsub("%s+#%d+$", "")

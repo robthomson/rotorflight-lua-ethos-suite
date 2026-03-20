@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local lcd = lcd
 local rfutils = rfsuite.utils
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local tables = {}
 
@@ -196,7 +197,7 @@ local function openPage(opts)
                     return nil
                 end
                 local value
-                if rfsuite.session.activeRateProfile == 0 then
+                if flightState.getActiveRateProfile and flightState.getActiveRateProfile() == 0 then
                     value = 0
                 else
                     value = rfsuite.app.utils.getFieldValue(fields[i])
@@ -235,7 +236,7 @@ end
 
 local function wakeup()
     if activateWakeup == true and rfsuite.tasks.msp.mspQueue:isProcessed() then
-        local activeRateProfile = rfsuite.session and rfsuite.session.activeRateProfile
+        local activeRateProfile = flightState.getActiveRateProfile and flightState.getActiveRateProfile()
         if activeRateProfile ~= nil and rfsuite.app.formFields['title'] then
             local baseTitle = rfsuite.app.lastTitle or (rfsuite.app.Page and rfsuite.app.Page.title) or ""
             baseTitle = tostring(baseTitle):gsub("%s+#%d+$", "")

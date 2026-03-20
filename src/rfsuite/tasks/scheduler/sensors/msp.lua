@@ -172,7 +172,6 @@ local msp_sensors = {
         interval_disarmed = 10,
         fields = {
             gov_mode ={
-                sessionname = {"governorMode"},
                 sensorname = "Governor Mode",
                 appId = 0x5FFC,
                 unit = UNIT_RAW

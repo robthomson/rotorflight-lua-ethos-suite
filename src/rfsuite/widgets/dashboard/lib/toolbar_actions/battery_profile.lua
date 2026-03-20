@@ -93,7 +93,7 @@ end
 local function setBatteryType(typeIndex, profileName)
     if not rfsuite.session.isConnected then return end
 
-    local activeBatteryType = flightState.getActiveBatteryType and flightState.getActiveBatteryType() or rfsuite.session.activeBatteryType
+    local activeBatteryType = flightState.getActiveBatteryType and flightState.getActiveBatteryType()
     if typeIndex == activeBatteryType then
         if rfsuite.session.showConfirmationDialog then
             form.openDialog({

@@ -106,7 +106,7 @@ local function smartFuelCalc()
     local bc = rfsuite.session.batteryConfig
 
     local packCapacity = bc.batteryCapacity
-    local activeProfile = flightState.getActiveBatteryType and flightState.getActiveBatteryType() or rfsuite.session.activeBatteryType
+    local activeProfile = flightState.getActiveBatteryType and flightState.getActiveBatteryType()
     if activeProfile and bc.profiles and bc.profiles[activeProfile] then
         local pCap = bc.profiles[activeProfile]
         if pCap and pCap > 0 then

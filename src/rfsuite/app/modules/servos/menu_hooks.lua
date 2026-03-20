@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local MENU_ID = {PWM = 1, BUS = 2}
 
@@ -38,7 +39,7 @@ local function requestServoInfoChain()
         return
     end
 
-    if session.tailMode == nil or session.swashMode == nil then
+    if flightState.getTailMode() == nil or flightState.getSwashMode() == nil then
         chainInFlight = true
         msp.helpers.mixerConfig(function(tailMode, swashMode)
             rfsuite.utils.log("Received tail mode: " .. tostring(tailMode), "info")
@@ -76,8 +77,8 @@ return {
         if not fieldFocusSet and
             rfsuite.session.servoCount ~= nil and
             rfsuite.session.servoOverride ~= nil and
-            rfsuite.session.tailMode ~= nil and
-            rfsuite.session.swashMode ~= nil and
+            flightState.getTailMode() ~= nil and
+            flightState.getSwashMode() ~= nil and
             rfsuite.session.servoBusEnabled ~= nil then
 
             if rfsuite.app.formFields[MENU_ID.PWM] then

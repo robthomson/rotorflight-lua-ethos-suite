@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local arg = {...}
 
@@ -462,7 +463,7 @@ local eventTable = {
             local key = "governor"
             if value == lastValues[key] then return end
             local session = rfsuite.session
-            if not session.isArmed or session.governorMode == 0 then return end
+            if not session.isArmed or flightState.getGovernorMode() == 0 then return end
             local filename = governorMap[math_floor(value)]
             if filename then utils.playFile("events", "gov/" .. filename) end
         end
@@ -504,7 +505,7 @@ local eventTable = {
 function telemetry.wakeup()
 
     -- we need governor mode for some events
-    if rfsuite.session.governorMode == nil then
+    if flightState.getGovernorMode() == nil then
         if rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.helpers then
             rfsuite.tasks.msp.helpers.governorMode(function(governorMode)
                 utils.log("Telemetry event Received governor mode: " .. tostring(governorMode), "info")

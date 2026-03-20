@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local lcd = lcd
 local system = system
 local app = rfsuite.app
@@ -210,7 +211,7 @@ local function wakeup()
     if enableWakeup == false then return end
 
     -- we are compromised if we don't have governor mode known
-    if session.governorMode == nil then
+    if flightState.getGovernorMode() == nil then
         pageRuntime.openMenuContext({defaultSection = "hardware"})
         return
     end

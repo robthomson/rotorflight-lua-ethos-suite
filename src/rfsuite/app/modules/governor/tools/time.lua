@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware", showProgress = true})
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local apidata = {
     api = {[1] = 'GOVERNOR_CONFIG'},
@@ -32,7 +33,7 @@ end
 
 local function wakeup()
     -- we are compromised if we don't have governor mode known
-    if rfsuite.session.governorMode == nil then
+    if flightState.getGovernorMode() == nil then
         pageRuntime.openMenuContext({defaultSection = "hardware"})
         return
     end
