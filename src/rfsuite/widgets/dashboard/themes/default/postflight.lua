@@ -46,8 +46,9 @@ local function getThemeValue(key)
         end
     end
 
-    if rfsuite and rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences[theme_section] then
-        local val = rfsuite.session.modelPreferences[theme_section][key]
+    local prefs = utils.getModelPreferences()
+    if prefs and prefs[theme_section] then
+        local val = prefs[theme_section][key]
         val = tonumber(val)
         if val ~= nil then return val end
     end

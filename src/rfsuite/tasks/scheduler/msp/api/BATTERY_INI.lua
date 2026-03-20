@@ -4,6 +4,8 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 local msp = rfsuite.tasks and rfsuite.tasks.msp
 local core = (msp and msp.apicore) or assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api/core.lua"))()
 if msp and not msp.apicore then msp.apicore = core end
@@ -11,7 +13,6 @@ local factory = (msp and msp.apifactory) or assert(loadfile("SCRIPTS:/" .. rfsui
 if msp and not msp.apifactory then msp.apifactory = factory end
 
 local API_NAME = "BATTERY_INI"
-local INI_FILE = "SCRIPTS:/" .. rfsuite.config.preferences .. "/models/" .. rfsuite.session.mcu_id .. ".ini"
 local INI_SECTION = "battery"
 
 local ini = rfsuite.ini
@@ -21,6 +22,12 @@ local ipairs = ipairs
 local offOn = {"@i18n(api.BATTERY_INI.tbl_off)@", "@i18n(api.BATTERY_INI.tbl_on)@"}
 local alertTypes = {"@i18n(api.BATTERY_INI.alert_off)@", "@i18n(api.BATTERY_INI.alert_bec)@", "@i18n(api.BATTERY_INI.alert_rxbatt)@"}
 local modelTypes = {"@i18n(api.BATTERY_INI.tbl_auto)@", "@i18n(api.BATTERY_INI.tbl_electric)@", "@i18n(api.BATTERY_INI.tbl_nitro)@"}
+
+local function getIniFile()
+    local mcuId = connectionState.getMcuId()
+    if not mcuId then return nil end
+    return "SCRIPTS:/" .. rfsuite.config.preferences .. "/models/" .. mcuId .. ".ini"
+end
 
 -- LuaFormatter off
 local MSP_API_STRUCTURE_READ_DATA = {
@@ -37,7 +44,8 @@ local MSP_API_STRUCTURE_READ_DATA = {
 local READ_STRUCT = core.prepareStructureData(MSP_API_STRUCTURE_READ_DATA)
 
 local function loadParsedFromINI()
-    local tbl = ini.load_ini_file(INI_FILE) or {}
+    local iniFile = getIniFile()
+    local tbl = (iniFile and ini.load_ini_file(iniFile)) or {}
     local parsed = {}
 
     for _, entry in ipairs(MSP_API_STRUCTURE_READ_DATA) do
@@ -76,19 +84,26 @@ return factory.create({
         local msg = "@i18n(app.modules.profile_select.save_prompt_local)@"
         rfsuite.app.ui.progressDisplaySave(msg:gsub("%?$", "."))
 
-        local tbl = ini.load_ini_file(INI_FILE) or {}
+        local iniFile = getIniFile()
+        if not iniFile then
+            emitError(nil, "Missing MCU ID for BATTERY_INI")
+            return false, "Missing MCU ID for BATTERY_INI"
+        end
+
+        local tbl = ini.load_ini_file(iniFile) or {}
+        local modelPrefs = modelPreferencesState.get()
 
         for k, v in pairs(state.payloadData) do
             if k == "calc_local" or k == "smartfuel_model_type" then v = math.floor(v) end
             ini.setvalue(tbl, INI_SECTION, k, v)
-            if rfsuite.session.modelPreferences and rfsuite.session.modelPreferences[INI_SECTION] then
-                rfsuite.session.modelPreferences[INI_SECTION][k] = v
+            if modelPrefs and modelPrefs[INI_SECTION] then
+                modelPrefs[INI_SECTION][k] = v
             end
         end
 
-        local ok, err = ini.save_ini_file(INI_FILE, tbl)
+        local ok, err = ini.save_ini_file(iniFile, tbl)
         if not ok then
-            emitError(nil, err or ("Failed to save INI: " .. INI_FILE))
+            emitError(nil, err or ("Failed to save INI: " .. iniFile))
             return false, err
         end
 
