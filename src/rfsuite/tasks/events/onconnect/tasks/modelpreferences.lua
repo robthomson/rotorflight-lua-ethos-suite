@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local modelpreferences = {}
 
@@ -13,18 +14,18 @@ local modelpref_defaults = {dashboard = {theme_preflight = "nil", theme_inflight
 function modelpreferences.wakeup()
 
     if connectionState.getApiVersion() == nil then
-        rfsuite.session.modelPreferences = nil
+        modelPreferencesState.reset()
         return
     end
 
     if connectionState.getMspBusy() then return end
 
     if not connectionState.getMcuId() then
-        rfsuite.session.modelPreferences = nil
+        modelPreferencesState.reset()
         return
     end
 
-    if (rfsuite.session.modelPreferences == nil) then
+    if (modelPreferencesState.get() == nil) then
 
         if rfsuite.config.preferences and connectionState.getMcuId() then
 
@@ -38,8 +39,7 @@ function modelpreferences.wakeup()
             local master_ini = rfsuite.ini.load_ini_file(modelpref_file) or {}
 
             local updated_ini = rfsuite.ini.merge_ini_tables(master_ini, slave_ini)
-            rfsuite.session.modelPreferences = updated_ini
-            rfsuite.session.modelPreferencesFile = modelpref_file
+            modelPreferencesState.setAll(updated_ini, modelpref_file)
 
             if not rfsuite.ini.ini_tables_equal(master_ini, slave_ini) then rfsuite.ini.save_ini_file(modelpref_file, updated_ini) end
 
@@ -49,10 +49,9 @@ function modelpreferences.wakeup()
 end
 
 function modelpreferences.reset()
-    rfsuite.session.modelPreferences = nil
-    rfsuite.session.modelPreferencesFile = nil
+    modelPreferencesState.reset()
 end
 
-function modelpreferences.isComplete() if rfsuite.session.modelPreferences ~= nil then return true end end
+function modelpreferences.isComplete() if modelPreferencesState.get() ~= nil then return true end end
 
 return modelpreferences

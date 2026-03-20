@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local smart = {}
 
@@ -34,7 +35,7 @@ local FORCE_REFRESH_INTERVAL = 2.0
 local useRawValue = rfsuite.utils.ethosVersionAtLeast({26, 1, 0})
 
 local function calculateFuel()
-    local prefs = rfsuite.session.modelPreferences
+    local prefs = modelPreferencesState.get()
     if prefs and prefs.battery and prefs.battery.calc_local == 1 then
         return smartfuelvoltage.calculate()
     end
@@ -42,7 +43,7 @@ local function calculateFuel()
 end
 
 local function calculateConsumption()
-    local prefs = rfsuite.session.modelPreferences
+    local prefs = modelPreferencesState.get()
     if prefs and prefs.battery and prefs.battery.calc_local == 1 then
         local capacity = (rfsuite.session.batteryConfig and rfsuite.session.batteryConfig.batteryCapacity) or 1000
         local smartfuelPct = rfsuite.tasks.telemetry.getSensor("smartfuel")

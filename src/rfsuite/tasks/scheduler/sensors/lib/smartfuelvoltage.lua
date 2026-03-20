@@ -4,6 +4,8 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local os_clock = os.clock
 local math_abs = math.abs
@@ -93,7 +95,8 @@ end
 
 local function applySagCompensation(voltage)
     if rfsuite.flightmode.current ~= "inflight" then return voltage end
-    local multiplier = rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.battery and rfsuite.session.modelPreferences.battery.sag_multiplier or 0.7
+    local prefs = modelPreferencesState.get()
+    local multiplier = prefs and prefs.battery and prefs.battery.sag_multiplier or 0.7
     local sagFactor = math_max(getStickLoadFactor(), getRpmDropFactor())
 
     local compensationScale = multiplier ^ 1.5
@@ -125,15 +128,16 @@ end
 local function smartFuelCalc()
     if not telemetry then telemetry = rfsuite.tasks.telemetry end
 
-    if not rfsuite.session.isConnected or not rfsuite.session.batteryConfig then
+    if not connectionState.getConnected() or not rfsuite.session.batteryConfig then
         resetVoltageTracking()
         return nil
     end
 
-    if rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.battery and rfsuite.session.modelPreferences.battery.calc_local then
-        if lastSensorMode ~= rfsuite.session.modelPreferences.battery.calc_local then
+    local prefs = modelPreferencesState.get()
+    if prefs and prefs.battery and prefs.battery.calc_local then
+        if lastSensorMode ~= prefs.battery.calc_local then
             resetVoltageTracking()
-            lastSensorMode = rfsuite.session.modelPreferences.battery.calc_local
+            lastSensorMode = prefs.battery.calc_local
         end
     end
 

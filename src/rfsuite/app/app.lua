@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local lcd = lcd
 local system = system
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local app = {}
 local utils = rfsuite.utils
@@ -124,13 +125,13 @@ function app.wakeup_protected()
     end
 
     -- Defer opening main menu until post-connect processing 
-    if rfsuite.session.isConnected and not rfsuite.session.postConnectComplete then
+    if connectionState.getConnected() and not connectionState.getPostConnectComplete() then
         return 
     end
 
     -- If MSP is busy, only run UI tasks every N ticks to allow background processing to complete and avoid UI freezes.
     local runUiTasks = true
-    if rfsuite.session and rfsuite.session.mspBusy then
+    if connectionState.getMspBusy() then
         busyUiTick = (busyUiTick % BUSY_UI_RUN_DEN) + 1
         runUiTasks = busyUiTick <= BUSY_UI_RUN_NUM
     else

@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = { ... }
 
@@ -126,8 +127,7 @@ local function checkLogdirExists(mcu_id)
     os.mkdir("LOGS:/rfsuite/telemetry/" .. mcu_id)
 end
 
-local function refreshSessionCaches(session)
-    local mcu_id = session and session.mcu_id
+local function refreshSessionCaches(mcu_id)
     if not mcu_id then return false end
 
     if cachedMcuId ~= mcu_id then
@@ -290,8 +290,9 @@ end
 
 function logging.wakeup()
     local session = rfsuite.session
-    if not session or not session.mcu_id then return end
-    if not refreshSessionCaches(session) then return end
+    local mcu_id = connectionState.getMcuId()
+    if not session or not mcu_id then return end
+    if not refreshSessionCaches(mcu_id) then return end
 
     if not telemetry then
         telemetry = rfsuite.tasks and rfsuite.tasks.telemetry

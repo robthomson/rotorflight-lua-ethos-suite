@@ -5,6 +5,8 @@
 
 local rfsuite = require("rfsuite")
 local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 
@@ -51,7 +53,7 @@ local function writeStats()
         return n
     end
 
-    local prefs = rfsuite.session.modelPreferences
+    local prefs = modelPreferencesState.get()
     if not prefs then return end
 
     local totalflighttime = toNumber(ini.getvalue(prefs, "general", "totalflighttime"), 0)
@@ -102,15 +104,15 @@ function timer.reset()
 
     lastFlightMode = nil
 
-    local prefs = rfsuite.session.modelPreferences
+    local prefs = modelPreferencesState.get()
     local baseLifetime = (prefs and tonumber(ini.getvalue(prefs, "general", "totalflighttime"))) or 0
     sharedTimer.reset(baseLifetime)
 end
 
 function timer.save()
     local session = rfsuite.session
-    local prefs = session.modelPreferences
-    local prefsFile = session.modelPreferencesFile
+    local prefs = modelPreferencesState.get()
+    local prefsFile = modelPreferencesState.getFile()
 
     if not prefsFile then
         utils.log("No model preferences file set, cannot save flight timers", "info")
@@ -134,7 +136,7 @@ end
 
 local function finalizeFlightSegment(now)
     local timerSession = sharedTimer.get()
-    local prefs = rfsuite.session.modelPreferences
+    local prefs = modelPreferencesState.get()
 
     local segment = now - timerSession.start
     timerSession.session = (timerSession.session or 0) + segment
@@ -156,7 +158,7 @@ function timer.wakeup()
     local now = os_time()
     local session = rfsuite.session
     local timerSession = sharedTimer.get()
-    local prefs = session.modelPreferences
+    local prefs = modelPreferencesState.get()
     local flightMode = rfsuite.flightmode.current
 
     lastFlightMode = flightMode
@@ -166,7 +168,7 @@ function timer.wakeup()
     if not session.isArmed then
         if pendingStatsSync and pendingStatsSyncAt and now >= pendingStatsSyncAt then
             -- must be connected and not mid-onconnect
-            if session.isConnected then
+            if connectionState.getConnected() then
                 pendingStatsSync   = false
                 pendingStatsSyncAt = nil
 
@@ -192,7 +194,7 @@ function timer.wakeup()
             if prefs and ini.section_exists(prefs, "general") then
                 local count = ini.getvalue(prefs, "general", "flightcount") or 0
                 ini.setvalue(prefs, "general", "flightcount", count + 1)
-                ini.save_ini_file(session.modelPreferencesFile, prefs)
+                ini.save_ini_file(modelPreferencesState.getFile(), prefs)
             end
         end
 

@@ -31,6 +31,8 @@
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local rep = string.rep
 local tostring = tostring
@@ -94,12 +96,12 @@ end
 
 function render.wakeup(box)
 
-    local session = rfsuite.session
-    local telemetryActive = session and session.telemetryState and session.isConnected
+    local telemetryActive = connectionState.isTelemetryActive() and connectionState.getConnected()
     local value
 
-    if telemetryActive and session.modelPreferences then
-        value = rfsuite.ini.getvalue(session.modelPreferences, "general", "flightcount")
+    local prefs = modelPreferencesState.get()
+    if telemetryActive and prefs then
+        value = rfsuite.ini.getvalue(prefs, "general", "flightcount")
     end
 
     local displayValue

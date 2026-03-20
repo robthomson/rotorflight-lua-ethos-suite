@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local battery = {}
 local log = rfsuite.utils.log
@@ -12,9 +13,9 @@ local mspCallMade = false
 
 function battery.wakeup()
 
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
-    if rfsuite.session.mspBusy then return end
+    if connectionState.getMspBusy() then return end
     if rfsuite.tasks.msp.mspQueue:isProcessed() == false then return end
 
     if (rfsuite.session.batteryConfig == nil) and mspCallMade == false then

@@ -30,6 +30,8 @@
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local floor = math.floor
 local format = string.format
@@ -44,7 +46,7 @@ local lastValue = 0
 function render.invalidate(box) box._cfg = nil end
 
 function render.dirty(box)
-    if not rfsuite.session.telemetryState then return false end
+    if not connectionState.isTelemetryActive() then return false end
 
     if box._lastDisplayValue == nil then
         box._lastDisplayValue = box._currentDisplayValue
@@ -95,8 +97,7 @@ end
 
 function render.wakeup(box)
 
-    local session = rfsuite.session
-    local telemetryActive = session and session.telemetryState and session.isConnected
+    local telemetryActive = connectionState.isTelemetryActive() and connectionState.getConnected()
     local inPostflight = (rfsuite.flightmode and rfsuite.flightmode.current == "postflight")
 
     if not telemetryActive and not inPostflight then
@@ -104,8 +105,9 @@ function render.wakeup(box)
     end
 
     local value
-    if telemetryActive and session and session.modelPreferences then
-        value = rfsuite.ini.getvalue(session.modelPreferences, "general", "totalflighttime")
+    local prefs = modelPreferencesState.get()
+    if telemetryActive and prefs then
+        value = rfsuite.ini.getvalue(prefs, "general", "totalflighttime")
         lastValue = value
     else
         value = lastValue or 0

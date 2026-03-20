@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -28,7 +29,7 @@ local tasks = rfsuite.tasks
 
 local function loadSensorModule()
     if not tasks.active() then return nil end
-    if not rfsuite.session.apiVersion then return nil end
+    if not connectionState.getApiVersion() then return nil end
     
 
     local protocol = tasks.msp.protocol.mspProtocol
@@ -95,7 +96,7 @@ function sensors.wakeup()
 
         local cycleFlip = schedulerTick % 2
         if cycleFlip == 0 then
-            if rfsuite.session and rfsuite.session.isConnected then
+            if connectionState.getConnected() then
 
                 if msp and msp.wakeup then msp.wakeup() end
 

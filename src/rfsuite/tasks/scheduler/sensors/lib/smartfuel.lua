@@ -4,7 +4,9 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local os_clock = os.clock
 local math_floor = math.floor
@@ -96,7 +98,7 @@ local function smartFuelCalc()
         flightState.setActiveBatteryType(normalizedBatType)
     end
 
-    if not rfsuite.session.isConnected or not rfsuite.session.batteryConfig then
+    if not connectionState.getConnected() or not rfsuite.session.batteryConfig then
         resetVoltageTracking()
         return nil
     end
@@ -122,10 +124,11 @@ local function smartFuelCalc()
         stabilizeNotBefore = os_clock() + preStabiliseDelay
     end
 
-    if rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.battery and rfsuite.session.modelPreferences.battery.calc_local then
-        if lastSensorMode ~= rfsuite.session.modelPreferences.battery.calc_local then
+    local prefs = modelPreferencesState.get()
+    if prefs and prefs.battery and prefs.battery.calc_local then
+        if lastSensorMode ~= prefs.battery.calc_local then
             resetVoltageTracking()
-            lastSensorMode = rfsuite.session.modelPreferences.battery.calc_local
+            lastSensorMode = prefs.battery.calc_local
         end
     end
 

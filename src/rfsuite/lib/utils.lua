@@ -15,6 +15,7 @@ function utils.session()
     local sharedTimer = rfsuite.shared and rfsuite.shared.timer
     local mspStatus = rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status
     local connectionState = rfsuite.shared and rfsuite.shared.connection
+    local modelPreferencesState = rfsuite.shared and rfsuite.shared.modelPreferences
 
     local function prefBool(value, default)
         if value == nil then return default end
@@ -110,6 +111,7 @@ function utils.session()
         if connectionState and connectionState.reset then connectionState.reset() end
         if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
         if mspStatus and mspStatus.reset then mspStatus.reset() end
+        if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
         rfsuite.session = session
         return session
     end
@@ -190,6 +192,7 @@ function utils.session()
     if connectionState and connectionState.reset then connectionState.reset() end
     if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
     if mspStatus and mspStatus.reset then mspStatus.reset() end
+    if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
 
     return rfsuite.session
 
