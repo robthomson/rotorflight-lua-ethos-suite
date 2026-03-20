@@ -12,6 +12,7 @@ local rfutils = rfsuite.utils
 local tasks = rfsuite.tasks
 local session = rfsuite.session
 local simevent = rfsuite.simevent
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -126,13 +127,7 @@ end
 function utils.getCurrentProfile()
     local pidProfile = tasks.telemetry.getSensor("pid_profile")
     if pidProfile ~= nil then
-        session.activeProfileLast = session.activeProfile
-        local p = pidProfile
-        if p ~= nil then
-            session.activeProfile = math.floor(p)
-        else
-            session.activeProfile = nil
-        end
+        flightState.trackActiveProfile(pidProfile)
     end
 end
 
@@ -140,13 +135,7 @@ function utils.getCurrentRateProfile()
     local rateProfile = tasks.telemetry.getSensor("rate_profile")
 
     if rateProfile ~= nil then
-        session.activeRateProfileLast = session.activeRateProfile
-        local r = rateProfile
-        if r ~= nil then
-            session.activeRateProfile = math.floor(r)
-        else
-            session.activeRateProfile = nil
-        end
+        flightState.trackActiveRateProfile(rateProfile)
     end
 end
 
@@ -174,8 +163,7 @@ function utils.getCurrentBatteryType()
     if resolved == nil then resolved = mspValue end
     if resolved == nil then return end
 
-    session.activeBatteryTypeLast = session.activeBatteryType
-    session.activeBatteryType = math.floor(resolved)
+    flightState.trackActiveBatteryType(resolved)
 end
 
 function utils.titleCase(str) return str:gsub("(%a)([%w_']*)", function(first, rest) return first:upper() .. rest:lower() end) end

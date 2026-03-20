@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local os_clock = os.clock
 local math_floor = math.floor
@@ -92,7 +93,7 @@ local function smartFuelCalc()
     local batType = telemetry and telemetry.getSensor and telemetry.getSensor("battery_profile")
     local normalizedBatType = normalizeBatteryProfileIndex(batType)
     if normalizedBatType ~= nil then
-        rfsuite.session.activeBatteryType = normalizedBatType
+        flightState.setActiveBatteryType(normalizedBatType)
     end
 
     if not rfsuite.session.isConnected or not rfsuite.session.batteryConfig then
@@ -103,7 +104,7 @@ local function smartFuelCalc()
     local bc = rfsuite.session.batteryConfig
 
     local packCapacity = bc.batteryCapacity
-    local activeProfile = rfsuite.session.activeBatteryType
+    local activeProfile = flightState.getActiveBatteryType and flightState.getActiveBatteryType() or rfsuite.session.activeBatteryType
     if activeProfile and bc.profiles and bc.profiles[activeProfile] then
         local pCap = bc.profiles[activeProfile]
         if pCap and pCap > 0 then

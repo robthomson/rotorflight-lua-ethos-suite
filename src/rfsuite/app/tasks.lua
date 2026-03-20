@@ -8,6 +8,7 @@ local system = system
 
 local utils = rfsuite.utils
 local log = utils.log
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local nextUiTask = 1
 local taskAccumulator = 0
@@ -108,13 +109,17 @@ local function profileRateChangeDetection()
         app.profileCheckScheduler = now
 
         app.utils.getCurrentProfile()
-        if rfsuite.session.activeProfileLast and app.Page.refreshOnProfileChange and rfsuite.session.activeProfile ~= rfsuite.session.activeProfileLast then
+        local activeProfile = flightState.getActiveProfile and flightState.getActiveProfile()
+        local activeProfileLast = flightState.getActiveProfileLast and flightState.getActiveProfileLast()
+        if activeProfileLast and app.Page.refreshOnProfileChange and activeProfile ~= activeProfileLast then
             app.triggers.reload = not app.Page.refreshFullOnProfileChange
             app.triggers.reloadFull = app.Page.refreshFullOnProfileChange
         end
 
         app.utils.getCurrentRateProfile()
-        if rfsuite.session.activeRateProfileLast and app.Page.refreshOnRateChange and rfsuite.session.activeRateProfile ~= rfsuite.session.activeRateProfileLast then
+        local activeRateProfile = flightState.getActiveRateProfile and flightState.getActiveRateProfile()
+        local activeRateProfileLast = flightState.getActiveRateProfileLast and flightState.getActiveRateProfileLast()
+        if activeRateProfileLast and app.Page.refreshOnRateChange and activeRateProfile ~= activeRateProfileLast then
             app.triggers.reload = not app.Page.refreshFullOnRateChange
             app.triggers.reloadFull = app.Page.refreshFullOnRateChange
         end

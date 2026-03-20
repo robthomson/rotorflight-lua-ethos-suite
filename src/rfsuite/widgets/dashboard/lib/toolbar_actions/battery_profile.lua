@@ -3,6 +3,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local M = {}
 
 local progress
@@ -91,7 +92,8 @@ end
 local function setBatteryType(typeIndex, profileName)
     if not rfsuite.session.isConnected then return end
 
-    if typeIndex == rfsuite.session.activeBatteryType then
+    local activeBatteryType = flightState.getActiveBatteryType and flightState.getActiveBatteryType() or rfsuite.session.activeBatteryType
+    if typeIndex == activeBatteryType then
         if rfsuite.session.showConfirmationDialog then
             form.openDialog({
                 title = "@i18n(widgets.battery.title)@",
@@ -117,7 +119,7 @@ local function setBatteryType(typeIndex, profileName)
     local api = rfsuite.tasks.msp.api.load(BATTERY_PROFILE_API)
 
     api.setCompleteHandler(function()
-        rfsuite.session.activeBatteryType = typeIndex
+        flightState.setActiveBatteryType(typeIndex)
 
         if rfsuite.session.showConfirmationDialog then
             if progress then
