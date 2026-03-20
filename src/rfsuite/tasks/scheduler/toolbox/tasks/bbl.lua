@@ -10,12 +10,11 @@ local arg = {...}
 local bbl = {}
 local string_format = string.format
 local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
+local blackboxState = (rfsuite.shared and rfsuite.shared.blackbox) or assert(loadfile("shared/blackbox.lua"))()
 
 function bbl.wakeup()
-
-    local session = rfsuite.session
-    local totalSize = session.bblSize
-    local usedSize = session.bblUsed
+    local totalSize = blackboxState.getTotalSize()
+    local usedSize = blackboxState.getUsedSize()
 
     local displayValue
     local percentUsed

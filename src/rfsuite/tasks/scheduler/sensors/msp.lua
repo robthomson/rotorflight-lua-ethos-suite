@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local blackboxState = (rfsuite.shared and rfsuite.shared.blackbox) or assert(loadfile("shared/blackbox.lua"))()
 
 local msp = {}
 local os_clock = os.clock
@@ -322,6 +323,17 @@ local function updateSessionField(meta, value)
     t[meta.sessionname[#meta.sessionname]] = value
 end
 
+local function updateSharedField(apiName, fieldKey, value)
+    if apiName ~= "DATAFLASH_SUMMARY" then return end
+    if fieldKey == "flags" then
+        blackboxState.setFlags(value)
+    elseif fieldKey == "total" then
+        blackboxState.setTotalSize(value)
+    elseif fieldKey == "used" then
+        blackboxState.setUsedSize(value)
+    end
+end
+
 local function getApi(api_name, fields)
     local cached = apiCache[api_name]
     if cached then return cached end
@@ -345,6 +357,8 @@ local function getApi(api_name, fields)
                 if meta.transform and type(meta.transform) == "function" then value = meta.transform(value) end
                 meta.last_sent_value = value
                 meta.last_update_time = now
+
+                updateSharedField(api_name, field_key, value)
 
                 if meta.sensorname and meta.appId then
                     createOrUpdateSensor(meta.appId, meta, value)

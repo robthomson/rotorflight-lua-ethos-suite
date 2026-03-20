@@ -48,6 +48,7 @@ rfsuite.session = rfsuite.shared.session
 rfsuite.shared.app = assert(loadfile("shared/app/runtime.lua"))()
 rfsuite.shared.activelook = assert(loadfile("shared/activelook.lua"))()
 rfsuite.shared.battery = assert(loadfile("shared/battery.lua"))()
+rfsuite.shared.blackbox = assert(loadfile("shared/blackbox.lua"))()
 rfsuite.shared.craft = assert(loadfile("shared/craft.lua"))()
 rfsuite.shared.flight = assert(loadfile("shared/flight.lua"))()
 rfsuite.shared.modelPreferences = assert(loadfile("shared/modelpreferences.lua"))()

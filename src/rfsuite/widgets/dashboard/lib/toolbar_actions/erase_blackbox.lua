@@ -4,6 +4,7 @@
 
 local rfsuite = require("rfsuite")
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
+local blackboxState = (rfsuite.shared and rfsuite.shared.blackbox) or assert(loadfile("shared/blackbox.lua"))()
 local M = {}
 
 local function openProgressDialog(...)
@@ -80,9 +81,9 @@ local function doErase()
             local total = API.readValue("total")
             local used = API.readValue("used")
             local flags = API.readValue("flags")
-            if total ~= nil then rfsuite.session.bblSize = total end
-            if used ~= nil then rfsuite.session.bblUsed = used end
-            if flags ~= nil then rfsuite.session.bblFlags = flags end
+            if total ~= nil then blackboxState.setTotalSize(total) end
+            if used ~= nil then blackboxState.setUsedSize(used) end
+            if flags ~= nil then blackboxState.setFlags(flags) end
             logInfo(string.format("Dataflash summary: total=%s used=%s flags=%s", tostring(total), tostring(used), tostring(flags)))
             clearApiEntry(DATAFLASH_SUMMARY_API)
         end)

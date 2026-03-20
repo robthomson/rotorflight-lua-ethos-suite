@@ -2,6 +2,8 @@
   Toolbar helper for dashboard
 ]] --
 
+local connectionState
+
 -- Toolbar item parameters:
 -- name (string): label text (i18n supported)
 -- order (number): sort order (ascending)
@@ -157,25 +159,23 @@ end
 
 local function isItemEnabled(item, dashboard, rfsuite)
     if not item then return false end
+    connectionState = connectionState or ((rfsuite and rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))())
     if type(item.enableFunction) == "function" then
         return item.enableFunction(dashboard, rfsuite) == true
     end
     if item.isConnected == true then
-        local sess = rfsuite and rfsuite.session
-        if not (sess and sess.isConnected) then return false end
+        if not (connectionState and connectionState.getConnected and connectionState.getConnected()) then return false end
     end
     if item.postConnectComplete == true then
-        local sess = rfsuite and rfsuite.session
-        if not (sess and sess.postConnectComplete) then return false end
+        if not (connectionState and connectionState.getPostConnectComplete and connectionState.getPostConnectComplete()) then return false end
     end
     if item.apiVersion and rfsuite and rfsuite.utils and rfsuite.utils.apiVersionCompare then
         local op = item.apiVersionOp or ">="
         if not rfsuite.utils.apiVersionCompare(op, item.apiVersion) then return false end
     end
     if item.isArmed ~= nil then
-        local sess = rfsuite and rfsuite.session
-        if not sess then return false end
-        if (sess.isArmed == true) ~= (item.isArmed == true) then return false end
+        if not connectionState or not connectionState.getArmed then return false end
+        if (connectionState.getArmed() == true) ~= (item.isArmed == true) then return false end
     end
     if item.flightModes and type(item.flightModes) == "table" then
         local mode = dashboard and dashboard.flightmode or nil

@@ -34,6 +34,7 @@
     ]] --
 
 local rfsuite = require("rfsuite")
+local blackboxState = (rfsuite.shared and rfsuite.shared.blackbox) or assert(loadfile("shared/blackbox.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 
@@ -172,8 +173,8 @@ function render.wakeup(box)
 
     local cfg = ensureCfg(box)
 
-    local totalSize = rfsuite.session.bblSize
-    local usedSize = rfsuite.session.bblUsed
+    local totalSize = blackboxState.getTotalSize()
+    local usedSize = blackboxState.getUsedSize()
 
     local displayValue
     local percentUsed
