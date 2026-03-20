@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local uid = {}
 
@@ -19,11 +20,11 @@ end
 
 function uid.wakeup()
 
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
-    if rfsuite.session.mspBusy then return end
+    if connectionState.getMspBusy() then return end
 
-    if (rfsuite.session.mcu_id == nil and mspCallMade == false) then
+    if (connectionState.getMcuId() == nil and mspCallMade == false) then
 
         mspCallMade = true
 
@@ -48,7 +49,7 @@ function uid.wakeup()
                     rfsuite.utils.log("MCU ID: " .. uid, "info") 
                     rfsuite.utils.log("MCU ID: " .. uid, "connect")
                 end
-                rfsuite.session.mcu_id = uid
+                connectionState.setMcuId(uid)
             end
 
             clearApiEntry()
@@ -62,10 +63,10 @@ end
 
 function uid.reset()
     clearApiEntry()
-    rfsuite.session.mcu_id = nil
+    connectionState.setMcuId(nil)
     mspCallMade = false
 end
 
-function uid.isComplete() if rfsuite.session.mcu_id ~= nil then return true end end
+function uid.isComplete() if connectionState.getMcuId() ~= nil then return true end end
 
 return uid

@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local apiversion = {}
 
@@ -67,7 +68,7 @@ local function version_ge(a, b)
 end
 
 function apiversion.wakeup()
-    if rfsuite.session.apiVersion == nil and mspCallMade == false then
+    if connectionState.getApiVersion() == nil and mspCallMade == false then
         mspCallMade = true
 
         local originalProto = rfsuite.config.mspProtocolVersion
@@ -87,8 +88,8 @@ function apiversion.wakeup()
                 if not rfsuite.utils.stringInArray(rfsuite.config.supportedMspApiVersion, apiVersionString) then
                     rfsuite.utils.log("Incompatible API version detected: " .. apiVersionString, "info")
                     rfsuite.utils.log("Incompatible API version detected: " .. apiVersionString, "connect")
-                    rfsuite.session.apiVersionInvalid = true
-                    rfsuite.session.apiVersion = apiVersionString
+                    connectionState.setApiVersionInvalid(true)
+                    connectionState.setApiVersion(apiVersionString)
 
                     rfsuite.config.mspProtocolVersion = restoreProto
                     clearApiEntry()
@@ -124,11 +125,11 @@ function apiversion.wakeup()
                 rfsuite.utils.log(string.format("MSP protocol restored to v%d", restoreProto), "connect")
             end
 
-            rfsuite.session.apiVersion = version and string.format("%.2f", version) or nil
-            rfsuite.session.apiVersionInvalid = false
-            if rfsuite.session.apiVersion then
-                rfsuite.utils.log("API version: " .. rfsuite.session.apiVersion, "info")
-                rfsuite.utils.log("API version: " .. rfsuite.session.apiVersion, "connect")
+            connectionState.setApiVersion(version and string.format("%.2f", version) or nil)
+            connectionState.setApiVersionInvalid(false)
+            if connectionState.getApiVersion() then
+                rfsuite.utils.log("API version: " .. connectionState.getApiVersion(), "info")
+                rfsuite.utils.log("API version: " .. connectionState.getApiVersion(), "connect")
             end
             clearApiEntry()
         end)
@@ -140,13 +141,13 @@ end
 
 function apiversion.reset()
     clearApiEntry()
-    rfsuite.session.apiVersion = nil
-    rfsuite.session.apiVersionInvalid = nil
+    connectionState.setApiVersion(nil)
+    connectionState.setApiVersionInvalid(nil)
     mspCallMade = false
 end
 
 function apiversion.isComplete()
-    if rfsuite.session.apiVersion ~= nil then
+    if connectionState.getApiVersion() ~= nil then
         rfsuite.utils.playFileCommon("beep.wav")
         return true
     end

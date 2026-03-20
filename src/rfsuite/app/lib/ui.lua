@@ -17,6 +17,7 @@ local mathFloor = math.floor
 local app = rfsuite.app
 local session = rfsuite.session
 local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 local rfutils = rfsuite.utils
 
@@ -722,11 +723,12 @@ local function progressDialogWakeup()
 
     local mult = app.dialogs.progressSpeed or 1.0
     local isProcessing = (app.Page and app.Page.apidata and app.Page.apidata.apiState and app.Page.apidata.apiState.isProcessing) or false
-    local apiV = tostring(session.apiVersion)
+    local apiVersion = connectionState.getApiVersion and connectionState.getApiVersion()
+    local apiV = tostring(apiVersion)
 
     if not app.triggers.closeProgressLoader then
         app.dialogs.progressCounter = app.dialogs.progressCounter + (2 * mult)
-        if app.dialogs.progressCounter > 50 and session.apiVersion and not utils.stringInArray(rfsuite.config.supportedMspApiVersion, apiV) then print("No API version yet") end
+        if app.dialogs.progressCounter > 50 and apiVersion and not utils.stringInArray(rfsuite.config.supportedMspApiVersion, apiV) then print("No API version yet") end
     elseif isProcessing then
         app.dialogs.progressCounter = app.dialogs.progressCounter + (3 * mult)
     elseif app.triggers.closeProgressLoader and tasks.msp and tasks.msp.mspQueue:isProcessed() then
@@ -2448,7 +2450,7 @@ function ui.openPage(opts)
     if app.Page.apidata and app.Page.apidata.formdata and app.Page.apidata.formdata.fields then
         for i, field in ipairs(app.Page.apidata.formdata.fields) do
             local label = app.Page.apidata.formdata.labels
-            if session.apiVersion == nil then return end
+            if connectionState.getApiVersion and connectionState.getApiVersion() == nil then return end
 
             local valid = (field.apiversion == nil or utils.apiVersionCompare(">=", field.apiversion)) and (field.apiversionlt == nil or utils.apiVersionCompare("<", field.apiversionlt)) and (field.apiversiongt == nil or utils.apiVersionCompare(">", field.apiversiongt)) and (field.apiversionlte == nil or utils.apiVersionCompare("<=", field.apiversionlte)) and (field.apiversiongte == nil or utils.apiVersionCompare(">=", field.apiversiongte)) and
                               (field.enablefunction == nil or field.enablefunction())
@@ -3398,7 +3400,7 @@ end
 function ui.adminStatsOverlay()
 
     local baseY = getHeaderNavAreaBottom() + HEADER_OVERLAY_Y_OFFSET
-    local showStats = preferences and preferences.developer and preferences.developer.overlaystatsadmin and not (session and session.mspBusy)
+    local showStats = preferences and preferences.developer and preferences.developer.overlaystatsadmin and not (connectionState.getMspBusy and connectionState.getMspBusy())
 
     if not showStats then
         drawHeaderBreadcrumbOverlay(baseY)
@@ -3465,7 +3467,7 @@ function ui.wakeupAdminStatsOverlay()
     local state = ui._adminOverlayState
     if not state then return end
 
-    local showStats = preferences and preferences.developer and preferences.developer.overlaystatsadmin and not (session and session.mspBusy)
+    local showStats = preferences and preferences.developer and preferences.developer.overlaystatsadmin and not (connectionState.getMspBusy and connectionState.getMspBusy())
     local currentScript = (app and app.lastScript) or ""
 
     if not showStats then

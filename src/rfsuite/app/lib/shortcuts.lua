@@ -8,6 +8,7 @@ local registryCache = nil
 local MAX_SHORTCUTS = 5
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local function isTruthy(value)
     return value == true or value == "true" or value == 1 or value == "1"
@@ -35,18 +36,18 @@ local function apiVersionCompare(op, req)
     local utils = rfsuite.utils
     if not utils or not utils.apiVersionCompare then return false end
 
-    local session = rfsuite.session
-    local hasSessionVersion = session and session.apiVersion ~= nil
+    local currentApiVersion = connectionState.getApiVersion and connectionState.getApiVersion()
+    local hasSessionVersion = currentApiVersion ~= nil
     if hasSessionVersion then
         return utils.apiVersionCompare(op, req)
     end
 
     local preferred = preferredApiVersion()
-    if preferred and session then
-        local old = session.apiVersion
-        session.apiVersion = preferred
+    if preferred and connectionState and connectionState.setApiVersion then
+        local old = currentApiVersion
+        connectionState.setApiVersion(preferred)
         local ok = utils.apiVersionCompare(op, req)
-        session.apiVersion = old
+        connectionState.setApiVersion(old)
         return ok
     end
 

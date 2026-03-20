@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local lcd = lcd
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local function loadMask(path)
     local ui = rfsuite.app and rfsuite.app.ui
@@ -383,7 +384,7 @@ local function ensureTailMode(callback)
 end
 
 local function isPostConnectComplete()
-    return rfsuite.session and rfsuite.session.postConnectComplete == true
+    return connectionState.getPostConnectComplete and connectionState.getPostConnectComplete()
 end
 
 local function applySelectorButtonStates()

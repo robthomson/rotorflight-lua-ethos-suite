@@ -9,6 +9,7 @@ local system = system
 local utils = rfsuite.utils
 local log = utils.log
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local nextUiTask = 1
 local taskAccumulator = 0
@@ -153,7 +154,7 @@ local function mainMenuIconEnableDisable()
         resetMainMenuFocusLatch()
     end
 
-    local currentApiVersion = rfsuite.session and rfsuite.session.apiVersion
+    local currentApiVersion = connectionState.getApiVersion and connectionState.getApiVersion()
     if currentApiVersion == nil then
         lastMainMenuBuildApiVersion = nil
     elseif currentApiVersion ~= lastMainMenuBuildApiVersion then
@@ -165,10 +166,10 @@ local function mainMenuIconEnableDisable()
         local formFieldsOffline = app.formFieldsOffline
         if type(formFieldsOffline) ~= "table" then return end
 
-        local apiV = tostring(rfsuite.session.apiVersion)
-        local connected = (rfsuite.session and rfsuite.session.isConnected) == true
-        local postConnectComplete = (rfsuite.session and rfsuite.session.postConnectComplete) == true
-        local supportedApi = rfsuite.session.apiVersion and rfsuite.utils.stringInArray(rfsuite.config.supportedMspApiVersion, apiV)
+        local apiV = tostring(connectionState.getApiVersion and connectionState.getApiVersion())
+        local connected = connectionState.getConnected and connectionState.getConnected()
+        local postConnectComplete = connectionState.getPostConnectComplete and connectionState.getPostConnectComplete()
+        local supportedApi = (connectionState.getApiVersion and connectionState.getApiVersion()) and rfsuite.utils.stringInArray(rfsuite.config.supportedMspApiVersion, apiV)
         local modeTag
         if not connected then
             modeTag = "offline"
@@ -246,7 +247,7 @@ local function mainMenuIconEnableDisable()
         end
 
     elseif not app.isOfflinePage and not app.triggers.escPowerCycleLoader then
-        if not rfsuite.session.postConnectComplete then
+        if not (connectionState.getPostConnectComplete and connectionState.getPostConnectComplete()) then
             log("Entering Offline Mode", "info")
             app.ui.openMainMenu()
         end
@@ -438,7 +439,7 @@ end
 
 local function performReloadActions()
 
-    if rfsuite.session.mspBusy then return end
+    if connectionState.getMspBusy and connectionState.getMspBusy() then return end
 
     local app = rfsuite.app
     if app.triggers.reload then

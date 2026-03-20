@@ -17,6 +17,7 @@ local getmetatable = getmetatable
 local tostring = tostring
 local pcall = pcall
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local DEFAULT_RETRY_BACKOFF_SECONDS = 1
 local DEFAULT_BUSY_WARNING_THRESHOLD = 8
@@ -264,7 +265,7 @@ function MspQueueController:processQueue()
 
     -- Nothing to do
     if self:isProcessed() then
-        session.mspBusy = false
+        connectionState.setMspBusy(false)
         self.mspBusyStart = nil
         if mspStatusState and mspStatusState.message and mspStatusState.scheduleClear then
             mspStatusState.scheduleClear(0.75)
@@ -276,7 +277,7 @@ function MspQueueController:processQueue()
     if self.mspBusyStart and (now - self.mspBusyStart) > MSP_BUSY_TIMEOUT then
         --utils.log("MSP busy for more than " .. mspBusyTimeout .. " seconds", "info")
         --utils.log(" - Unblocking by setting rfsuite.session.mspBusy = false", "info")
-        session.mspBusy = false
+        connectionState.setMspBusy(false)
         self.mspBusyStart = nil
         return
     end
@@ -286,7 +287,7 @@ function MspQueueController:processQueue()
         -- Inter-message gap (after a message completes/fails)
         if self.interMessageDelay and self.interMessageDelay > 0 then
             if now < (self._nextMessageAt or 0) then
-                session.mspBusy = false
+                connectionState.setMspBusy(false)
                 self.mspBusyStart = nil
                 return
             end
@@ -295,7 +296,7 @@ function MspQueueController:processQueue()
         -- Legacy loop throttle, but only gates starting the next message
         if self.loopInterval and self.loopInterval > 0 then
             if now < (self._nextProcessAt or 0) then
-                session.mspBusy = false
+                connectionState.setMspBusy(false)
                 self.mspBusyStart = nil
                 return
             end
@@ -309,7 +310,7 @@ function MspQueueController:processQueue()
     end
 
     -- We are now genuinely active (either working a current message or about to send one)
-    session.mspBusy = true
+    connectionState.setMspBusy(true)
     self.mspBusyStart = self.mspBusyStart or now
 
     utils.muteSensorLostWarnings() -- Avoid sensor warnings during MSP    
@@ -552,7 +553,7 @@ end
 
 -- Reset queue + MSP state
 function MspQueueController:clear()
-    if rfsuite.session then rfsuite.session.mspBusy = false end
+    connectionState.setMspBusy(false)
     self.mspBusyStart = nil
     if self.queue then
         qreset(self.queue)
@@ -576,7 +577,7 @@ end
 -- where reason is one of:
 --   "queued", "queued_busy", "duplicate", "busy", "telemetry_off", "nil_message"
 function MspQueueController:add(message)
-    if not rfsuite.session.telemetryState then
+    if not connectionState.isTelemetryActive() then
         return false, "telemetry_off", nil, self:queueCount()
     end
     if not message then

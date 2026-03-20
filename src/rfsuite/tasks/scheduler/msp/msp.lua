@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 
 -- Optimized locals to reduce global/table lookups
@@ -108,18 +109,17 @@ local delayPending   = false
 -- Main MSP poll loop (called by script wakeups)
 function msp.wakeup()
 
-    local session = rfsuite.session
     -- enable logging
     -- rfsuite.tasks.msp.enableProtoLog(true)
 
     -- Nothing to do if no telemetry sensor
-    if session.telemetrySensor == nil then return end
+    if connectionState.getTelemetrySensor() == nil then return end
 
     -- Apply delay after reset request
-    if session.resetMSP and not delayPending then
+    if connectionState.getResetMSP() and not delayPending then
         delayStartTime = os_clock()
         delayPending = true
-        session.resetMSP = false
+        connectionState.setResetMSP(false)
         utils.log("Delaying msp wakeup for " .. delayDuration .. " seconds", "info")
         return
     end
@@ -135,7 +135,7 @@ function msp.wakeup()
         end
     end
 
-    msp.activeProtocol = session.telemetryType
+    msp.activeProtocol = connectionState.getTelemetryType()
 
     -- Telemetry type changed (e.g., CRSF <-> S.Port)
     if telemetryTypeChanged == true then
@@ -154,13 +154,13 @@ function msp.wakeup()
     end
 
     -- If telemetry was disconnected, re-run init handlers
-    if session.telemetrySensor ~= nil and session.telemetryState == false then
+    if connectionState.getTelemetrySensor() ~= nil and connectionState.isTelemetryActive() == false then
         utils.session()
         msp.onConnectChecksInit = true
     end
 
     -- Run queue when connected, otherwise clear it
-    if session.telemetryState == true then
+    if connectionState.isTelemetryActive() then
         mspQueue:processQueue()
     else
         mspQueue:clear()

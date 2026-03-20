@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local modelpreferences = {}
 
@@ -11,23 +12,23 @@ local modelpref_defaults = {dashboard = {theme_preflight = "nil", theme_inflight
 
 function modelpreferences.wakeup()
 
-    if rfsuite.session.apiVersion == nil then
+    if connectionState.getApiVersion() == nil then
         rfsuite.session.modelPreferences = nil
         return
     end
 
-    if rfsuite.session.mspBusy then return end
+    if connectionState.getMspBusy() then return end
 
-    if not rfsuite.session.mcu_id then
+    if not connectionState.getMcuId() then
         rfsuite.session.modelPreferences = nil
         return
     end
 
     if (rfsuite.session.modelPreferences == nil) then
 
-        if rfsuite.config.preferences and rfsuite.session.mcu_id then
+        if rfsuite.config.preferences and connectionState.getMcuId() then
 
-            local modelpref_file = "SCRIPTS:/" .. rfsuite.config.preferences .. "/models/" .. rfsuite.session.mcu_id .. ".ini"
+            local modelpref_file = "SCRIPTS:/" .. rfsuite.config.preferences .. "/models/" .. connectionState.getMcuId() .. ".ini"
             rfsuite.utils.log("Preferences file: " .. modelpref_file, "info")
 
             os.mkdir("SCRIPTS:/" .. rfsuite.config.preferences)

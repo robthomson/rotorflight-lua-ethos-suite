@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local fcversion = {}
 
@@ -19,8 +20,8 @@ end
 
 function fcversion.wakeup()
 
-    if rfsuite.session.apiVersion == nil then return end
-    if rfsuite.session.mspBusy then return end
+    if connectionState.getApiVersion() == nil then return end
+    if connectionState.getMspBusy() then return end
 
     if mspCallMade == false then
 
@@ -29,11 +30,11 @@ function fcversion.wakeup()
         local API = rfsuite.tasks.msp.api.load(API_NAME)
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
-            rfsuite.session.fcVersion = API.readVersion()
-            rfsuite.session.rfVersion = API.readRfVersion()
-            if rfsuite.session.fcVersion then 
-                rfsuite.utils.log("FC version: " .. rfsuite.session.fcVersion, "info") 
-                rfsuite.utils.log("FC version: " .. rfsuite.session.fcVersion, "connect")
+            connectionState.setFcVersion(API.readVersion())
+            connectionState.setRfVersion(API.readRfVersion())
+            if connectionState.getFcVersion() then 
+                rfsuite.utils.log("FC version: " .. connectionState.getFcVersion(), "info") 
+                rfsuite.utils.log("FC version: " .. connectionState.getFcVersion(), "connect")
             end    
             clearApiEntry()
         end)
@@ -45,11 +46,11 @@ end
 
 function fcversion.reset()
     clearApiEntry()
-    rfsuite.session.fcVersion = nil
-    rfsuite.session.rfVersion = nil
+    connectionState.setFcVersion(nil)
+    connectionState.setRfVersion(nil)
     mspCallMade = false
 end
 
-function fcversion.isComplete() if rfsuite.session.fcVersion ~= nil then return true end end
+function fcversion.isComplete() if connectionState.getFcVersion() ~= nil then return true end end
 
 return fcversion

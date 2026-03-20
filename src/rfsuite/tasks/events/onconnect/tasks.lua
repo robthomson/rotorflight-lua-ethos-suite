@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local tasks = {}
 
@@ -72,7 +73,7 @@ local function hardReloadTask(task)
 end
 
 local function resetSessionFlags()
-    rfsuite.session.isConnected = false
+    connectionState.setConnected(false)
 end
 
 local function resetQueuesAndState()
@@ -115,7 +116,6 @@ local function loadManifest()
 end
 
 local function isTelemetryActive()
-    local session = rfsuite.session
     local t = rfsuite.tasks
     local msp = t and t.msp
 
@@ -126,7 +126,7 @@ local function isTelemetryActive()
         if not init then return false end
     end
 
-    local ts = session and session.telemetryState
+    local ts = connectionState.telemetryState
     if type(ts) == "boolean" then
         return ts
     elseif type(ts) == "table" then
@@ -275,7 +275,7 @@ function tasks.wakeup()
                 rfsuite.tasks.events.flightmode.reset()
             end
 
-            rfsuite.session.isConnected = true
+            connectionState.setConnected(true)
             if rfsuite.app and rfsuite.app.triggers then
                 rfsuite.app.triggers.rebootInProgress = false
             end

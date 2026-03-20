@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 
 local utils = rfsuite.utils
 local config = rfsuite.config
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local os_clock = os.clock
 local table_insert = table.insert
@@ -159,7 +160,7 @@ function tasks.isTaskActive(name)
         if t.name == name then
             local age = os_clock() - t.last_run
             if name == "msp" then
-                return rfsuite.session.mspBusy
+                return connectionState.getMspBusy()
             elseif name == "callback" then
                 return age <= 2
             else
@@ -183,7 +184,7 @@ function tasks.dumpSchedule()
     local now = os_clock()
 
     -- Latch that we have/had a session attempt; used to allow a single teardown on telemetry-down
-    if rfsuite.session.isConnected or connectAttemptStartedAt ~= nil or rfsuite.session.mspBusy then
+    if connectionState.getConnected() or connectAttemptStartedAt ~= nil or connectionState.getMspBusy() then
         hadSession = true
     end
     utils.log("====== Task Schedule Dump ======", "info")
@@ -296,9 +297,7 @@ local function clearSessionAndQueue()
     if pc then
         if type(pc.reset) == "function" then pc.reset() end
     end
-    if rfsuite.session then
-        rfsuite.session.postConnectComplete = false
-    end
+    connectionState.setPostConnectComplete(false)
 
     -- IMPORTANT: when switching telemetry transport (S.Port <-> CRSF/ELRS),
     -- onconnect can start immediately (event-driven), so we must force MSP
@@ -364,7 +363,7 @@ function tasks.telemetryCheckScheduler()
         end
 
         -- While link remains down, just log occasionally.
-        if not rfsuite.session.isConnected then
+        if not connectionState.getConnected() then
             if (not lastCheckAt) or (now - lastCheckAt) >= 1.0 then
                 lastCheckAt = now
                 utils.log("@i18n(app.msg_waiting_for_connection)@", "connect")
@@ -382,7 +381,7 @@ function tasks.telemetryCheckScheduler()
         clearSessionAndQueue()
 
         -- Start a new connect attempt window on telemetry-up.
-        if not rfsuite.session.isConnected then
+        if not connectionState.getConnected() then
             connectAttemptStartedAt = now
             hadSession = true
         end
@@ -390,7 +389,7 @@ function tasks.telemetryCheckScheduler()
 
     -- Link is up. Start (or continue) a connect attempt timer until isConnected becomes true.
     -- If we exceed the deadline, teardown and retry (with cooldown).
-    if not rfsuite.session.isConnected then
+    if not connectionState.getConnected() then
         if not connectAttemptStartedAt then
             connectAttemptStartedAt = now
         else
@@ -438,11 +437,7 @@ function tasks.telemetryCheckScheduler()
     local haveSensor = false
 
     if currentSensor then
-        rfsuite.session.telemetryState = true
-        rfsuite.session.telemetrySensor = currentSensor
-        rfsuite.session.telemetryModule = currentModuleId
-        rfsuite.session.telemetryType = currentTelemetryType
-        rfsuite.session.telemetryModuleNumber = currentModuleNumber
+        connectionState.setTelemetry(true, currentSensor, currentModuleId, currentTelemetryType, currentModuleNumber)
 
         if now - lastNameCheckAt >= NAME_CHECK_INTERVAL then
             lastNameCheckAt = now
@@ -483,11 +478,7 @@ function tasks.telemetryCheckScheduler()
 
         if not currentSensor then return clearSessionAndQueue() end
 
-        rfsuite.session.telemetryState = true
-        rfsuite.session.telemetrySensor = currentSensor
-        rfsuite.session.telemetryModule = currentModuleId
-        rfsuite.session.telemetryType = currentTelemetryType
-        rfsuite.session.telemetryModuleNumber = currentModuleNumber
+        connectionState.setTelemetry(true, currentSensor, currentModuleId, currentTelemetryType, currentModuleNumber)
 
     end
 
@@ -511,7 +502,7 @@ function tasks.telemetryCheckScheduler()
     -- Run onconnect event handler only when needed (link-up and not yet established)
     local oc = events.onconnect
     if oc and type(oc.wakeup) == "function" then
-        local needsRun = (not rfsuite.session.isConnected)
+        local needsRun = (not connectionState.getConnected())
         if not needsRun and type(oc.active) == "function" then needsRun = oc.active() end
         if needsRun then
             oc.wakeup()
@@ -522,7 +513,7 @@ function tasks.telemetryCheckScheduler()
     -- This lets us close the loader early and fetch non-critical data in the background.
     local pc = events.postconnect
     if pc and type(pc.wakeup) == "function" then
-        local needsRun = (rfsuite.session.isConnected == true)
+        local needsRun = connectionState.getConnected()
         if not needsRun and type(pc.active) == "function" then needsRun = pc.active() end
         if needsRun then
             pc.wakeup()
@@ -549,10 +540,10 @@ local function canRunTask(task, now)
 
     local priorityTask = task.name == "msp" or task.name == "callback"
 
-    local linkOK = not task.linkrequired or rfsuite.session.telemetryState
-    local connOK = not task.connected or rfsuite.session.isConnected
+    local linkOK = not task.linkrequired or connectionState.isTelemetryActive()
+    local connOK = not task.connected or connectionState.getConnected()
 
-    local ok = linkOK and connOK and (priorityTask or od >= 0 or not rfsuite.session.mspBusy) and (not task.simulatoronly or usingSimulator)
+    local ok = linkOK and connOK and (priorityTask or od >= 0 or not connectionState.getMspBusy()) and (not task.simulatoronly or usingSimulator)
 
     return ok, od
 end
@@ -783,7 +774,7 @@ function tasks.wakeup_protected()
     -- MSP boost mode:
     -- As soon as we have any MSP activity, prioritize MSP and callback tasks only.
     -- This ensures that the MSP queue is drained as fast as possible to reduce latency.
-    if rfsuite.session.mspBusy then
+    if connectionState.getMspBusy() then
             if tasks.msp and tasks.msp.wakeup then
                 local c0 = os_clock()
                 tasks.msp.wakeup()
@@ -832,7 +823,7 @@ function tasks.wakeup_protected()
 
         -- Flightmode change edges
         local fmNow = rfsuite.flightmode and rfsuite.flightmode.current or nil
-        if fmNow ~= lastFlightModeValue and rfsuite.session.isConnected then
+        if fmNow ~= lastFlightModeValue and connectionState.getConnected() then
             utils.log("[event] onflightmode", "info")
             if lastFlightModeValue ~= nil then
                 local ofm = events.onflightmode

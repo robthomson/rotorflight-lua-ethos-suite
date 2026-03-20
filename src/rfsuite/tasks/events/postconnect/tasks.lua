@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local tasks = {}
 
@@ -169,16 +170,14 @@ function tasks.reset()
     resetQueuesAndState()
     active = false
     lastConnected = false
-    if rfsuite.session then
-        rfsuite.session.postConnectComplete = false
-    end
+    connectionState.setPostConnectComplete(false)
 end
 
 function tasks.wakeup()
     local now = os.clock()
 
     -- If we are not connected, reset the edge latch and state
-    if not (rfsuite.session and rfsuite.session.isConnected) then
+    if not connectionState.getConnected() then
         if lastConnected then
             tasks.reset()
         end
@@ -207,7 +206,7 @@ function tasks.wakeup()
     if isQueueDone() then
         active = false
         rfsuite.utils.log("Postconnect: [complete]", "info")
-        rfsuite.session.postConnectComplete = true
+        connectionState.setPostConnectComplete(true)
         return
     end
 
