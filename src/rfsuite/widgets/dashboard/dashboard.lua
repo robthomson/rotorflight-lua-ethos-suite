@@ -39,6 +39,13 @@ local function clearArray(t)
     end
 end
 
+local function clearMap(t)
+    if not t then return end
+    for k in pairs(t) do
+        t[k] = nil
+    end
+end
+
 local EMPTY = {}
 
 local function resolveMaybe(val, ...)
@@ -1138,6 +1145,110 @@ local function getThemeForState(state)
     return val or userPrefs["theme_" .. state] or dashboard.DEFAULT_THEME
 end
 
+local function resetDashboardRuntime(releaseModules)
+    local actionModules = dashboard.toolbar_action_modules
+    if actionModules then
+        for _, mod in pairs(actionModules) do
+            if mod and type(mod.reset) == "function" then
+                mod.reset()
+            end
+        end
+    end
+
+    local moduleCache = dashboard._moduleCache
+    if moduleCache then
+        for _, obj in pairs(moduleCache) do
+            if type(obj) == "table" and type(obj.reset) == "function" then
+                obj.reset()
+            end
+        end
+    end
+
+    if dashboard.utils then
+        if dashboard.utils.clearProgressDialog then
+            dashboard.utils.clearProgressDialog()
+        end
+        if dashboard.utils.resetRuntimeCaches then
+            dashboard.utils.resetRuntimeCaches()
+        elseif dashboard.utils.resetImageCache then
+            dashboard.utils.resetImageCache()
+        end
+    end
+
+    dashboard.overlayMessage = nil
+    dashboard.currentWidgetPath = nil
+    dashboard.toolbarVisible = false
+    dashboard.toolbarItems = nil
+    dashboard.selectedToolbarIndex = nil
+    dashboard.selectedBoxIndex = nil
+    dashboard._toolbarLastActive = 0
+    dashboard._toolbarCloseAt = 0
+    dashboard._loader_start_time = nil
+    dashboard._forceFullRepaint = true
+    dashboard._hg_cycles = 0
+    dashboard._lastInvalidateTime = 0
+    dashboard._overlayLastTxt = nil
+    dashboard._overlayDefaultLine = nil
+    dashboard._overlayStaticOpts = nil
+    dashboard._overlayLogOpts = nil
+    dashboard._onpressIndicesReady = false
+
+    if dashboard._pendingInvalidates then
+        clearArray(dashboard._pendingInvalidates)
+    else
+        dashboard._pendingInvalidates = {}
+    end
+    dashboard._pendingInvalidatesPoolN = 0
+
+    if dashboard._overlayQueue then clearArray(dashboard._overlayQueue) end
+    if dashboard._overlaySingleLine then clearArray(dashboard._overlaySingleLine) end
+    if dashboard.boxRects then clearArray(dashboard.boxRects) else dashboard.boxRects = {} end
+    if dashboard._headerGeoms then clearArray(dashboard._headerGeoms) end
+    if dashboard._headerGeomsPaint then clearArray(dashboard._headerGeomsPaint) end
+    if dashboard._onpressIndices then clearArray(dashboard._onpressIndices) end
+    if dashboard._allBoxes then clearArray(dashboard._allBoxes) end
+    if dashboard._boxSigScratch then clearArray(dashboard._boxSigScratch) end
+    if scheduledBoxIndices then clearArray(scheduledBoxIndices) else scheduledBoxIndices = {} end
+
+    clearMap(dashboard._objectDirty)
+    clearMap(dashboard.objectsByType)
+    clearMap(dashboard.renders)
+    if dashboard.prof and dashboard.prof.perId then
+        clearMap(dashboard.prof.perId)
+        dashboard.prof.lastReport = 0
+    end
+
+    if releaseModules then
+        clearMap(loadedStateModules)
+        clearMap(dashboard._moduleCache)
+    end
+
+    objectWakeupIndex = 1
+    objectWakeupsPerCycle = nil
+    objectsThreadedWakeupCount = 0
+    lastLoadedBoxCount = 0
+    lastBoxRectsCount = 0
+    lastLoadedBoxSigParts = nil
+    lastLoadedBoxSigCount = 0
+    statePreloadIndex = 1
+    unsupportedResolution = false
+    firstWakeup = true
+    firstWakeupCustomTheme = true
+    lastFlightMode = nil
+    lastWakeup = clock()
+    busyWakeupTick = 0
+    isSliding = false
+    isSlidingStart = 0
+    lastFocusReset = 0
+    toolbarOpenedAt = 0
+    gestureActive = false
+    gestureTriggered = false
+    dashboard.flightmode = rfsuite.flightmode.current or "preflight"
+    darkModeState = lcd.darkMode()
+    lastModelPath = model.path()
+    lastModelPathCheckAt = 0
+end
+
 local function reload_state_only(state)
     dashboard.utils.resetImageCache()
     loadedStateModules[state] = load_state_script(getThemeForState(state), state)
@@ -1275,34 +1386,21 @@ function dashboard.create()
     if not dashboard.utils then dashboard.utils = assert(compile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/widgets/dashboard/lib/utils.lua"))() end
     if not dashboard.loaders then dashboard.loaders = assert(compile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/widgets/dashboard/lib/loaders.lua"))() end
 
+    resetDashboardRuntime(true)
     os.mkdir("SCRIPTS:/" .. rfsuite.config.preferences .. "/dashboard/")
-
-    dashboard._pendingInvalidates = {}
-    dashboard._lastInvalidateTime = 0
-    dashboard._hg_cycles = 0
-    dashboard.overlayMessage = nil
-
-    firstWakeup = true
-    firstWakeupCustomTheme = true
-    objectWakeupIndex = 1
-    objectsThreadedWakeupCount = 0
-    objectWakeupsPerCycle = nil
-    if scheduledBoxIndices then
-        clearArray(scheduledBoxIndices)
-    else
-        scheduledBoxIndices = {}
-    end
-    if dashboard.boxRects then
-        clearArray(dashboard.boxRects)
-    else
-        dashboard.boxRects = {}
-    end
-    dashboard._onpressIndicesReady = false
-    dashboard.selectedBoxIndex = nil
 
     lcd.invalidate()
 
     return {value = 0}
+end
+
+function dashboard.close(widget)
+    local state = dashboard.flightmode or "preflight"
+    local module = loadedStateModules[state]
+    if type(module) == "table" and type(module.close) == "function" then
+        pcall(module.close, widget)
+    end
+    resetDashboardRuntime(true)
 end
 
 function dashboard.paint(widget)

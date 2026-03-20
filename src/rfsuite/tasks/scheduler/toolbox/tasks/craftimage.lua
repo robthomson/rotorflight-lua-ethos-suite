@@ -8,6 +8,7 @@ local rfsuite = require("rfsuite")
 local arg = {...}
 
 local craftimage = {}
+local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
 
 local default_image = "widgets/toolbox/gfx/default_image.png"
 local bitmapPtr
@@ -63,7 +64,7 @@ end
 
 function craftimage.wakeup()
     local session = rfsuite.session
-    if session.toolbox.craftimage ~= nil then return end
+    if sharedToolbox.get("craftimage") ~= nil then return end
 
     local craftName = session.craftName
 
@@ -89,7 +90,7 @@ function craftimage.wakeup()
 
     if not bitmapPtr then bitmapPtr = rfsuite.utils.loadImage(default_image) end
 
-    session.toolbox.craftimage = bitmapPtr
+    sharedToolbox.set("craftimage", bitmapPtr)
 end
 
 return craftimage

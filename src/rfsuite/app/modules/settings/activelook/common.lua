@@ -162,7 +162,6 @@ function common.saveConfig(config)
     rfsuite.ini.save_ini_file("SCRIPTS:/" .. rfsuite.config.preferences .. "/preferences.ini", rfsuite.preferences)
 
     if changed then
-        rfsuite.session = rfsuite.session or {}
         rfsuite.session.activelookReset = true
     end
 

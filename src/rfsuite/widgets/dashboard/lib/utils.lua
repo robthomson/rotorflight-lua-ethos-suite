@@ -101,6 +101,18 @@ local themeFallbackPaletteCache = {dark = nil, light = nil}
 
 local function clampColorByte(v) return max(0, min(255, floor(v + 0.5))) end
 
+local function resetBatteryConfigCache()
+    batteryConfigCache.config = nil
+    batteryConfigCache.profiles = nil
+    batteryConfigCache.batteryCellCount = 0
+    batteryConfigCache.batteryCapacity = 0
+    batteryConfigCache.vbatmincellvoltage = 0
+    batteryConfigCache.vbatfullcellvoltage = 0
+    batteryConfigCache.profileSig = 0
+    batteryConfigCache.profileCapacityCount = 0
+    batteryConfigCache.hasAnyBatteryCapacity = false
+end
+
 local function variantFactorOrDefault(variantFactor)
     if type(variantFactor) == "number" then
         return max(0, min(1, variantFactor))
@@ -409,6 +421,13 @@ function utils.standardHeaderBoxes(i18n, colorMode, headeropts, txbatt_type)
 end
 
 function utils.resetImageCache() for k in pairs(imageCache) do imageCache[k] = nil end end
+
+function utils.resetRuntimeCaches()
+    utils.resetImageCache()
+    fontCache = nil
+    progressDialog = nil
+    resetBatteryConfigCache()
+end
 
 function utils.screenError(msg, border, pct, padX, padY)
 
@@ -770,15 +789,7 @@ local function refreshBatteryConfigCache()
     local bc = session and session.batteryConfig
 
     if not bc then
-        batteryConfigCache.config = nil
-        batteryConfigCache.profiles = nil
-        batteryConfigCache.batteryCellCount = 0
-        batteryConfigCache.batteryCapacity = 0
-        batteryConfigCache.vbatmincellvoltage = 0
-        batteryConfigCache.vbatfullcellvoltage = 0
-        batteryConfigCache.profileSig = 0
-        batteryConfigCache.profileCapacityCount = 0
-        batteryConfigCache.hasAnyBatteryCapacity = false
+        resetBatteryConfigCache()
         return nil
     end
 

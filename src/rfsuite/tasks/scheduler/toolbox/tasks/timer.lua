@@ -8,6 +8,7 @@ local rfsuite = require("rfsuite")
 local timer = {}
 local floor = math.floor
 local format = string.format
+local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
 
 local lastSeconds = nil
 local lastDisplay = "00:00"
@@ -29,7 +30,7 @@ function timer.wakeup()
         lastSeconds = wholeSeconds
     end
 
-    session.toolbox.timer = lastDisplay
+    sharedToolbox.set("timer", lastDisplay)
 end
 
 return timer

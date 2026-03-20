@@ -42,6 +42,10 @@ local performance = {cpuload = 0, freeram = 0, mainStackKB = 0, ramKB = 0, luaRa
 
 rfsuite.performance = performance
 
+rfsuite.shared = rfsuite.shared or {}
+rfsuite.shared.session = assert(loadfile("shared/session.lua"))()
+rfsuite.session = rfsuite.shared.session
+
 rfsuite.ini = assert(loadfile("lib/ini.lua", "t", _ENV))(config)
 
 local userpref_defaults = {
@@ -164,6 +168,9 @@ rfsuite.config.bgTaskKey = "rf2bg"
 
 rfsuite.utils = assert(loadfile("lib/utils.lua"))(rfsuite.config)
 rfsuite.ethos_events = assert(loadfile("lib/ethos_events.lua", "t", _ENV))()
+rfsuite.shared.mspapi = assert(loadfile("shared/msp/api.lua"))()
+rfsuite.mspapi = rfsuite.shared.mspapi
+rfsuite.shared.toolbox = assert(loadfile("shared/toolbox.lua"))()
 
 rfsuite.app = assert(loadfile("app/app.lua"))(rfsuite.config)
 

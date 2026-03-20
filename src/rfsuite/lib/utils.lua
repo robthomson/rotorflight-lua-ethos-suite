@@ -11,6 +11,8 @@ local arg = {...}
 local config = arg[1]
 
 function utils.session()
+    local session = (rfsuite.shared and rfsuite.shared.session) or rfsuite.session
+
     local function prefBool(value, default)
         if value == nil then return default end
         if value == true or value == "true" or value == 1 or value == "1" then return true end
@@ -20,9 +22,91 @@ function utils.session()
 
     local prefs = rfsuite.preferences and rfsuite.preferences.general or {}
     
-     if rfsuite.session.originalModelName and model.name then
-        rfsuite.utils.log("Restoring model name to: " .. rfsuite.session.originalModelName, "info")
-        model.name(rfsuite.session.originalModelName)
+     if session and session.originalModelName and model.name then
+        rfsuite.utils.log("Restoring model name to: " .. session.originalModelName, "info")
+        model.name(session.originalModelName)
+    end
+
+    if not session then
+        session = {}
+    end
+
+    if session.reset then
+        session:reset({
+
+            escDetails = nil,
+            tailMode = nil,
+            swashMode = nil,
+            rateProfile = nil,
+            governorMode = nil,
+
+            activeProfile = nil,
+            activeRateProfile = nil,
+            activeProfileLast = nil,
+            activeRateProfileLast = nil,
+
+            servoCount = nil,
+            servoOverride = nil,
+            servoBusEnabled = nil,
+
+            apiVersion = nil,
+            apiVersionInvalid = nil,
+            fcVersion = nil,
+            rfVersion = nil,
+            ethosRunningVersion = nil,
+            mspSignature = nil,
+            mcu_id = nil,
+
+            isConnected = false,
+            postConnectComplete = false,
+            isArmed = false,
+
+            telemetryState = nil,
+            telemetryType = nil,
+            telemetryTypeChanged = nil,
+            telemetrySensor = nil,
+            telemetryModule = nil,
+            telemetryModelChanged = nil,
+            telemetryConfig = nil,
+            telemetryModuleNumber = nil,
+
+            mspBusy = false,
+            mspStatusMessage = nil,
+            mspStatusUpdatedAt = nil,
+            mspStatusLast = nil,
+            mspStatusClearAt = nil,
+            mspCrcErrors = 0,
+            progressDialog = nil,
+
+            repairSensors = false,
+
+            batteryConfig = nil,
+
+            locale = system.getLocale(),
+            lastMemoryUsage = nil,
+            bblSize = nil,
+            bblUsed = nil,
+
+            timer = {start = nil, live = nil, lifetime = nil, session = 0},
+            flightCounted = false,
+
+            onConnect = {tasks = {}, high = false, medium = false, low = false},
+
+            rx = {map = {}, values = {}},
+
+            modelPreferences = nil,
+            modelPreferencesFile = nil,
+
+            originalModelName = nil,
+
+            clockSet = nil,
+            resetMSP = nil,
+            
+            showBatteryTypeStartup = prefBool(prefs.show_battery_profile_startup, true),
+            showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
+        })
+        rfsuite.session = session
+        return session
     end
 
     rfsuite.session = {
@@ -98,6 +182,8 @@ function utils.session()
         showBatteryTypeStartup = prefBool(prefs.show_battery_profile_startup, true),
         showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
     }
+
+    return rfsuite.session
 
 end
 

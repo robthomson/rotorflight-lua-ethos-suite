@@ -12,6 +12,7 @@ local telemetryStartTime = nil
 local wakeupStep = 0
 local wakeupHandlers = {}
 local os_clock = os.clock
+local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
 
 local taskNames = {"armflags", "governor", "craftname", "bbl", "craftimage", "timer"}
 local taskExecutionPercent = 50
@@ -26,7 +27,7 @@ local numHandlers = #wakeupHandlers
 
 function toolbox.wakeup()
 
-    if rfsuite.session.toolbox == nil then return end
+    if not sharedToolbox.isActive() then return end
     local currentTime = os_clock()
 
     if rfsuite.session.isConnected and rfsuite.session.telemetryState then
@@ -44,6 +45,9 @@ function toolbox.wakeup()
     end
 end
 
-function toolbox.reset() telemetryStartTime = nil end
+function toolbox.reset()
+    telemetryStartTime = nil
+    sharedToolbox.clear()
+end
 
 return toolbox

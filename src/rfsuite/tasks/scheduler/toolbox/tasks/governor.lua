@@ -9,13 +9,14 @@ local arg = {...}
 
 local governor = {}
 local math_floor = math.floor
+local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
 
 function governor.wakeup()
 
     local telemetry = rfsuite.tasks.telemetry
     local value = telemetry and telemetry.getSensor("governor") or 0
     local displayValue = rfsuite.utils.getGovernorState(math_floor(value))
-    rfsuite.session.toolbox.governor = displayValue
+    sharedToolbox.set("governor", displayValue)
 
 end
 

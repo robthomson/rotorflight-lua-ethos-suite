@@ -10,6 +10,7 @@ local arg = {...}
 local armflags = {}
 
 local math_floor = math.floor
+local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
 
 function armflags.wakeup()
 
@@ -39,7 +40,7 @@ function armflags.wakeup()
         end
     end
 
-    rfsuite.session.toolbox.armflags = displayValue
+    sharedToolbox.set("armflags", displayValue)
 
 end
 

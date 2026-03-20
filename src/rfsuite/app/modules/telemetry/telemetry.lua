@@ -671,7 +671,6 @@ local function wakeup()
 
         for i = sensorIndex, 52 do buffer[i] = 0 end
 
-        rfsuite.session = rfsuite.session or {}
         rfsuite.session.telemetryConfig = appliedSensors
 
         rfsuite.utils.log("Applied telemetry sensors: " .. table.concat(appliedSensors, ", "), "info")

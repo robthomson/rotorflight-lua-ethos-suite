@@ -53,6 +53,7 @@ local tostring = tostring
 local tonumber = tonumber
 
 local render = {}
+local dialImageCache = {}
 
 local utils = rfsuite.widgets.dashboard.utils
 local getParam = utils.getParam
@@ -87,14 +88,19 @@ local function resolveDialAsset(value, basePath)
     return nil
 end
 
-rfsuite.session.dialImageCache = rfsuite.session.dialImageCache or {}
+function render.reset()
+    for k in pairs(dialImageCache) do
+        dialImageCache[k] = nil
+    end
+end
+
 local function loadDialPanelCached(dialId)
     local key = tostring(dialId or "panel1")
-    if not rfsuite.session.dialImageCache[key] then
+    if not dialImageCache[key] then
         local panelPath = resolveDialAsset(dialId, "widgets/dashboard/gfx/dials") or "widgets/dashboard/gfx/dials/panel1.png"
-        rfsuite.session.dialImageCache[key] = rfsuite.utils.loadImage(panelPath)
+        dialImageCache[key] = rfsuite.utils.loadImage(panelPath)
     end
-    return rfsuite.session.dialImageCache[key]
+    return dialImageCache[key]
 end
 
 local function calDialAngle(percent, startAngle, sweepAngle) return (startAngle or 315) + (sweepAngle or 270) * (percent or 0) / 100 end

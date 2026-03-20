@@ -658,7 +658,7 @@ end
 
 local function getApiCore()
     if apiCore then return apiCore end
-    apiCore = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api_core.lua"))()
+    apiCore = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/shared/msp/api/core.lua"))()
     return apiCore
 end
 

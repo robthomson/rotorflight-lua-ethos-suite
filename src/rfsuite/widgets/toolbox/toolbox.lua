@@ -8,6 +8,7 @@ local rfsuite = require("rfsuite")
 local toolbox = {}
 local wakeupScheduler
 local LCD_W, LCD_H
+local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
 -- Busy cadence: run toolbox invalidation on RUN_NUM of RUN_DEN ticks while MSP is busy.
 -- Lower RUN_NUM to yield more CPU to MSP; set RUN_NUM == RUN_DEN to disable this throttle.
 local BUSY_WAKEUP_RUN_NUM = 2
@@ -46,6 +47,7 @@ end
 function toolbox.create()
 
     wakeupScheduler = os.clock()
+    sharedToolbox.acquire()
 
     return {value = 0, state = {setup = false}, loadedWidget = nil}
 end
@@ -91,7 +93,7 @@ end
 
 function toolbox.paint(widget)
 
-    if not rfsuite.session.toolbox then return end
+    if not sharedToolbox.isActive() then return end
 
     if not widget.object then return end
 
@@ -107,7 +109,7 @@ function toolbox.paint(widget)
         return
     end
 
-    local msg = rfsuite.session.toolbox[toolBoxList[widget.object].object] or "-"
+    local msg = sharedToolbox.get(toolBoxList[widget.object].object, "-")
     local title = toolBoxList[widget.object].name
 
     local w, h = lcd.getWindowSize()
@@ -193,11 +195,6 @@ function toolbox.paint(widget)
 end
 
 function toolbox.wakeup(widget)
-
-    if not rfsuite.session.toolbox then
-        rfsuite.session.toolbox = {}
-        return
-    end
 
     loadWidget(widget)
 
@@ -293,7 +290,12 @@ function toolbox.write(widget)
     storage.write("object", widget.object)
 end
 
-function toolbox.close() rfsuite.session.toolbox = nil end
+function toolbox.close(widget)
+    if widget and widget.loadedWidget and widget.loadedWidget.close then
+        pcall(widget.loadedWidget.close, widget.loadedWidget, widget)
+    end
+    sharedToolbox.release()
+end
 
 toolbox.title = false
 

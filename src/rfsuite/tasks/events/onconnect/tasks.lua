@@ -72,7 +72,6 @@ local function hardReloadTask(task)
 end
 
 local function resetSessionFlags()
-    rfsuite.session = rfsuite.session or {}
     rfsuite.session.isConnected = false
 end
 
@@ -245,7 +244,6 @@ function tasks.wakeup()
                 rfsuite.tasks.reset()
             end
 
-            rfsuite.session = rfsuite.session or {}
             rfsuite.session.resetMSPSensors = true
         else
             resetSessionFlags()

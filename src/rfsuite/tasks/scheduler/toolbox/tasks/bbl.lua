@@ -9,6 +9,7 @@ local arg = {...}
 
 local bbl = {}
 local string_format = string.format
+local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
 
 function bbl.wakeup()
 
@@ -32,7 +33,7 @@ function bbl.wakeup()
         percentUsed = nil
     end
 
-    session.toolbox.bbl = displayValue
+    sharedToolbox.set("bbl", displayValue)
 
 end
 
