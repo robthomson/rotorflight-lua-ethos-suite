@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 
 local activelook = {}
+local activelookState = (rfsuite.shared and rfsuite.shared.activelook) or assert(loadfile("shared/activelook.lua"))()
 
 local os_clock = os.clock
 local floor = math.floor
@@ -36,6 +37,14 @@ local function clamp(val, min, max)
     if val < min then return min end
     if val > max then return max end
     return val
+end
+
+local function clearArray(tbl)
+    local i
+    if type(tbl) ~= "table" then return end
+    for i = #tbl, 1, -1 do
+        tbl[i] = nil
+    end
 end
 
 local DEFAULT_LAYOUT = {
@@ -243,10 +252,10 @@ local function updateStats(context, mode, now)
     context.lastFlightSecondsText = formatDuration(context.lastFlightSeconds)
 end
 
-local function loadLayoutForState(stateKey)
+local function loadLayoutForState(stateKey, layout)
     local prefs = rfsuite.preferences and rfsuite.preferences.activelook or {}
     local defaults = DEFAULT_LAYOUT[stateKey] or DEFAULT_LAYOUT.preflight
-    local layout = {}
+    local target = layout or {}
     local prefix = stateKey .. "_"
     for i = 1, 4 do
         local key = prefix .. i
@@ -255,9 +264,9 @@ local function loadLayoutForState(stateKey)
             local legacy = prefs["prepost_" .. i]
             value = legacy or defaults[i]
         end
-        layout[i] = value
+        target[i] = value
     end
-    return layout
+    return target
 end
 
 local function loadLayoutChoice(stateKey)
@@ -331,6 +340,7 @@ local function buildLayout(context)
     }
 
     context.iconGap = gap
+    context.slotLayoutKey = nil
 end
 
 local function needsRedraw(context, modeKey, values, icons, configKeyValue)
@@ -401,9 +411,10 @@ local function render(context, values, icons, modeKey, configKeyValue, slots)
     end
 end
 
-local function buildValues(context, mode, now, layout)
+local function buildValues(context, mode, now, layout, values, icons)
+    local valuesOut = values or {}
+    local iconsOut = icons or {}
     updateStats(context, mode, now)
-    local values, icons = {}, {}
     for i = 1, 4 do
         local sensorKey = layout[i] or "off"
         local def = SENSOR_DEFS[sensorKey] or SENSOR_DEFS.off
@@ -426,15 +437,15 @@ local function buildValues(context, mode, now, layout)
         else
             value = tostring(value)
         end
-        values[i] = value
-        icons[i] = nil
+        valuesOut[i] = value
+        iconsOut[i] = nil
     end
-    return values, icons
+    return valuesOut, iconsOut
 end
 
-local function computeSlots(context, modeKey, layoutChoice)
+local function computeSlots(context, modeKey, layoutChoice, slots)
     local metrics = context.layoutMetrics or {}
-    local slots = {}
+    local slotList = slots or {}
     local active = LAYOUT_ACTIVE[layoutChoice] or LAYOUT_ACTIVE.two_top_two_bottom
     local areaW = metrics.areaW or 0
     local boxW = metrics.boxW or 0
@@ -451,16 +462,23 @@ local function computeSlots(context, modeKey, layoutChoice)
     local isPreflight = modeKey == "preflight"
 
     local function addSlot(idx, enabled, x, y, size, font, textYOffset, width, align)
-        slots[idx] = {
-            enabled = enabled,
-            x = x,
-            y = y,
-            size = size,
-            font = font,
-            textYOffset = textYOffset,
-            width = width,
-            align = align
-        }
+        local slot = slotList[idx]
+        if not slot then
+            slot = {}
+            slotList[idx] = slot
+        end
+        slot.enabled = enabled
+        slot.x = x
+        slot.y = y
+        slot.size = size
+        slot.font = font
+        slot.textYOffset = textYOffset
+        slot.width = width
+        slot.align = align
+    end
+
+    for i = 5, #slotList do
+        slotList[i] = nil
     end
 
     if layoutChoice == "two_top_one_bottom" then
@@ -490,7 +508,22 @@ local function computeSlots(context, modeKey, layoutChoice)
         addSlot(4, active[4], rightX, bottomY, "small", isPreflight and PREFLIGHT_BOTTOM_FONT or SMALL_FONT, isPreflight and preBottomOffset or smallOffset, boxW, isPreflight and "center" or nil)
     end
 
-    return slots
+    return slotList
+end
+
+local function resetContext(context, fullLayoutReset)
+    context.lastMode = nil
+    context.lastConfigKey = nil
+    clearArray(context.lastValues)
+    clearArray(context.lastIcons)
+    clearArray(context.valuesScratch)
+    clearArray(context.iconsScratch)
+    clearArray(context.layoutScratch)
+    context.slotLayoutKey = nil
+    if fullLayoutReset then
+        context.layout = nil
+        clearArray(context.slotLayout)
+    end
 end
 
 local function create()
@@ -501,30 +534,31 @@ local function create()
         lastConfigKey = nil,
         lastValues = {},
         lastIcons = {},
+        valuesScratch = {},
+        iconsScratch = {},
+        layoutScratch = {},
+        slotLayout = {},
+        slotLayoutKey = nil,
         inflight = false,
         inflightStart = nil,
         lastFlightSeconds = 0,
-        lastFlightSecondsText = "00:00"
+        lastFlightSecondsText = "00:00",
+        resetRevision = activelookState and activelookState.getRevision and activelookState.getRevision() or 0
     }
 end
 
 local function wakeup(context)
-    if rfsuite.session and rfsuite.session.activelookReset then
-        rfsuite.session.activelookReset = false
-        context.layout = nil
-        context.lastMode = nil
-        context.lastConfigKey = nil
-        context.lastValues = {}
-        context.lastIcons = {}
+    local resetRevision = activelookState and activelookState.getRevision and activelookState.getRevision() or 0
+    if context.resetRevision ~= resetRevision then
+        context.resetRevision = resetRevision
+        resetContext(context, true)
     end
 
     local prefs = rfsuite.preferences and rfsuite.preferences.activelook or {}
     local offsetX = clamp(tonumber(prefs.offset_x) or 0, -20, 20)
     local offsetY = clamp(tonumber(prefs.offset_y) or 0, -20, 20)
     if context.offsetX ~= offsetX or context.offsetY ~= offsetY then
-        context.layout = nil
-        context.lastMode = nil
-        context.lastConfigKey = nil
+        resetContext(context, true)
     end
 
     if not context.layout then buildLayout(context) end
@@ -534,14 +568,17 @@ local function wakeup(context)
 
     local mode = getMode()
     local stateKey = mode
-    local layout = loadLayoutForState(stateKey)
+    local layout = loadLayoutForState(stateKey, context.layoutScratch)
     local layoutChoice = loadLayoutChoice(stateKey)
     local configKeyValue = layoutChoice .. "|" .. layoutKey(layout)
-    local slots = computeSlots(context, stateKey, layoutChoice)
+    if context.slotLayoutKey ~= configKeyValue then
+        computeSlots(context, stateKey, layoutChoice, context.slotLayout)
+        context.slotLayoutKey = configKeyValue
+    end
 
-    local values, icons = buildValues(context, mode, now, layout)
+    local values, icons = buildValues(context, mode, now, layout, context.valuesScratch, context.iconsScratch)
     if needsRedraw(context, stateKey, values, icons, configKeyValue) then
-        render(context, values, icons, stateKey, configKeyValue, slots)
+        render(context, values, icons, stateKey, configKeyValue, context.slotLayout)
     end
 end
 

@@ -161,8 +161,8 @@ function common.saveConfig(config)
     end
     rfsuite.ini.save_ini_file("SCRIPTS:/" .. rfsuite.config.preferences .. "/preferences.ini", rfsuite.preferences)
 
-    if changed then
-        rfsuite.session.activelookReset = true
+    if changed and rfsuite.shared and rfsuite.shared.activelook and rfsuite.shared.activelook.markDirty then
+        rfsuite.shared.activelook.markDirty()
     end
 
     rfsuite.app.triggers.closeSave = true
