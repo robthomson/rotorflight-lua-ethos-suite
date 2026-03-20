@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local lcd = lcd
 
 local container = {}
@@ -364,8 +365,7 @@ function container.create(cfg)
         if type(app.formFields) ~= "table" or type(app.formFieldsOffline) ~= "table" then return end
 
         local tasksActive = tasks and tasks.active and tasks.active()
-        local liveSession = rfsuite.session
-        local isConnected = (liveSession and liveSession.isConnected and liveSession.mcu_id) and true or false
+        local isConnected = connectionState.getConnected() and connectionState.getMcuId() and true or false
 
         if not isConnected then
             -- Offline mode is manifest-driven: only entries explicitly marked offline remain enabled.

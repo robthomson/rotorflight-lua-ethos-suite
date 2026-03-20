@@ -789,7 +789,7 @@ local function progressDialogWakeup()
 
     if app.dialogs.progressWatchDog and tasks.msp and (osClock() - app.dialogs.progressWatchDog) > tonumber(tasks.msp.protocol.pageReqTimeout) and app.dialogs.progressDisplay == true and app.dialogs.progressTimedOut ~= true then
         app.dialogs.progressTimedOut = true
-        if app.pageState == app.pageStatus.rebooting or (app.triggers and app.triggers.rebootInProgress) or (session and session.resetMSP) then
+        if app.pageState == app.pageStatus.rebooting or (app.triggers and app.triggers.rebootInProgress) or (connectionState.getResetMSP and connectionState.getResetMSP()) then
             app.dialogs.progressCounter = 0
             app.dialogs.progressSpeed = nil
             app.dialogs.progressDisplay = false
@@ -3338,7 +3338,7 @@ function ui.rebootFc(sourcePage)
     local armflags = tasks and tasks.telemetry and tasks.telemetry.getSensor and tasks.telemetry.getSensor("armflags")
     local armedByFlags = (armflags == 1 or armflags == 3)
     local rebootPage = sourcePage or app.Page
-    if (session and session.isArmed) or armedByFlags then
+    if (connectionState.getArmed and connectionState.getArmed()) or armedByFlags then
         utils.log("Blocked reboot while armed", "info")
         app.pageState = app.pageStatus.display
         app.triggers.closeSaveFake = true

@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
@@ -14,7 +15,7 @@ return {
     end,
     onWakeup = function()
         if os.clock() - initTime < 0.25 then return end
-        local currState = (rfsuite.session.isConnected and rfsuite.session.mcu_id) and true or false
+        local currState = connectionState.getConnected() and connectionState.getMcuId() and true or false
         if currState ~= prevConnectedState then
             if not currState and rfsuite.app.formNavigationFields and rfsuite.app.formNavigationFields["menu"] then
                 rfsuite.app.formNavigationFields["menu"]:focus()

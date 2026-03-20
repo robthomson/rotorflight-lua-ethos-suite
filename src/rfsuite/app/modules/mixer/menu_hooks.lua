@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
@@ -119,7 +120,7 @@ return {
             return true
         end
 
-        local currState = (rfsuite.session.isConnected and rfsuite.session.mcu_id) and true or false
+        local currState = connectionState.getConnected() and connectionState.getMcuId() and true or false
         local enable = currState
 
         if rfsuite.app.formFields then

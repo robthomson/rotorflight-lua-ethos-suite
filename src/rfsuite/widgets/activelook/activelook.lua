@@ -8,6 +8,7 @@ local rfsuite = require("rfsuite")
 local activelook = {}
 local activelookState = (rfsuite.shared and rfsuite.shared.activelook) or assert(loadfile("shared/activelook.lua"))()
 local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local os_clock = os.clock
 local floor = math.floor
@@ -99,9 +100,8 @@ local SENSOR_DEFS = {
     armed = {
         label = "Armed",
         value = function()
-            local session = rfsuite.session
-            if session and session.isArmed ~= nil then
-                if session.isArmed then return "@i18n(widgets.governor.ARMED):upper()@" end
+            if connectionState and connectionState.getArmed then
+                if connectionState.getArmed() then return "@i18n(widgets.governor.ARMED):upper()@" end
                 return "@i18n(widgets.governor.DISARMED):upper()@"
             end
             local flags = getSensorValue("armflags")

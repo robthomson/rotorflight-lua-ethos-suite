@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 
@@ -15,15 +16,15 @@ local math_random = math.random
 local tostring = tostring
 
 function developer.wakeup()
-    local session = rfsuite.session
     local config = rfsuite.config
 
-    if not session or not session.mcu_id or not config or not config.preferences then return end
+    local mcuId = connectionState.getMcuId and connectionState.getMcuId()
+    if not mcuId or not config or not config.preferences then return end
 
     local tasks = rfsuite.tasks
     if not tasks or not tasks.ini or not tasks.ini.api then return end
 
-    local iniName = "SCRIPTS:/" .. config.preferences .. "/models/" .. session.mcu_id .. ".ini"
+    local iniName = "SCRIPTS:/" .. config.preferences .. "/models/" .. mcuId .. ".ini"
     local api = tasks.ini.api.load("api_template")
 
     if api then

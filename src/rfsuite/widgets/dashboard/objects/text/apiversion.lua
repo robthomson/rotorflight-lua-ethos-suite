@@ -31,6 +31,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local rep = string.rep
 local tostring = tostring
@@ -92,7 +93,7 @@ end
 function render.wakeup(box)
     local cfg = ensureCfg(box)
 
-    local value = rfsuite.session.apiVersion
+    local value = connectionState.getApiVersion and connectionState.getApiVersion()
 
     local displayValue
     if value == nil then

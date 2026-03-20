@@ -45,6 +45,7 @@ To display min stats, set stattype = "min"; for max, omit or set stattype = "max
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local floor = math.floor
 local ceil = math.ceil
@@ -135,7 +136,7 @@ function render.wakeup(box)
     local statType = cfg.stattype
     local value, unit
 
-    local telemetryActive = rfsuite.session and rfsuite.session.isConnected
+    local telemetryActive = connectionState.getConnected()
 
     if source and telemetry and telemetry.getSensorStats then
         local stats = telemetry.getSensorStats(source)

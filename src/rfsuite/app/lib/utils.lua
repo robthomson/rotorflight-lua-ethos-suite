@@ -13,6 +13,7 @@ local tasks = rfsuite.tasks
 local session = rfsuite.session
 local simevent = rfsuite.simevent
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -22,7 +23,7 @@ function utils.getRSSI()
 
     if app.offlineMode == true then return 100 end
 
-    if session.telemetryState then
+    if connectionState.isTelemetryActive and connectionState.isTelemetryActive() then
         return 100
     else
         return 0
@@ -192,7 +193,7 @@ function utils.settingsSaved(savedPage)
         if app.pageState ~= app.pageStatus.eepromWrite then
             app.pageState = app.pageStatus.eepromWrite
             app.triggers.closeSave = true
-            if session.isArmed then app.triggers.showSaveArmedWarning = true end
+            if connectionState.getArmed and connectionState.getArmed() then app.triggers.showSaveArmedWarning = true end
             local ok, reason = tasks.msp.mspQueue:add(mspEepromWrite)
             if not ok then
                 utils.log("EEPROM enqueue rejected: " .. tostring(reason), "info")

@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 
@@ -462,8 +463,7 @@ local eventTable = {
         event = function(value)
             local key = "governor"
             if value == lastValues[key] then return end
-            local session = rfsuite.session
-            if not session.isArmed or flightState.getGovernorMode() == 0 then return end
+            if not connectionState.getArmed() or flightState.getGovernorMode() == 0 then return end
             local filename = governorMap[math_floor(value)]
             if filename then utils.playFile("events", "gov/" .. filename) end
         end

@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local utils = {}
 
@@ -280,7 +281,7 @@ function utils.getGovernorState(value)
         [101] = "@i18n(widgets.governor.DISARMED):upper()@"
     }
 
-    if rfsuite.session and rfsuite.session.apiVersion and rfsuite.utils.apiVersionCompare(">", {12, 0, 7}) then
+    if connectionState.getApiVersion and connectionState.getApiVersion() and rfsuite.utils.apiVersionCompare(">", {12, 0, 7}) then
         local armflags = rfsuite.tasks.telemetry.getSensor("armflags")
         if armflags == 0 or armflags == 2 then value = 101 end
     end
@@ -686,12 +687,7 @@ function utils.onReboot()
     rfsuite.utils.log("utils.onReboot called", "info")
     rfsuite.session.resetSensors = true
     rfsuite.session.resetTelemetry = true
-    local connectionState = rfsuite.shared and rfsuite.shared.connection
-    if connectionState and connectionState.setResetMSP then
-        connectionState.setResetMSP(true)
-    else
-        rfsuite.session.resetMSP = true
-    end
+    connectionState.setResetMSP(true)
     rfsuite.session.resetMSPSensors = true
 end
 
@@ -749,7 +745,7 @@ local function versionParts(value)
 end
 
 function utils.apiVersionCompare(op, req)
-    local a, b = versionParts(rfsuite.session.apiVersion or "12.06"), versionParts(req)
+    local a, b = versionParts((connectionState.getApiVersion and connectionState.getApiVersion()) or "12.06"), versionParts(req)
     if #a == 0 or #b == 0 then return false end
 
     local len = math.max(#a, #b)
@@ -774,8 +770,9 @@ function utils.apiVersionCompare(op, req)
 end
 
 function utils.muteSensorLostWarnings()
-    if rfsuite.session.telemetryModule then
-        local module = rfsuite.session.telemetryModule
+    local telemetryModule = connectionState.getTelemetryModule and connectionState.getTelemetryModule()
+    if telemetryModule then
+        local module = telemetryModule
         if module and module.muteSensorLost then module:muteSensorLost(2.0) end
     end
 end

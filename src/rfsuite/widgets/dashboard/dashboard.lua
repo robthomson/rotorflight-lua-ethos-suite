@@ -562,7 +562,7 @@ function dashboard.computeOverlayMessage()
         if not tasks or not tasks.active or not tasks.active() then return "[ERROR] Background task is not enabled" end
     end
 
-    if not rfsuite.session.isConnected and state ~= "postflight" then
+    if not connectionState.getConnected() and state ~= "postflight" then
         local v = rfsuite.config.version
         local verStr
 
@@ -1698,7 +1698,7 @@ function dashboard.wakeup_protected(widget)
 
     if not dashboard.utils then return end
 
-    if rfsuite.session.isConnected and rfsuite.session.showBatteryTypeStartup and not rfsuite.session.batteryDialogShown then
+    if connectionState.getConnected() and rfsuite.session.showBatteryTypeStartup and not rfsuite.session.batteryDialogShown then
         local prefs = modelPreferencesState.get()
         if rfsuite.session.batteryConfig and prefs and prefs.dashboard then
             rfsuite.session.batteryDialogShown = true
@@ -1709,7 +1709,7 @@ function dashboard.wakeup_protected(widget)
                 end
             end
         end
-    elseif not rfsuite.session.isConnected and rfsuite.session.batteryDialogShown then
+    elseif not connectionState.getConnected() and rfsuite.session.batteryDialogShown then
         rfsuite.session.batteryDialogShown = false
     end
 
@@ -1908,8 +1908,7 @@ function dashboard.wakeup()
     end    
 
     -- If MSP is busy, only run the tasks every N ticks to allow background processing to complete and avoid UI freezes.
-    local session = rfsuite.session
-    if session and session.mspBusy then
+    if connectionState.getMspBusy() then
         busyWakeupTick = (busyWakeupTick % BUSY_WAKEUP_RUN_DEN) + 1
         if busyWakeupTick > BUSY_WAKEUP_RUN_NUM then
             lastWakeup = now

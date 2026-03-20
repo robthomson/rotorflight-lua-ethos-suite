@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local lcd = lcd
 local system = system
@@ -162,7 +163,7 @@ local function wakeup()
     do
         local field = app.formFields and app.formFields[IDX_FBLCONNECTED]
         if field then
-            local isConnected = session and session.isConnected
+            local isConnected = connectionState.getConnected()
             if isConnected then
                 setStatus(field, isConnected)
             else
@@ -174,7 +175,7 @@ local function wakeup()
     do
         local field = app.formFields and app.formFields[IDX_APIVERSION]
         if field then
-            local isInvalid = not session.apiVersionInvalid
+            local isInvalid = not connectionState.getApiVersionInvalid()
             setStatus(field, isInvalid)
         end
     end

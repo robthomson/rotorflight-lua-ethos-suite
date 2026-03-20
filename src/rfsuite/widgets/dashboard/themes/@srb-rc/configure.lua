@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local floor = math.floor
 local pairs = pairs
@@ -35,7 +36,7 @@ local formFields = {}
 local prevConnectedState = nil
 
 local function isTelemetryConnected()
-    return rfsuite and rfsuite.session and rfsuite.session.isConnected and rfsuite.session.mcu_id and rfsuite.preferences
+    return connectionState.getConnected() and connectionState.getMcuId() and rfsuite.preferences
 end
 
 local function configure()

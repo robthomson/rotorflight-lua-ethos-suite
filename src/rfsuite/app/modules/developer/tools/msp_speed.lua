@@ -10,6 +10,7 @@ local app = rfsuite.app
 local tasks = rfsuite.tasks
 local rfutils = rfsuite.utils
 local session = rfsuite.session
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local line = {}
 local fields = {}
@@ -146,7 +147,7 @@ local function startTest(duration)
         wakeup = function()
             local now = os.clock()
 
-            if session.telemetryState == false and startTest == true and system:getVersion().simulation ~= true then
+            if connectionState.getTelemetryState and connectionState.getTelemetryState() == false and startTest == true and system:getVersion().simulation ~= true then
                 if testLoader then
                     testLoader:close()
                     testLoader = nil

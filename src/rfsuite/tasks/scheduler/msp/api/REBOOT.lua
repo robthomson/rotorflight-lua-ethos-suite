@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local msp = rfsuite.tasks and rfsuite.tasks.msp
 local core = (msp and msp.apicore) or assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api/core.lua"))()
 if msp and not msp.apicore then msp.apicore = core end
@@ -23,11 +24,10 @@ local function buildWritePayload(payloadData, _, _, state)
 end
 
 local function validateWrite()
-    local session = rfsuite.session
     local tasks = rfsuite.tasks
     local armflags = tasks and tasks.telemetry and tasks.telemetry.getSensor and tasks.telemetry.getSensor("armflags")
     local armedByFlags = (armflags == 1 or armflags == 3)
-    if (session and session.isArmed) or armedByFlags then
+    if connectionState.getArmed() or armedByFlags then
         if rfsuite and rfsuite.utils and rfsuite.utils.log then
             rfsuite.utils.log("REBOOT API blocked while armed", "info")
         end

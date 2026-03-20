@@ -34,6 +34,7 @@
     ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 
 local format = string.format
@@ -67,7 +68,7 @@ end
 function render.invalidate(box) box._cfg = nil end
 
 function render.dirty(box)
-    if not rfsuite.session.telemetryState then return false end
+    if not connectionState.isTelemetryActive() then return false end
     if box._lastDisplayValue == nil then
         box._lastDisplayValue = box._currentDisplayValue
         return true

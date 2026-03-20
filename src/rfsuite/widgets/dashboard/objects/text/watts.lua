@@ -21,6 +21,7 @@
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local floor = math.floor
 local rep = string.rep
@@ -102,7 +103,7 @@ function render.wakeup(box)
     local vStats = telemetry and telemetry.sensorStats and telemetry.sensorStats["voltage"]
     local iStats = telemetry and telemetry.sensorStats and telemetry.sensorStats["current"]
 
-    local telemetryActive = rfsuite.session and rfsuite.session.isConnected and rfsuite.session.telemetryState
+    local telemetryActive = connectionState.getConnected() and connectionState.isTelemetryActive()
 
     local function currentWatts()
         local v = telemetry and telemetry.getSensor and telemetry.getSensor("voltage")

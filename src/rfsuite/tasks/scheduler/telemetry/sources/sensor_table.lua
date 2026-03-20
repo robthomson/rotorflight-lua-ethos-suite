@@ -16,6 +16,7 @@ Update process:
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local t_insert = table.insert
 local t_pairs = pairs
@@ -68,7 +69,7 @@ return {
         mandatory = true,
         stats = false,
         set_telemetry_sensors = 90,
-        onchange = function(value) rfsuite.session.isArmed = (value == 1 or value == 3) end
+        onchange = function(value) connectionState.setArmed(value == 1 or value == 3) end
     },
 
     voltage = {

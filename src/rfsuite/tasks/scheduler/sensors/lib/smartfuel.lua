@@ -173,7 +173,7 @@ local function smartFuelCalc()
         end
     end
 
-    local isDisarmed = (rfsuite and rfsuite.session and rfsuite.session.isArmed == false)
+    local isDisarmed = not connectionState.getArmed()
     local isPreflight = (rfsuite and rfsuite.flightmode and rfsuite.flightmode.current == "preflight")
 
     if lastVoltages and #lastVoltages >= 2 and isPreflight and isDisarmed then

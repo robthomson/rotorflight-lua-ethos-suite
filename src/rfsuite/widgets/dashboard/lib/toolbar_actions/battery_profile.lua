@@ -4,6 +4,7 @@
 
 local rfsuite = require("rfsuite")
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 local M = {}
 
@@ -91,7 +92,7 @@ local function isAdjustmentConfigured()
 end
 
 local function setBatteryType(typeIndex, profileName)
-    if not rfsuite.session.isConnected then return end
+    if not (connectionState.getConnected and connectionState.getConnected()) then return end
 
     local activeBatteryType = flightState.getActiveBatteryType and flightState.getActiveBatteryType()
     if typeIndex == activeBatteryType then

@@ -10,12 +10,13 @@ local system = system
 local app = rfsuite.app
 local tasks = rfsuite.tasks
 local session = rfsuite.session
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local version = rfsuite.version().version
 local ethosVersion = rfsuite.config.environment.major .. "." .. rfsuite.config.environment.minor .. "." .. rfsuite.config.environment.revision
-local apiVersion = session.apiVersion
-local fcVersion = session.fcVersion
-local rfVersion = session.rfVersion
+local apiVersion = connectionState.getApiVersion and connectionState.getApiVersion()
+local fcVersion = connectionState.getFcVersion and connectionState.getFcVersion()
+local rfVersion = connectionState.getRfVersion and connectionState.getRfVersion()
 local mspTransport = (tasks and tasks.msp and tasks.msp.protocol and tasks.msp.protocol.mspProtocol) or "-"
 local closeProgressLoader = true
 local simulation

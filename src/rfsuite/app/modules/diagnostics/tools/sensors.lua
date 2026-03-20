@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local lcd = lcd
 local app = rfsuite.app
@@ -248,7 +249,7 @@ local function wakeup()
     end
 
     if app.formNavigationFields['tool'] then
-        if session and session.apiVersion and rfutils.apiVersionCompare("<", {12, 0, 8}) then
+        if connectionState.getApiVersion() and rfutils.apiVersionCompare("<", {12, 0, 8}) then
             app.formNavigationFields['tool']:enable(false)
         else
             app.formNavigationFields['tool']:enable(true)

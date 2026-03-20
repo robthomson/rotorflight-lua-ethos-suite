@@ -803,7 +803,7 @@ function tasks.wakeup_protected()
     -- ------------------------------------------------------------
     if cycleFlip == 0 then
         -- Arm/disarm edges
-        local armedNow = (rfsuite.session and rfsuite.session.isArmed) and true or false
+        local armedNow = connectionState.getArmed()
         if armedNow ~= lastArmedState then
             if armedNow then
                 utils.log("[event] onarm", "info")

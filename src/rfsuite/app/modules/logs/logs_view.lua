@@ -12,6 +12,7 @@ local prefs = rfsuite.preferences
 local tasks = rfsuite.tasks
 local rfutils = rfsuite.utils
 local session = rfsuite.session
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers()
 local onNavMenu
@@ -508,7 +509,7 @@ local function openPage(opts)
 
     local err
 
-    local name = modelName or utils.resolveModelName(dirname or session.mcu_id)
+    local name = modelName or utils.resolveModelName(dirname or connectionState.getMcuId())
     app.ui.fieldHeader("Logs / " .. name .. " / " .. extractShortTimestamp(logfile))
     activeLogFile = logfile
 

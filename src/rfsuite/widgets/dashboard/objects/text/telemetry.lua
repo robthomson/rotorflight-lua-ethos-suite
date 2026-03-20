@@ -36,6 +36,7 @@
 
 local rfsuite = require("rfsuite")
 local system = system
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local floor = math.floor
 local ceil = math.ceil
@@ -50,7 +51,7 @@ local resolveThemeColor = utils.resolveThemeColor
 function render.invalidate(box) box._cfg = nil end
 
 function render.dirty(box)
-    if not rfsuite.session.telemetryState then return false end
+    if not connectionState.isTelemetryActive() then return false end
     if box._lastDisplayValue == nil then
         box._lastDisplayValue = box._currentDisplayValue
         return true
@@ -131,8 +132,7 @@ function render.wakeup(box)
     local cfg = ensureCfg(box)
 
     local telemetry = rfsuite.tasks.telemetry
-    local session = rfsuite.session
-    local telemetryActive = session and session.telemetryState and session.isConnected
+    local telemetryActive = connectionState.isTelemetryActive() and connectionState.getConnected()
     local inPostflight = (rfsuite.flightmode and rfsuite.flightmode.current == "postflight")
 
     local source = cfg.source

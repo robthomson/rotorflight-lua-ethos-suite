@@ -9,6 +9,7 @@ local toolbox = {}
 local wakeupScheduler
 local LCD_W, LCD_H
 local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 -- Busy cadence: run toolbox invalidation on RUN_NUM of RUN_DEN ticks while MSP is busy.
 -- Lower RUN_NUM to yield more CPU to MSP; set RUN_NUM == RUN_DEN to disable this throttle.
 local BUSY_WAKEUP_RUN_NUM = 2
@@ -213,7 +214,7 @@ function toolbox.wakeup(widget)
 
     if now - (widget.wakeupScheduler or 0) > scheduler then
         --If MSP is busy, only run UI tasks every N ticks to allow background processing to complete and avoid UI freezes.
-        if rfsuite.session and rfsuite.session.mspBusy then
+        if connectionState.getMspBusy and connectionState.getMspBusy() then
             widget._busyWakeupTick = ((widget._busyWakeupTick or 0) % BUSY_WAKEUP_RUN_DEN) + 1
             if widget._busyWakeupTick > BUSY_WAKEUP_RUN_NUM then
                 widget.wakeupScheduler = now

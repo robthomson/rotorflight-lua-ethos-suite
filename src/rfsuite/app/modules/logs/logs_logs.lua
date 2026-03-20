@@ -12,6 +12,7 @@ local prefs = rfsuite.preferences
 local tasks = rfsuite.tasks
 local rfutils = rfsuite.utils
 local session = rfsuite.session
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers()
 
 local utils = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/app/modules/logs/lib/utils.lua"))()
@@ -101,7 +102,7 @@ local function openPage(opts)
 
     local logs = utils.getLogs(logDir)
 
-    local name = modelName or utils.resolveModelName(dirname or session.mcu_id)
+    local name = modelName or utils.resolveModelName(dirname or connectionState.getMcuId())
     app.ui.fieldHeader("Logs / " .. name)
 
     local buttonW

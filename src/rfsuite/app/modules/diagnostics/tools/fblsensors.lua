@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 
 local app = rfsuite.app
@@ -399,7 +400,7 @@ end
 
 local function wakeup()
     if not state.wakeupEnabled then return end
-    if not (session and session.telemetryState) then return end
+    if not connectionState.isTelemetryActive() then return end
 
     -- Don't start MSP polling until the page loader has fully closed.
     if not state.pollingEnabled then

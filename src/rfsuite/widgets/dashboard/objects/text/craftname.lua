@@ -31,6 +31,7 @@
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local rep = string.rep
 
@@ -43,7 +44,7 @@ local resolveThemeColor = utils.resolveThemeColor
 function render.invalidate(box) box._cfg = nil end
 
 function render.dirty(box)
-    if not rfsuite.session.telemetryState then return false end
+    if not connectionState.isTelemetryActive() then return false end
     if box._lastDisplayValue == nil then
         box._lastDisplayValue = box._currentDisplayValue
         return true
@@ -94,7 +95,7 @@ function render.wakeup(box)
     local cfg = ensureCfg(box)
 
     local value = rfsuite.session.craftName
-    local telemetryActive = rfsuite.session and rfsuite.session.isConnected
+    local telemetryActive = connectionState.getConnected()
 
     if value and type(value) == "string" and value:match("^%s*$") == nil and telemetryActive then box._lastValidCraftName = value end
 

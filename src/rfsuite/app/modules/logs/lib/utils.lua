@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local system = system
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local utils = {}
 
@@ -71,7 +72,7 @@ function utils.getLogDir(dirname)
     os.mkdir("LOGS:/rfsuite/telemetry")
 
     if not dirname then
-        local defaultDir = "LOGS:/rfsuite/telemetry/" .. rfsuite.session.mcu_id .. "/"
+        local defaultDir = "LOGS:/rfsuite/telemetry/" .. tostring(connectionState.getMcuId and connectionState.getMcuId() or "unknown") .. "/"
         os.mkdir(defaultDir)
         return defaultDir
     end

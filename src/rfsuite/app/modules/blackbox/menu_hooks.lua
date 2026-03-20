@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local mspHelper = rfsuite.tasks.msp.mspHelper
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
@@ -38,7 +39,7 @@ local function setButtonsEnabled(enabled)
 end
 
 local function updateMenuAvailability()
-    local connected = (rfsuite.session.isConnected and rfsuite.session.mcu_id) and true or false
+    local connected = connectionState.getConnected() and connectionState.getMcuId() and true or false
     local canOpen = prereqReady and connected and blackboxSupported
 
     setButtonsEnabled(canOpen)
@@ -175,7 +176,7 @@ return {
         if not prereqRequested then requestBlackboxPrereqs() end
         updateMenuAvailability()
 
-        local currState = (rfsuite.session.isConnected and rfsuite.session.mcu_id) and true or false
+        local currState = connectionState.getConnected() and connectionState.getMcuId() and true or false
         if currState ~= prevConnectedState then
             if not currState and rfsuite.app.formNavigationFields and rfsuite.app.formNavigationFields["menu"] then
                 rfsuite.app.formNavigationFields["menu"]:focus()

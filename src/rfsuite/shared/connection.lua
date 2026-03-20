@@ -13,6 +13,7 @@ local rfsuite = require("rfsuite")
 
 local connection = {
     isConnected = false,
+    isArmed = false,
     telemetryState = nil,
     telemetrySensor = nil,
     telemetryModule = nil,
@@ -28,27 +29,9 @@ local connection = {
     resetMSP = nil
 }
 
-local function syncSession()
-    local session = rfsuite and rfsuite.session
-    if not session then return end
-    session.isConnected = connection.isConnected
-    session.telemetryState = connection.telemetryState
-    session.telemetrySensor = connection.telemetrySensor
-    session.telemetryModule = connection.telemetryModule
-    session.telemetryType = connection.telemetryType
-    session.telemetryModuleNumber = connection.telemetryModuleNumber
-    session.apiVersion = connection.apiVersion
-    session.apiVersionInvalid = connection.apiVersionInvalid
-    session.fcVersion = connection.fcVersion
-    session.rfVersion = connection.rfVersion
-    session.mcu_id = connection.mcuId
-    session.postConnectComplete = connection.postConnectComplete
-    session.mspBusy = connection.mspBusy
-    session.resetMSP = connection.resetMSP
-end
-
 function connection.reset()
     connection.isConnected = false
+    connection.isArmed = false
     connection.telemetryState = nil
     connection.telemetrySensor = nil
     connection.telemetryModule = nil
@@ -62,7 +45,6 @@ function connection.reset()
     connection.postConnectComplete = false
     connection.mspBusy = false
     connection.resetMSP = nil
-    syncSession()
     return connection
 end
 
@@ -72,8 +54,16 @@ end
 
 function connection.setConnected(value)
     connection.isConnected = (value == true)
-    syncSession()
     return connection.isConnected
+end
+
+function connection.setArmed(value)
+    connection.isArmed = (value == true)
+    return connection.isArmed
+end
+
+function connection.getArmed()
+    return connection.isArmed == true
 end
 
 function connection.setTelemetry(state, sensor, module, telemetryType, moduleNumber)
@@ -82,7 +72,6 @@ function connection.setTelemetry(state, sensor, module, telemetryType, moduleNum
     connection.telemetryModule = module
     connection.telemetryType = telemetryType
     connection.telemetryModuleNumber = moduleNumber
-    syncSession()
     return connection.telemetryState
 end
 
@@ -94,8 +83,16 @@ function connection.isTelemetryActive()
     return connection.telemetryState == true
 end
 
+function connection.getTelemetryState()
+    return connection.telemetryState
+end
+
 function connection.getTelemetrySensor()
     return connection.telemetrySensor
+end
+
+function connection.getTelemetryModule()
+    return connection.telemetryModule
 end
 
 function connection.getTelemetryType()
@@ -108,7 +105,6 @@ end
 
 function connection.setApiVersion(value)
     connection.apiVersion = value
-    syncSession()
     return connection.apiVersion
 end
 
@@ -118,7 +114,6 @@ end
 
 function connection.setApiVersionInvalid(value)
     connection.apiVersionInvalid = value
-    syncSession()
     return connection.apiVersionInvalid
 end
 
@@ -128,7 +123,6 @@ end
 
 function connection.setFcVersion(value)
     connection.fcVersion = value
-    syncSession()
     return connection.fcVersion
 end
 
@@ -138,7 +132,6 @@ end
 
 function connection.setRfVersion(value)
     connection.rfVersion = value
-    syncSession()
     return connection.rfVersion
 end
 
@@ -148,7 +141,6 @@ end
 
 function connection.setMcuId(value)
     connection.mcuId = value
-    syncSession()
     return connection.mcuId
 end
 
@@ -158,7 +150,6 @@ end
 
 function connection.setPostConnectComplete(value)
     connection.postConnectComplete = (value == true)
-    syncSession()
     return connection.postConnectComplete
 end
 
@@ -168,7 +159,6 @@ end
 
 function connection.setMspBusy(value)
     connection.mspBusy = (value == true)
-    syncSession()
     return connection.mspBusy
 end
 
@@ -178,7 +168,6 @@ end
 
 function connection.setResetMSP(value)
     connection.resetMSP = value
-    syncSession()
     return connection.resetMSP
 end
 
@@ -186,7 +175,6 @@ function connection.getResetMSP()
     return connection.resetMSP
 end
 
-syncSession()
 package.loaded[CONNECTION_SINGLETON_KEY] = connection
 
 return connection

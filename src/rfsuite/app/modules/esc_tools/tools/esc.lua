@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local lcd = lcd
 
 local function loadMask(path)
@@ -48,7 +49,7 @@ local function buildEscPages()
 
     for i, entry in ipairs(MFG_INDEX) do
         local disabled = false
-        if entry.apiversion and rfsuite.session.apiVersion and not rfsuite.utils.apiVersionCompare(">=", entry.apiversion) then
+        if entry.apiversion and connectionState.getApiVersion() and not rfsuite.utils.apiVersionCompare(">=", entry.apiversion) then
             disabled = true
         end
 

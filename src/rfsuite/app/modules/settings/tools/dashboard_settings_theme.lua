@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local lcd = lcd
 
 local enableWakeup = false
@@ -98,7 +99,7 @@ local function wakeup()
 
     if not enableWakeup then return end
 
-    local currState = (rfsuite.session.isConnected and rfsuite.session.mcu_id) and true or false
+    local currState = connectionState.getConnected() and connectionState.getMcuId() and true or false
 
     if currState ~= prevConnectedState then
 

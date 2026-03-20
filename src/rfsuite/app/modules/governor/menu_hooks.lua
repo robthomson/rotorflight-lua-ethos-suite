@@ -11,6 +11,7 @@ local tasks = rfsuite.tasks
 local utils = rfsuite.utils
 local session = rfsuite.session
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
@@ -58,7 +59,7 @@ return {
 
         app.triggers.closeProgressLoader = true
 
-        local currState = (session.isConnected and session.mcu_id) and true or false
+        local currState = connectionState.getConnected() and connectionState.getMcuId() and true or false
         if currState ~= prevConnectedState then
             if app.formFields and app.formFields[2] and app.formFields[2].enable then
                 app.formFields[2]:enable(currState)

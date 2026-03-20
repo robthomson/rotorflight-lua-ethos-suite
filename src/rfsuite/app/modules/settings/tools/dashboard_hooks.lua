@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
@@ -12,7 +13,7 @@ return {
     onWakeup = function()
         if os.clock() - initTime < 0.25 then return end
 
-        local currState = (rfsuite.session.isConnected and rfsuite.session.mcu_id) and true or false
+        local currState = connectionState.getConnected() and connectionState.getMcuId() and true or false
         if currState ~= prevConnectedState then
             if rfsuite.app.formFields and rfsuite.app.formFields[2] and rfsuite.app.formFields[2].enable then
                 rfsuite.app.formFields[2]:enable(currState)

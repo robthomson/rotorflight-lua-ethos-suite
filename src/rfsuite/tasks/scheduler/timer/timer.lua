@@ -156,7 +156,6 @@ function timer.wakeup()
     if tasks and tasks.onconnect and tasks.onconnect.active and tasks.onconnect.active() then return end
 
     local now = os_time()
-    local session = rfsuite.session
     local timerSession = sharedTimer.get()
     local prefs = modelPreferencesState.get()
     local flightMode = rfsuite.flightmode.current
@@ -165,7 +164,7 @@ function timer.wakeup()
 
     -- delayed sync with run only when disarmed
     -- doing when armed risks corrupting ongoing flight data
-    if not session.isArmed then
+    if not connectionState.getArmed() then
         if pendingStatsSync and pendingStatsSyncAt and now >= pendingStatsSyncAt then
             -- must be connected and not mid-onconnect
             if connectionState.getConnected() then

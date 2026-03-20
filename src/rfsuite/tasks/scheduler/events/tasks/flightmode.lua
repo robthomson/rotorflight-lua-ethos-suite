@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 
@@ -22,7 +23,7 @@ local function isGovernorActive(value) return type(value) == "number" and value 
 function flightmode.inFlight()
     local telemetry = tasks.telemetry
 
-    if not rfsuite.session.isArmed or not telemetry or (telemetry.active and not telemetry.active()) then return false end
+    if not connectionState.getArmed() or not telemetry or (telemetry.active and not telemetry.active()) then return false end
 
     local governor = telemetry.getSensor("governor")
     if isGovernorActive(governor) then return true end
@@ -41,8 +42,8 @@ function flightmode.reset()
 end
 
 local function determineMode()
-    local armed = rfsuite.session.isArmed
-    local connected = rfsuite.session.isConnected
+    local armed = connectionState.getArmed()
+    local connected = connectionState.getConnected()
     local current = rfsuite.flightmode.current
 
     if current == "inflight" and not connected then
