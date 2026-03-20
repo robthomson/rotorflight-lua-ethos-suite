@@ -21,6 +21,7 @@ local tostring = tostring
 local tonumber = tonumber
 
 local utils = {}
+local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 
 local SKIP_CALL_KEYS = {transform = true, thresholds = true, value = true}
 local MAX_BATTERY_PROFILES = 6
@@ -905,7 +906,7 @@ end
 function utils.updateProgressDialogMessage(statusOverride)
     if not progressDialog or not progressDialog.handle then return end
     local showDebug = rfsuite.preferences and rfsuite.preferences.general and rfsuite.preferences.general.mspstatusdialog
-    local mspStatus = statusOverride or (rfsuite.session and rfsuite.session.mspStatusMessage) or nil
+    local mspStatus = statusOverride or (mspStatusState and mspStatusState.message) or nil
     local msg = progressDialog.baseMessage or ""
     if showDebug then
         msg = mspStatus or MSP_DEBUG_PLACEHOLDER

@@ -12,6 +12,7 @@ local prefs = rfsuite.preferences
 local tasks = rfsuite.tasks
 local rfutils = rfsuite.utils
 local session = rfsuite.session
+local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers()
 local onNavMenu
 
@@ -87,7 +88,7 @@ local function setProgressLoaderMessage(baseMessage)
     if not progressLoader then return end
     progressLoaderBaseMessage = baseMessage
     local showMsp = prefs and prefs.general and prefs.general.mspstatusdialog
-    local mspStatus = (showMsp and session and session.mspStatusMessage) or nil
+    local mspStatus = (showMsp and mspStatusState and mspStatusState.message) or nil
     if showMsp then
         progressLoader:message(mspStatus or MSP_DEBUG_PLACEHOLDER)
         progressLoaderMspStatusLast = mspStatus or MSP_DEBUG_PLACEHOLDER
@@ -100,7 +101,7 @@ end
 local function refreshProgressLoaderMessage()
     if not progressLoader or not progressLoaderBaseMessage then return end
     local showMsp = prefs and prefs.general and prefs.general.mspstatusdialog
-    local mspStatus = (showMsp and session and session.mspStatusMessage) or nil
+    local mspStatus = (showMsp and mspStatusState and mspStatusState.message) or nil
     if showMsp then
         local msg = mspStatus or MSP_DEBUG_PLACEHOLDER
         if msg ~= progressLoaderMspStatusLast then

@@ -34,6 +34,7 @@
     ]] --
 
 local rfsuite = require("rfsuite")
+local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 
 local format = string.format
 
@@ -111,7 +112,7 @@ end
 local function updateProgressMessage()
     if not progress or not progressBaseMessage then return end
     local showMsp = rfsuite.preferences and rfsuite.preferences.general and rfsuite.preferences.general.mspstatusdialog
-    local mspStatus = (showMsp and rfsuite.session and rfsuite.session.mspStatusMessage) or nil
+    local mspStatus = (showMsp and mspStatusState and mspStatusState.message) or nil
     if showMsp then
         local msg = mspStatus or MSP_DEBUG_PLACEHOLDER
         if msg ~= progressMspStatusLast then
