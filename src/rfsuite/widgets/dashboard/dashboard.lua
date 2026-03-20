@@ -23,6 +23,7 @@ local tostring = tostring
 local tonumber = tonumber
 
 local dashboard = {}
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
@@ -1699,10 +1700,10 @@ function dashboard.wakeup_protected(widget)
 
     if not dashboard.utils then return end
 
-    if connectionState.getConnected() and rfsuite.session.showBatteryTypeStartup and not rfsuite.session.batteryDialogShown then
+    if connectionState.getConnected() and appRuntime.showBatteryTypeStartup and not appRuntime.dashboardBatteryDialogShown then
         local prefs = modelPreferencesState.get()
         if batteryState.hasConfig() and prefs and prefs.dashboard then
-            rfsuite.session.batteryDialogShown = true
+            appRuntime.dashboardBatteryDialogShown = true
             if dashboard.utils.hasMultipleBatteryProfiles and dashboard.utils.hasMultipleBatteryProfiles() then
                 local actions = dashboard.toolbar_actions
                 if actions and type(actions.chooseBatteryType) == "function" then
@@ -1710,8 +1711,8 @@ function dashboard.wakeup_protected(widget)
                 end
             end
         end
-    elseif not connectionState.getConnected() and rfsuite.session.batteryDialogShown then
-        rfsuite.session.batteryDialogShown = false
+    elseif not connectionState.getConnected() and appRuntime.dashboardBatteryDialogShown then
+        appRuntime.dashboardBatteryDialogShown = false
     end
 
     local W, H = lcd.getWindowSize()

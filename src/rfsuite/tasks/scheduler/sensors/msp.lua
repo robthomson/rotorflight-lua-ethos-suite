@@ -4,8 +4,10 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local blackboxState = (rfsuite.shared and rfsuite.shared.blackbox) or assert(loadfile("shared/blackbox.lua"))()
+local craftState = (rfsuite.shared and rfsuite.shared.craft) or assert(loadfile("shared/craft.lua"))()
 local lifecycleState = (rfsuite.shared and rfsuite.shared.lifecycle) or assert(loadfile("shared/lifecycle.lua"))()
 
 local msp = {}
@@ -101,19 +103,16 @@ local msp_sensors = {
         fields = {
             flags = {
                 sensorname = "BBL Flags",
-                sessionname = {"bblFlags"},
                 appId = 0x5FFF,
                 unit = UNIT_RAW
             },
             total = {
                 sensorname = "BBL Size",
-                sessionname = {"bblSize"},
                 appId = 0x5FFE,
                 unit = UNIT_RAW
             },
             used = {
                 sensorname = "BBL Used",
-                sessionname = {"bblUsed"},
                 appId = 0x5FFD,
                 unit = UNIT_RAW
             }
@@ -124,37 +123,23 @@ local msp_sensors = {
         interval_armed = -1,
         interval_disarmed = 10,
         fields = {
-            voltageMeterSource = {
-                sessionname = {"batteryConfig", "voltageMeterSource"}
-            },
-            batteryCapacity = {
-                sessionname = {"batteryConfig", "batteryCapacity"}
-            },
-            batteryCellCount = {
-                sessionname = {"batteryConfig", "batteryCellCount"}
-            },
+            voltageMeterSource = {},
+            batteryCapacity = {},
+            batteryCellCount = {},
             vbatwarningcellvoltage = {
-                sessionname = {"batteryConfig", "vbatwarningcellvoltage"},
                 transform = function(v) return v / 100 end
             },
             vbatmincellvoltage = {
-                sessionname = {"batteryConfig", "vbatmincellvoltage"},
                 transform = function(v) return v / 100 end
             },
             vbatmaxcellvoltage = {
-                sessionname = {"batteryConfig", "vbatmaxcellvoltage"},
                 transform = function(v) return v / 100 end
             },
             vbatfullcellvoltage = {
-                sessionname = {"batteryConfig", "vbatfullcellvoltage"},
                 transform = function(v) return v / 100 end
             },
-            lvcPercentage = {
-                sessionname = {"batteryConfig", "lvcPercentage"}
-            },
-            consumptionWarningPercentage = {
-                sessionname = {"batteryConfig", "consumptionWarningPercentage"}
-            }
+            lvcPercentage = {},
+            consumptionWarningPercentage = {}
         }
     },
 
@@ -162,9 +147,7 @@ local msp_sensors = {
         interval_armed = -1,
         interval_disarmed = 30,
         fields = {
-            name = {
-                sessionname = {"craftName"}
-            }
+            name = {}
         }
     },
 
@@ -311,27 +294,25 @@ local function createOrUpdateSensor(appId, fieldMeta, value)
     end
 end
 
-local function updateSessionField(meta, value)
-    if not meta.sessionname or type(rfsuite.session) ~= "table" then return end
-    local t = rfsuite.session
-
-    for i = 1, #meta.sessionname - 1 do
-        local k = meta.sessionname[i]
-        if type(t[k]) ~= "table" then t[k] = {} end
-        t = t[k]
+local function updateSharedField(apiName, fieldKey, value)
+    if apiName == "DATAFLASH_SUMMARY" then
+        if fieldKey == "flags" then
+            blackboxState.setFlags(value)
+        elseif fieldKey == "total" then
+            blackboxState.setTotalSize(value)
+        elseif fieldKey == "used" then
+            blackboxState.setUsedSize(value)
+        end
+        return
     end
 
-    t[meta.sessionname[#meta.sessionname]] = value
-end
+    if apiName == "BATTERY_CONFIG" then
+        batteryState.setField(fieldKey, value)
+        return
+    end
 
-local function updateSharedField(apiName, fieldKey, value)
-    if apiName ~= "DATAFLASH_SUMMARY" then return end
-    if fieldKey == "flags" then
-        blackboxState.setFlags(value)
-    elseif fieldKey == "total" then
-        blackboxState.setTotalSize(value)
-    elseif fieldKey == "used" then
-        blackboxState.setUsedSize(value)
+    if apiName == "NAME" and fieldKey == "name" then
+        craftState.setName(value)
     end
 end
 
@@ -365,7 +346,6 @@ local function getApi(api_name, fields)
                     createOrUpdateSensor(meta.appId, meta, value)
                     activeFields[meta.appId] = meta
                 end
-                if meta.sessionname then updateSessionField(meta, value) end
             end
         end
     end)

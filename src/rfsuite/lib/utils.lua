@@ -115,10 +115,7 @@ function utils.session()
             originalModelName = nil,
 
             clockSet = nil,
-            resetMSP = nil,
-            
-            showBatteryTypeStartup = prefBool(prefs.show_battery_profile_startup, true),
-            showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
+            resetMSP = nil
         })
         if connectionState and connectionState.reset then connectionState.reset() end
         if batteryState and batteryState.reset then batteryState.reset() end
@@ -205,10 +202,7 @@ function utils.session()
         originalModelName = nil,
 
         clockSet = nil,
-        resetMSP = nil,
-        
-        showBatteryTypeStartup = prefBool(prefs.show_battery_profile_startup, true),
-        showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
+        resetMSP = nil
     }
 
     if connectionState and connectionState.reset then connectionState.reset() end
