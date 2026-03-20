@@ -27,15 +27,6 @@ function utils.session()
     local rxState = rfsuite.shared and rfsuite.shared.rx
     local servoState = rfsuite.shared and rfsuite.shared.servo
     local telemetryConfigState = rfsuite.shared and rfsuite.shared.telemetryConfig
-
-    local function prefBool(value, default)
-        if value == nil then return default end
-        if value == true or value == "true" or value == 1 or value == "1" then return true end
-        if value == false or value == "false" or value == 0 or value == "0" then return false end
-        return default
-    end
-
-    local prefs = rfsuite.preferences and rfsuite.preferences.general or {}
     
      local originalModelName = craftState and craftState.getOriginalModelName and craftState.getOriginalModelName()
      if originalModelName and model.name then
@@ -48,75 +39,7 @@ function utils.session()
     end
 
     if session.reset then
-        session:reset({
-
-            escDetails = nil,
-            tailMode = nil,
-            swashMode = nil,
-            rateProfile = nil,
-            governorMode = nil,
-
-            activeProfile = nil,
-            activeRateProfile = nil,
-            activeProfileLast = nil,
-            activeRateProfileLast = nil,
-
-            servoCount = nil,
-            servoOverride = nil,
-            servoBusEnabled = nil,
-
-            apiVersion = nil,
-            apiVersionInvalid = nil,
-            fcVersion = nil,
-            rfVersion = nil,
-            ethosRunningVersion = nil,
-            mspSignature = nil,
-            mcu_id = nil,
-
-            isConnected = false,
-            postConnectComplete = false,
-            isArmed = false,
-
-            telemetryState = nil,
-            telemetryType = nil,
-            telemetryTypeChanged = nil,
-            telemetrySensor = nil,
-            telemetryModule = nil,
-            telemetryModelChanged = nil,
-            telemetryConfig = nil,
-            telemetryModuleNumber = nil,
-
-            mspBusy = false,
-            mspStatusMessage = nil,
-            mspStatusUpdatedAt = nil,
-            mspStatusLast = nil,
-            mspStatusClearAt = nil,
-            mspCrcErrors = 0,
-
-            repairSensors = false,
-
-            batteryConfig = nil,
-
-            locale = system.getLocale(),
-            lastMemoryUsage = nil,
-            bblSize = nil,
-            bblUsed = nil,
-
-            timer = {start = nil, live = nil, lifetime = nil, session = 0},
-            flightCounted = false,
-
-            onConnect = {tasks = {}, high = false, medium = false, low = false},
-
-            rx = {map = {}, values = {}},
-
-            modelPreferences = nil,
-            modelPreferencesFile = nil,
-
-            originalModelName = nil,
-
-            clockSet = nil,
-            resetMSP = nil
-        })
+        session:reset(nil)
         if connectionState and connectionState.reset then connectionState.reset() end
         if batteryState and batteryState.reset then batteryState.reset() end
         if beepersState and beepersState.reset then beepersState.reset() end
@@ -135,75 +58,7 @@ function utils.session()
         return session
     end
 
-    rfsuite.session = {
-
-        escDetails = nil,
-        tailMode = nil,
-        swashMode = nil,
-        rateProfile = nil,
-        governorMode = nil,
-
-        activeProfile = nil,
-        activeRateProfile = nil,
-        activeProfileLast = nil,
-        activeRateProfileLast = nil,
-
-        servoCount = nil,
-        servoOverride = nil,
-        servoBusEnabled = nil,
-
-        apiVersion = nil,
-        apiVersionInvalid = nil,
-        fcVersion = nil,
-        rfVersion = nil,
-        ethosRunningVersion = nil,
-        mspSignature = nil,
-        mcu_id = nil,
-
-        isConnected = false,
-        postConnectComplete = false,
-        isArmed = false,
-
-        telemetryState = nil,
-        telemetryType = nil,
-        telemetryTypeChanged = nil,
-        telemetrySensor = nil,
-        telemetryModule = nil,
-        telemetryModelChanged = nil,
-        telemetryConfig = nil,
-        telemetryModuleNumber = nil,
-
-        mspBusy = false,
-        mspStatusMessage = nil,
-        mspStatusUpdatedAt = nil,
-        mspStatusLast = nil,
-        mspStatusClearAt = nil,
-        mspCrcErrors = 0,
-
-        repairSensors = false,
-
-        batteryConfig = nil,
-
-        locale = system.getLocale(),
-        lastMemoryUsage = nil,
-        bblSize = nil,
-        bblUsed = nil,
-
-        timer = {start = nil, live = nil, lifetime = nil, session = 0},
-        flightCounted = false,
-
-        onConnect = {tasks = {}, high = false, medium = false, low = false},
-
-        rx = {map = {}, values = {}},
-
-        modelPreferences = nil,
-        modelPreferencesFile = nil,
-
-        originalModelName = nil,
-
-        clockSet = nil,
-        resetMSP = nil
-    }
+    rfsuite.session = {}
 
     if connectionState and connectionState.reset then connectionState.reset() end
     if batteryState and batteryState.reset then batteryState.reset() end
@@ -226,7 +81,7 @@ end
 
 function utils.rxmapReady()
     local rxState = rfsuite.shared and rfsuite.shared.rx
-    local rxMap = rxState and rxState.getMap and rxState.getMap() or (rfsuite.session.rx and rfsuite.session.rx.map)
+    local rxMap = rxState and rxState.getMap and rxState.getMap()
     if rxMap and (rxMap.collective or rxMap.elevator or rxMap.throttle or rxMap.rudder) then return true end
     return false
 end
