@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -32,8 +33,7 @@ if rfsuite.preferences and rfsuite.preferences.developer then
 end
 
 function logger.wakeup()
-    local session = rfsuite.session
-    if session and session.mspBusy then return end
+    if connectionState.getMspBusy() then return end
     logger.queue.process()
 end
 

@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local os_clock = os.clock
@@ -137,7 +138,7 @@ frsky.renameSensorCache = {}
 
 local function createSensor(physId, primId, appId, frameValue)
 
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
     if createSensorList[appId] ~= nil then
 
@@ -156,7 +157,9 @@ local function createSensor(physId, primId, appId, frameValue)
                 frsky.createSensorCache[appId]:type(SENSOR_TYPE_SPORT)
                 frsky.createSensorCache[appId]:appId(appId)
                 frsky.createSensorCache[appId]:physId(physId)
-                frsky.createSensorCache[appId]:module(rfsuite.session.telemetrySensor:module())
+                local telemetrySensor = connectionState.getTelemetrySensor()
+                if not telemetrySensor then return end
+                frsky.createSensorCache[appId]:module(telemetrySensor:module())
 
                 frsky.createSensorCache[appId]:minimum(min or -1000000000)
                 frsky.createSensorCache[appId]:maximum(max or 2147483647)
@@ -180,7 +183,7 @@ end
 
 local function dropSensor(physId, primId, appId, frameValue)
 
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
     if rfsuite.utils.apiVersionCompare(">=", {12, 0, 8}) then return end
 
@@ -203,7 +206,7 @@ end
 
 local function renameSensor(physId, primId, appId, frameValue)
 
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
     if renameSensorList[appId] ~= nil then
         local v = renameSensorList[appId]
@@ -281,7 +284,7 @@ local function ensureSensorsFromConfig()
                         end
                     end
 
-                    if rfsuite.session.apiVersion ~= nil and rfsuite.utils.apiVersionCompare("<", {12, 0, 8}) then
+                    if connectionState.getApiVersion() ~= nil and rfsuite.utils.apiVersionCompare("<", {12, 0, 8}) then
                         local drop = dropSensorList[appId]
                         if drop then
                             if frsky.dropSensorCache[appId] == nil then frsky.dropSensorCache[appId] = system_getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = appId}) end
@@ -309,11 +312,13 @@ end
 
 function frsky.wakeup()
 
-    if not rfsuite.session.isConnected then return end
+    if not connectionState.getConnected() then return end
 
     if not sensorTlm then
+        local telemetrySensor = connectionState.getTelemetrySensor()
+        if not telemetrySensor then return end
         sensorTlm = sport.getSensor()
-        sensorTlm:module(rfsuite.session.telemetrySensor:module())
+        sensorTlm:module(telemetrySensor:module())
 
         if not sensorTlm then return false end
     end
@@ -323,7 +328,7 @@ function frsky.wakeup()
         lastCacheFlushTime = os_clock()
     end
 
-    if not rfsuite.session.telemetryState or not rfsuite.session.telemetrySensor then clearCaches() end
+    if not connectionState.isTelemetryActive() or not connectionState.getTelemetrySensor() then clearCaches() end
 
     -- if this function exists, we can use it to determine if we should quick exit and avoid all sensor popping
     if system.isSensorDiscoverActive then 

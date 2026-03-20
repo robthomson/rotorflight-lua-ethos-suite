@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local rxmap = {}
 
@@ -36,9 +37,9 @@ end
 
 function rxmap.wakeup()
 
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
-    if rfsuite.session.mspBusy then return end
+    if connectionState.getMspBusy() then return end
 
     if not rfsuite.utils.rxmapReady() and mspCallMade == false then
         mspCallMade = true

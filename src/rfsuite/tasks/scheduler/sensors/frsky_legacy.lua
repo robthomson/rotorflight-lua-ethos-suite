@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -78,7 +79,9 @@ local function createSensor(physId, primId, appId, frameValue)
                 frsky_legacy.createSensorCache[appId]:name(v.name)
                 frsky_legacy.createSensorCache[appId]:appId(appId)
                 frsky_legacy.createSensorCache[appId]:physId(physId)
-                frsky_legacy.createSensorCache[appId]:module(rfsuite.session.telemetrySensor:module())
+                local telemetrySensor = connectionState.getTelemetrySensor()
+                if not telemetrySensor then return end
+                frsky_legacy.createSensorCache[appId]:module(telemetrySensor:module())
 
                 frsky_legacy.createSensorCache[appId]:minimum(min or -1000000000)
                 frsky_legacy.createSensorCache[appId]:maximum(max or 2147483647)
@@ -131,8 +134,10 @@ end
 local function telemetryPop()
 
     if not sensorTlm then
+        local telemetrySensor = connectionState.getTelemetrySensor()
+        if not telemetrySensor then return false end
         sensorTlm = sport.getSensor()
-        sensorTlm:module(rfsuite.session.telemetrySensor:module())
+        sensorTlm:module(telemetrySensor:module())
 
         if not sensorTlm then return false end
     end    
@@ -168,7 +173,7 @@ function frsky_legacy.wakeup()
         lastCacheFlushTime = os_clock()
     end
 
-    if not rfsuite.session.telemetryState or not rfsuite.session.telemetrySensor then clearCaches() end
+    if not connectionState.isTelemetryActive() or not connectionState.getTelemetrySensor() then clearCaches() end
 
     -- if this function exists, we can use it to determine if we should quick exit and avoid all sensor popping
     if system.isSensorDiscoverActive then 
@@ -177,7 +182,7 @@ function frsky_legacy.wakeup()
         end
     end
 
-    if rfsuite.tasks and rfsuite.tasks.telemetry and rfsuite.session.telemetryState and rfsuite.session.telemetrySensor then
+    if rfsuite.tasks and rfsuite.tasks.telemetry and connectionState.isTelemetryActive() and connectionState.getTelemetrySensor() then
         local deadline = (POP_BUDGET_SECONDS and POP_BUDGET_SECONDS > 0) and (os_clock() + POP_BUDGET_SECONDS) or nil
         while telemetryPop() do
             if deadline and os_clock() >= deadline then break end

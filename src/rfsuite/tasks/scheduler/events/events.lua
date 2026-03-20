@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -27,7 +28,7 @@ local numHandlers = #wakeupHandlers
 function events.wakeup()
     local currentTime = os_clock()
 
-    if rfsuite.session.postConnectComplete and rfsuite.session.telemetryState then
+    if connectionState.getPostConnectComplete() and connectionState.isTelemetryActive() then
         if telemetryStartTime == nil then telemetryStartTime = currentTime end
 
         if (currentTime - telemetryStartTime) < 2.5 then return end

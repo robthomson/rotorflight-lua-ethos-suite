@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local rateprofile = {}
 
@@ -11,7 +12,7 @@ local runOnce = false
 
 function rateprofile.wakeup()
 
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
     if rfsuite.utils.apiVersionCompare(">=", {12, 0, 9}) then
       -- we use rotorflight rates for 12.09 and above

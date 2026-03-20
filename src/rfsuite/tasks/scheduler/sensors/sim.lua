@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local config = arg[1] or {}
@@ -66,9 +67,11 @@ local REFRESH_INTERVAL = 5
 
 local function createSensor(uid, name, unit, dec, value, min, max)
     local sensor = model_createSensor({type = SENSOR_TYPE_DIY})
+    local telemetrySensor = connectionState.getTelemetrySensor()
+    if not telemetrySensor then return end
     sensor:name(name)
     sensor:appId(uid)
-    sensor:module(rfsuite.session.telemetrySensor:module())
+    sensor:module(telemetrySensor:module())
     sensor:minimum(min or -1000000000)
     sensor:maximum(max or 2147483647)
 

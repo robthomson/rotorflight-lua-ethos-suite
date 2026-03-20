@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local sync = {}
 
@@ -51,11 +52,11 @@ end
 function sync.wakeup()
 
     -- no api version info yet
-    if rfsuite.session.apiVersion == nil then return end
+    if connectionState.getApiVersion() == nil then return end
 
-    if rfsuite.session.mspBusy then return end
+    if connectionState.getMspBusy() then return end
 
-    if rfsuite.session.mcu_id == nil then
+    if connectionState.getMcuId() == nil then
         -- we need MCU ID first
         return
     end

@@ -20,6 +20,7 @@ Flow summary:
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -139,7 +140,7 @@ local REFRESH_INTERVAL_MS = 2500
 
 local function createTelemetrySensor(uid, name, unit, dec, value, min, max)
 
-    if rfsuite.session.telemetryState == false then return end
+    if connectionState.isTelemetryActive() == false then return end
 
     sensors['uid'][uid] = model_createSensor({type = SENSOR_TYPE_DIY})
     sensors['uid'][uid]:name(name)
@@ -184,7 +185,7 @@ end
 
 local function setTelemetryValue(uid, subid, instance, value, unit, dec, name, min, max)
 
-    if rfsuite.session.telemetryState == false then return end
+    if connectionState.isTelemetryActive() == false then return end
 
     if not sidIsRelevant(uid) then return end
 
@@ -424,8 +425,8 @@ end
 
 function elrs.crossfirePop()
 
-    if (rfsuite.session.telemetryState == false) then
-        local ts = rfsuite.session.telemetrySensor
+    if (connectionState.isTelemetryActive() == false) then
+        local ts = connectionState.getTelemetrySensor()
         if ts then
             local module = model.getModule(ts:module())
             if module ~= nil and module.muteSensorLost ~= nil then module:muteSensorLost(5.0) end
@@ -524,11 +525,11 @@ end
 
 function elrs.wakeup()
 
-    if not rfsuite.session.isConnected then return end
+    if not connectionState.getConnected() then return end
 
     rebuildRelevantSidSet()
 
-    if rfsuite.session.telemetryState and rfsuite.session.telemetrySensor then
+    if connectionState.isTelemetryActive() and connectionState.getTelemetrySensor() then
         local budget = (elrs.popBudgetSeconds or (config and config.elrsPopBudgetSeconds) or 0.2)
         local deadline = (budget and budget > 0) and (os_clock() + budget) or nil
         local pops = 0
