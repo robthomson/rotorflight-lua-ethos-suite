@@ -23,24 +23,11 @@ local function syncSession()
     session.modelPreferencesFile = modelPreferences.file
 end
 
-local function hydrateFromSession()
-    local session = rfsuite and rfsuite.session
-    if not session then return end
-    if modelPreferences.values == nil then
-        modelPreferences.values = session.modelPreferences
-    end
-    if modelPreferences.file == nil then
-        modelPreferences.file = session.modelPreferencesFile
-    end
-end
-
 function modelPreferences.get()
-    hydrateFromSession()
     return modelPreferences.values
 end
 
 function modelPreferences.getFile()
-    hydrateFromSession()
     return modelPreferences.file
 end
 
