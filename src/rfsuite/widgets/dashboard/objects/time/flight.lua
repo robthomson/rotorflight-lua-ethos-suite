@@ -29,6 +29,7 @@
 ]]
 
 local rfsuite = require("rfsuite")
+local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
 
 local floor = math.floor
 local format = string.format
@@ -105,7 +106,8 @@ function render.wakeup(box)
 
     local value
     if telemetryActive and session and session.modelPreferences then
-        value = session.timer and session.timer.live or 0
+        local timerSession = sharedTimer.get and sharedTimer.get()
+        value = timerSession and timerSession.live or 0
         lastValue = value
     else
         value = lastValue or 0

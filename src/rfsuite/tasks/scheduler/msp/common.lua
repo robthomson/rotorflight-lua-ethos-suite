@@ -14,6 +14,7 @@ local math_floor = math.floor
 local tostring = tostring
 local type = type
 local pcall = pcall
+local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 
 -- Optional protocol trace logger (raw frames). Inert unless enabled.
 local function plog(dir, cmd, payload, extra)
@@ -252,16 +253,17 @@ local function _receivedReply(payload)
             if _mspVersion == 1 then
         local rxCRC = payload[idx] or 0
         if mspRxCRC ~= rxCRC and versionBits == 0 then
-            if rfsuite and rfsuite.session then
-                local n = (rfsuite.session.mspCrcErrors or 0) + 1
-                rfsuite.session.mspCrcErrors = n
-                rfsuite.session.mspStatusMessage = "MSP CRC error (" .. tostring(n) .. ")"
-                rfsuite.session.mspStatusUpdatedAt = os.clock()
+            if mspStatusState then
+                local n = mspStatusState.incrementCrcError and mspStatusState.incrementCrcError() or 0
+                local message = "MSP CRC error (" .. tostring(n) .. ")"
+                if mspStatusState.setMessage then
+                    mspStatusState.setMessage(message)
+                end
                 if rfsuite.app and rfsuite.app.ui and rfsuite.app.ui.updateProgressDialogMessage then
-                    rfsuite.app.ui.updateProgressDialogMessage(rfsuite.session.mspStatusMessage)
+                    rfsuite.app.ui.updateProgressDialogMessage(message)
                 end
                 if rfsuite.app and rfsuite.app.ui and rfsuite.app.ui.applyMspStatusToActiveDialogs then
-                    rfsuite.app.ui.applyMspStatusToActiveDialogs(rfsuite.session.mspStatusMessage)
+                    rfsuite.app.ui.applyMspStatusToActiveDialogs(message)
                 end
             end
             return nil

@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 
 local activelook = {}
 local activelookState = (rfsuite.shared and rfsuite.shared.activelook) or assert(loadfile("shared/activelook.lua"))()
+local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
 
 local os_clock = os.clock
 local floor = math.floor
@@ -229,7 +230,7 @@ local function estimateTextWidth(text, fontId)
 end
 
 local function readTimer(context, mode, now)
-    local timer = rfsuite.session and rfsuite.session.timer
+    local timer = sharedTimer.get and sharedTimer.get()
     if mode == "inflight" then
         if timer and type(timer.live) == "number" then return timer.live end
         if context.inflightStart then return now - context.inflightStart end

@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
 
 local timer = {}
 
@@ -15,11 +16,7 @@ function timer.wakeup()
 
     if rfsuite.session.mspBusy then return end
 
-    rfsuite.session.timer = {}
-    rfsuite.session.timer.start = nil
-    rfsuite.session.timer.live = nil
-    rfsuite.session.timer.lifetime = nil
-    rfsuite.session.timer.session = 0
+    sharedTimer.reset(0)
     runOnce = true
 
 end

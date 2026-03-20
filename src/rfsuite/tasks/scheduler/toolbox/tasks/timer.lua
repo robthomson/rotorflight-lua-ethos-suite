@@ -9,13 +9,13 @@ local timer = {}
 local floor = math.floor
 local format = string.format
 local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
+local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
 
 local lastSeconds = nil
 local lastDisplay = "00:00"
 
 function timer.wakeup()
-    local session = rfsuite.session
-    local timerSession = session and session.timer
+    local timerSession = sharedTimer.get and sharedTimer.get()
     local value = timerSession and timerSession.live
 
     if type(value) ~= "number" or value < 0 then

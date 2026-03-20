@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
 
 local timer = {}
 
@@ -45,7 +46,7 @@ function timer.wakeup()
         return
     end
 
-    local timerSession = session.timer
+    local timerSession = sharedTimer.get and sharedTimer.get()
     local elapsed = (timerSession and timerSession.live) or 0
     local elapsedMode = prefs.elapsedalertmode or 0
 

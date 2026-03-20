@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
 
 local arg = {...}
 
@@ -101,17 +102,9 @@ function timer.reset()
 
     lastFlightMode = nil
 
-    local timerSession = {}
-    rfsuite.session.timer = timerSession
-    rfsuite.session.flightCounted = false
     local prefs = rfsuite.session.modelPreferences
-
-    timerSession.baseLifetime = (prefs and tonumber(ini.getvalue(prefs, "general", "totalflighttime"))) or 0
-    
-    timerSession.session = 0
-    timerSession.lifetime = timerSession.baseLifetime
-    timerSession.live = 0
-    timerSession.start = nil
+    local baseLifetime = (prefs and tonumber(ini.getvalue(prefs, "general", "totalflighttime"))) or 0
+    sharedTimer.reset(baseLifetime)
 end
 
 function timer.save()
@@ -127,8 +120,9 @@ function timer.save()
     utils.log("Saving flight timers to INI: " .. prefsFile, "info")
 
     if prefs then
-        ini.setvalue(prefs, "general", "totalflighttime", rfsuite.session.timer.baseLifetime or 0)
-        ini.setvalue(prefs, "general", "lastflighttime", rfsuite.session.timer.session or 0)
+        local timerSession = sharedTimer.get()
+        ini.setvalue(prefs, "general", "totalflighttime", timerSession.baseLifetime or 0)
+        ini.setvalue(prefs, "general", "lastflighttime", timerSession.session or 0)
         ini.save_ini_file(prefsFile, prefs)
     end
 
@@ -139,7 +133,7 @@ function timer.save()
 end
 
 local function finalizeFlightSegment(now)
-    local timerSession = rfsuite.session.timer
+    local timerSession = sharedTimer.get()
     local prefs = rfsuite.session.modelPreferences
 
     local segment = now - timerSession.start
@@ -161,7 +155,7 @@ function timer.wakeup()
 
     local now = os_time()
     local session = rfsuite.session
-    local timerSession = session.timer
+    local timerSession = sharedTimer.get()
     local prefs = session.modelPreferences
     local flightMode = rfsuite.flightmode.current
 
@@ -192,8 +186,8 @@ function timer.wakeup()
         local computedLifetime = (timerSession.baseLifetime or 0) + currentSegment
         timerSession.lifetime = computedLifetime
 
-        if timerSession.live >= 25 and not session.flightCounted then
-            session.flightCounted = true
+        if timerSession.live >= 25 and not sharedTimer.getFlightCounted() then
+            sharedTimer.setFlightCounted(true)
 
             if prefs and ini.section_exists(prefs, "general") then
                 local count = ini.getvalue(prefs, "general", "flightcount") or 0

@@ -12,6 +12,8 @@ local config = arg[1]
 
 function utils.session()
     local session = (rfsuite.shared and rfsuite.shared.session) or rfsuite.session
+    local sharedTimer = rfsuite.shared and rfsuite.shared.timer
+    local mspStatus = rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status
 
     local function prefBool(value, default)
         if value == nil then return default end
@@ -104,6 +106,8 @@ function utils.session()
             showBatteryTypeStartup = prefBool(prefs.show_battery_profile_startup, true),
             showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
         })
+        if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
+        if mspStatus and mspStatus.reset then mspStatus.reset() end
         rfsuite.session = session
         return session
     end
@@ -180,6 +184,9 @@ function utils.session()
         showBatteryTypeStartup = prefBool(prefs.show_battery_profile_startup, true),
         showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
     }
+
+    if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
+    if mspStatus and mspStatus.reset then mspStatus.reset() end
 
     return rfsuite.session
 

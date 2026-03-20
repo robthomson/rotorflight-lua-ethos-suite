@@ -17,6 +17,7 @@ local mathFloor = math.floor
 local app = rfsuite.app
 local session = rfsuite.session
 local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
+local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 local rfutils = rfsuite.utils
 
 local ui = {}
@@ -557,16 +558,14 @@ local function getMspStatusExtras()
         end
     end
 
-    local crc = session and session.mspCrcErrors
+    local crc = mspStatusState and mspStatusState.crcErrors
     if crc and crc > 0 then
         parts[#parts + 1] = "CRC " .. tostring(crc)
     end
 
-    if session then
-        local tout = session.mspTimeouts or 0
-        if tout > 0 then
-            parts[#parts + 1] = "Timeout " .. tostring(tout)
-        end
+    local tout = mspStatusState and mspStatusState.timeouts or 0
+    if tout > 0 then
+        parts[#parts + 1] = "Timeout " .. tostring(tout)
     end
 
     if #parts == 0 then return nil end
@@ -574,14 +573,13 @@ local function getMspStatusExtras()
 end
 
 local function getMspStatusForDialog()
-    if not session then return nil end
-    if session.mspStatusClearAt and osClock() >= session.mspStatusClearAt then
-        session.mspStatusMessage = nil
-        session.mspStatusClearAt = nil
+    if not mspStatusState then return nil end
+    if mspStatusState.clearExpired then
+        mspStatusState.clearExpired(osClock())
     end
-    local mspStatus = session.mspStatusMessage
-    if not mspStatus and session.mspStatusLast and session.mspStatusUpdatedAt and (osClock() - session.mspStatusUpdatedAt) < 0.75 then
-        mspStatus = session.mspStatusLast
+    local mspStatus = mspStatusState.message
+    if not mspStatus and mspStatusState.last and mspStatusState.updatedAt and (osClock() - mspStatusState.updatedAt) < 0.75 then
+        mspStatus = mspStatusState.last
     end
     if preferences and preferences.general and preferences.general.mspstatusdialog then
         local extras = getMspStatusExtras()
@@ -966,7 +964,7 @@ function ui.progressDisplay(title, message, speed)
     end
     app.dialogs.progressSpeed = speedMult
 
-    if session then session.mspTimeouts = 0 end
+    if mspStatusState and mspStatusState.resetTimeouts then mspStatusState.resetTimeouts() end
     app.dialogs.progressDisplay = true
     app.dialogs.progressWatchDog = osClock()
     app.dialogs.progressTimedOut = false
@@ -989,7 +987,7 @@ end
 
 function ui.progressDisplaySave(message)
 
-    if session then session.mspTimeouts = 0 end
+    if mspStatusState and mspStatusState.resetTimeouts then mspStatusState.resetTimeouts() end
     app.dialogs.saveDisplay = true
     app.dialogs.saveWatchDog = osClock()
     app.dialogs.saveTimedOut = false

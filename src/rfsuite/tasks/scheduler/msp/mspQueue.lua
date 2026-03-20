@@ -16,6 +16,7 @@ local setmetatable = setmetatable
 local getmetatable = getmetatable
 local tostring = tostring
 local pcall = pcall
+local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
 
 local DEFAULT_RETRY_BACKOFF_SECONDS = 1
 local DEFAULT_BUSY_WARNING_THRESHOLD = 8
@@ -134,15 +135,9 @@ end
 
 -- Lightweight status updates for UI progress loaders.
 local function setMspStatus(message)
-    local session = rfsuite.session
-    if not session then return end
-    if session.mspStatusMessage ~= message then
-        session.mspStatusMessage = message
-        session.mspStatusUpdatedAt = os_clock()
-        if message then
-            session.mspStatusLast = message
-            session.mspStatusClearAt = nil
-        end
+    if not mspStatusState then return end
+    if mspStatusState.message ~= message then
+        mspStatusState.setMessage(message)
         local app = rfsuite.app
         if app and app.ui and app.ui.updateProgressDialogMessage then
             app.ui.updateProgressDialogMessage(message)
@@ -271,8 +266,8 @@ function MspQueueController:processQueue()
     if self:isProcessed() then
         session.mspBusy = false
         self.mspBusyStart = nil
-        if session and session.mspStatusMessage then
-            session.mspStatusClearAt = now + 0.75
+        if mspStatusState and mspStatusState.message and mspStatusState.scheduleClear then
+            mspStatusState.scheduleClear(0.75)
         end
         return
     end
@@ -402,8 +397,8 @@ function MspQueueController:processQueue()
         if msg and msg.errorHandler then pcall(msg.errorHandler, msg, "timeout") end
         if msg and msg.setErrorHandler then pcall(msg.setErrorHandler, msg) end
         if LOG_ENABLED_MSP() then utils.log("Message timeout exceeded. Flushing queue.", "debug") end
-        if session then
-            session.mspTimeouts = (session.mspTimeouts or 0) + 1
+        if mspStatusState and mspStatusState.incrementTimeout then
+            mspStatusState.incrementTimeout()
         end
         setMspStatus(formatMspStatus(self.currentMessage, "timeout"))
         self.currentMessage = nil
@@ -545,8 +540,8 @@ function MspQueueController:processQueue()
         end
         self:clear()
         setMspStatus(formatMspStatus(msg, "max retries"))
-        if session then
-            session.mspTimeouts = (session.mspTimeouts or 0) + 1
+        if mspStatusState and mspStatusState.incrementTimeout then
+            mspStatusState.incrementTimeout()
         end
         if msg and msg.errorHandler then pcall(msg.errorHandler, msg, "max_retries") end
         if msg and msg.setErrorHandler then pcall(msg.setErrorHandler, msg) end
@@ -591,7 +586,9 @@ function MspQueueController:add(message)
     -- Reset per-transfer timeout stats when starting a fresh queue.
     local session = rfsuite.session
     if session and self.currentMessage == nil and self:queueCount() == 0 then
-        session.mspTimeouts = 0
+        if mspStatusState and mspStatusState.resetTimeouts then
+            mspStatusState.resetTimeouts()
+        end
     end
     -- allow apiname to distinguish otherwise identical MSP calls
     local key = message.uuid
