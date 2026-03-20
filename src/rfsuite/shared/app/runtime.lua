@@ -12,13 +12,15 @@ end
 local runtime = {
     progressDialog = nil,
     lastPage = nil,
-    telemetryStaticCache = nil
+    telemetryStaticCache = nil,
+    mixerTrimsState = nil
 }
 
 function runtime.reset()
     runtime.progressDialog = nil
     runtime.lastPage = nil
     runtime.telemetryStaticCache = nil
+    runtime.mixerTrimsState = nil
     return runtime
 end
 

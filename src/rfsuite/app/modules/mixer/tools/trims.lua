@@ -5,24 +5,111 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 
-local labels = {}
-local fields = {}
+local state = appRuntime and appRuntime.mixerTrimsState or nil
+if not state then
+    state = {
+        triggerOverride = false,
+        inOverride = false,
+        preserveTailMode = false,
+        clearToSend = true,
+        lastChangeTime = os.clock(),
+        tailMode = nil,
+        trims = {},
+        lastTrims = {}
+    }
+    if appRuntime then
+        appRuntime.mixerTrimsState = state
+    end
+end
 
-local triggerOverRide = false
-local inOverRide = false
-local lastChangeTime = os.clock()
-local currentRollTrim
-local currentRollTrimLast
-local currentPitchTrim
-local currentPitchTrimLast
-local currentCollectiveTrim
-local currentCollectiveTrimLast
-local currentYawTrim
-local currentYawTrimLast
-local currentIdleThrottleTrim
-local currentIdleThrottleTrimLast
-local clear2send = true
+local function resetPageState()
+    local key
+
+    state.triggerOverride = false
+    state.inOverride = false
+    state.preserveTailMode = false
+    state.clearToSend = true
+    state.lastChangeTime = os.clock()
+    state.tailMode = nil
+
+    for key in pairs(state.trims) do
+        state.trims[key] = nil
+    end
+    for key in pairs(state.lastTrims) do
+        state.lastTrims[key] = nil
+    end
+end
+
+local function getTailMode()
+    return tonumber(state.tailMode)
+end
+
+local function isYawTailMode()
+    return getTailMode() == 0
+end
+
+local function isMotorTailMode()
+    local tailMode = getTailMode()
+    return tailMode == 1 or tailMode == 2
+end
+
+local function getPageField(index)
+    local page = rfsuite.app and rfsuite.app.Page
+    local apidata = page and page.apidata
+    local formdata = apidata and apidata.formdata
+    local field = formdata and formdata.fields and formdata.fields[index]
+    return field
+end
+
+local function getPageFieldValue(index)
+    local field = getPageField(index)
+    return field and field.value or nil
+end
+
+local function trackTrimChange(self, key, value, queueProcessed)
+    local now = os.clock()
+    local settleTime = 0.85
+
+    state.trims[key] = value
+    if ((now - state.lastChangeTime) < settleTime) or queueProcessed ~= true or state.clearToSend ~= true then
+        return
+    end
+
+    if value ~= state.lastTrims[key] then
+        state.lastTrims[key] = value
+        state.lastChangeTime = now
+        rfsuite.utils.log("save trim", "debug")
+        self.saveData(self)
+    end
+end
+
+local function captureTrimState()
+    state.trims.roll = getPageFieldValue(1)
+    state.trims.pitch = getPageFieldValue(2)
+    state.trims.collective = getPageFieldValue(3)
+    state.lastTrims.roll = state.trims.roll
+    state.lastTrims.pitch = state.trims.pitch
+    state.lastTrims.collective = state.trims.collective
+
+    if isMotorTailMode() then
+        state.trims.idleThrottle = getPageFieldValue(4)
+        state.lastTrims.idleThrottle = state.trims.idleThrottle
+        state.trims.yaw = nil
+        state.lastTrims.yaw = nil
+    elseif isYawTailMode() then
+        state.trims.yaw = getPageFieldValue(4)
+        state.lastTrims.yaw = state.trims.yaw
+        state.trims.idleThrottle = nil
+        state.lastTrims.idleThrottle = nil
+    else
+        state.trims.yaw = nil
+        state.trims.idleThrottle = nil
+        state.lastTrims.yaw = nil
+        state.lastTrims.idleThrottle = nil
+    end
+end
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
@@ -37,13 +124,13 @@ local apidata = {
             {t = "@i18n(app.modules.trim.roll_trim)@",         mspapi = 1, apikey = "swash_trim_0", },
             {t = "@i18n(app.modules.trim.pitch_trim)@",        mspapi = 1, apikey = "swash_trim_1"},
             {t = "@i18n(app.modules.trim.collective_trim)@",    mspapi = 1, apikey = "swash_trim_2"},
-            {t = "@i18n(app.modules.trim.yaw_trim)@",          mspapi = 1, apikey = "tail_center_trim", enablefunction = function() return (rfsuite.session.tailMode == 0) end},
+            {t = "@i18n(app.modules.trim.yaw_trim)@",          mspapi = 1, apikey = "tail_center_trim", enablefunction = isYawTailMode},
         }
     }
 }
 
 local function saveData()
-    clear2send = true
+    state.clearToSend = true
     rfsuite.app.triggers.triggerSaveNoProgress = true
 end
 
@@ -89,108 +176,70 @@ local function mixerOff(self)
 end
 
 local function postLoad(self)
+    local mixerConfig = rfsuite.app and rfsuite.app.Page and rfsuite.app.Page.values and rfsuite.app.Page.values["MIXER_CONFIG"]
+    local tailMode = mixerConfig and mixerConfig["tail_rotor_mode"]
 
-    if rfsuite.session.tailMode == nil then
-        local v = rfsuite.app.Page.values['MIXER_CONFIG']["tail_rotor_mode"]
-        rfsuite.session.tailMode = math.floor(v)
-        rfsuite.app.triggers.reload = true
+    if tailMode == nil then
+        rfsuite.app.triggers.closeProgressLoader = true
         return
     end
 
-    currentRollTrim = rfsuite.app.Page.apidata.formdata.fields[1].value
-    currentPitchTrim = rfsuite.app.Page.apidata.formdata.fields[2].value
-    currentCollectiveTrim = rfsuite.app.Page.apidata.formdata.fields[3].value
+    if state.tailMode == nil then
+        state.tailMode = math.floor(tailMode)
+        state.preserveTailMode = true
+        -- Field 4 is conditionally built during openPage(), so discovering
+        -- tail mode requires a full page rebuild rather than a light refresh.
+        rfsuite.app.triggers.reloadFull = true
+        return
+    end
 
-    if rfsuite.session.tailModeActive == 1 or rfsuite.session.tailModeActive == 2 then currentIdleThrottleTrim = rfsuite.app.Page.apidata.formdata.fields[4].value end
-
-    if rfsuite.session.tailModeActive == 0 then currentYawTrim = rfsuite.app.Page.apidata.formdata.fields[4].value end
+    captureTrimState()
+    state.preserveTailMode = false
     rfsuite.app.triggers.closeProgressLoader = true
 end
 
 local function wakeup(self)
+    local mixerConfig
+    local tailMode
 
-    -- we are compromised without this - go back to main
-    if rfsuite.session.tailMode == nil then
-        pageRuntime.openMenuContext()
+    mixerConfig = rfsuite.app and rfsuite.app.Page and rfsuite.app.Page.values and rfsuite.app.Page.values["MIXER_CONFIG"]
+    tailMode = mixerConfig and mixerConfig["tail_rotor_mode"]
+    if state.tailMode == nil then
+        if tailMode ~= nil then
+            state.tailMode = math.floor(tailMode)
+            state.preserveTailMode = true
+            rfsuite.app.triggers.reloadFull = true
+        end
         return
     end    
 
 
-    if inOverRide == true then
+    if state.inOverride == true then
+        local queueProcessed = rfsuite.tasks.msp.mspQueue:isProcessed()
 
-        currentRollTrim = rfsuite.app.Page.apidata.formdata.fields[1].value
-        local now = os.clock()
-        local settleTime = 0.85
-        if ((now - lastChangeTime) >= settleTime) and rfsuite.tasks.msp.mspQueue:isProcessed() and clear2send == true then
-            if currentRollTrim ~= currentRollTrimLast then
-                currentRollTrimLast = currentRollTrim
-                lastChangeTime = now
-                rfsuite.utils.log("save trim", "debug")
-                self.saveData(self)
-            end
-        end
+        trackTrimChange(self, "roll", getPageFieldValue(1), queueProcessed)
+        trackTrimChange(self, "pitch", getPageFieldValue(2), queueProcessed)
+        trackTrimChange(self, "collective", getPageFieldValue(3), queueProcessed)
 
-        currentPitchTrim = rfsuite.app.Page.apidata.formdata.fields[2].value
-        local now = os.clock()
-        local settleTime = 0.85
-        if ((now - lastChangeTime) >= settleTime) and rfsuite.tasks.msp.mspQueue:isProcessed() and clear2send == true then
-            if currentPitchTrim ~= currentPitchTrimLast then
-                currentPitchTrimLast = currentPitchTrim
-                lastChangeTime = now
-                self.saveData(self)
-            end
-        end
-
-        currentCollectiveTrim = rfsuite.app.Page.apidata.formdata.fields[3].value
-        local now = os.clock()
-        local settleTime = 0.85
-        if ((now - lastChangeTime) >= settleTime) and rfsuite.tasks.msp.mspQueue:isProcessed() and clear2send == true then
-            if currentCollectiveTrim ~= currentCollectiveTrimLast then
-                currentCollectiveTrimLast = currentCollectiveTrim
-                lastChangeTime = now
-                self.saveData(self)
-            end
-        end
-
-        if rfsuite.session.tailMode == 1 or rfsuite.session.tailMode == 2 then
-            currentIdleThrottleTrim = rfsuite.app.Page.apidata.formdata.fields[4].value
-            local now = os.clock()
-            local settleTime = 0.85
-            if ((now - lastChangeTime) >= settleTime) and rfsuite.tasks.msp.mspQueue:isProcessed() and clear2send == true then
-                if currentIdleThrottleTrim ~= currentIdleThrottleTrimLast then
-                    currentIdleThrottleTrimLast = currentIdleThrottleTrim
-                    lastChangeTime = now
-                    self.saveData(self)
-                end
-            end
-        end
-
-        if rfsuite.session.tailMode == 0 then
-            currentYawTrim = rfsuite.app.Page.apidata.formdata.fields[4].value
-            local now = os.clock()
-            local settleTime = 0.85
-            if ((now - lastChangeTime) >= settleTime) and rfsuite.tasks.msp.mspQueue:isProcessed() then
-                if currentYawTrim ~= currentYawTrimLast then
-                    currentYawTrimLast = currentYawTrim
-                    lastChangeTime = now
-                    self.saveData(self)
-                end
-            end
+        if isMotorTailMode() then
+            trackTrimChange(self, "idleThrottle", getPageFieldValue(4), queueProcessed)
+        elseif isYawTailMode() then
+            trackTrimChange(self, "yaw", getPageFieldValue(4), queueProcessed)
         end
 
     end
 
-    if triggerOverRide == true then
-        triggerOverRide = false
+    if state.triggerOverride == true then
+        state.triggerOverride = false
 
-        if inOverRide == false then
+        if state.inOverride == false then
 
             rfsuite.app.audio.playMixerOverideEnable = true
 
             rfsuite.app.ui.progressDisplay("@i18n(app.modules.trim.mixer_override)@", "@i18n(app.modules.trim.mixer_override_enabling)@")
 
             rfsuite.app.Page.mixerOn(self)
-            inOverRide = true
+            state.inOverride = true
         else
 
             rfsuite.app.audio.playMixerOverideDisable = true
@@ -198,7 +247,7 @@ local function wakeup(self)
             rfsuite.app.ui.progressDisplay("@i18n(app.modules.trim.mixer_override)@", "@i18n(app.modules.trim.mixer_override_disabling)@")
 
             rfsuite.app.Page.mixerOff(self)
-            inOverRide = false
+            state.inOverride = false
         end
     end
 
@@ -211,14 +260,14 @@ local function onToolMenu(self)
             label = "@i18n(app.btn_ok)@",
             action = function()
 
-                triggerOverRide = true
+                state.triggerOverride = true
                 return true
             end
         }, {label = "@i18n(app.btn_cancel)@", action = function() return true end}
     }
     local message
     local title
-    if inOverRide == false then
+    if state.inOverride == false then
         title = "@i18n(app.modules.trim.enable_mixer_override)@"
         message = "@i18n(app.modules.trim.enable_mixer_message)@"
     else
@@ -232,11 +281,10 @@ end
 
 local function onNavMenu(self)
 
-    if inOverRide == true or inFocus == true then
+    if state.inOverride == true then
         rfsuite.app.audio.playMixerOverideDisable = true
 
-        inOverRide = false
-        inFocus = false
+        state.inOverride = false
 
         rfsuite.app.ui.progressDisplay("@i18n(app.modules.trim.mixer_override)@", "@i18n(app.modules.trim.mixer_override_disabling)@")
 
@@ -244,9 +292,21 @@ local function onNavMenu(self)
         rfsuite.app.triggers.closeProgressLoader = true
     end
 
+    resetPageState()
+
     pageRuntime.openMenuContext()
 
 end
 
+local function close(self)
+    if state.inOverride == true then
+        mixerOff(self)
+    end
+    if (rfsuite.app and rfsuite.app._closing) or state.preserveTailMode ~= true then
+        resetPageState()
+    else
+        state.preserveTailMode = false
+    end
+end
 
-return {apidata = apidata, eepromWrite = true, reboot = false, mixerOff = mixerOff, mixerOn = mixerOn, postLoad = postLoad, onToolMenu = onToolMenu, onNavMenu = onNavMenu, wakeup = wakeup, saveData = saveData, navButtons = {menu = true, save = true, reload = true, tool = true, help = true}, API = {}}
+return {apidata = apidata, eepromWrite = true, reboot = false, mixerOff = mixerOff, mixerOn = mixerOn, postLoad = postLoad, onToolMenu = onToolMenu, onNavMenu = onNavMenu, wakeup = wakeup, saveData = saveData, close = close, navButtons = {menu = true, save = true, reload = true, tool = true, help = true}, API = {}}
