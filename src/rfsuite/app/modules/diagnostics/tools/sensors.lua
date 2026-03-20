@@ -10,7 +10,6 @@ local lcd = lcd
 local app = rfsuite.app
 local tasks = rfsuite.tasks
 local rfutils = rfsuite.utils
-local session = rfsuite.session
 
 local enableWakeup = false
 
@@ -187,10 +186,11 @@ local function wakeup()
     if doDiscoverNotify == true then
 
         if not sensorTlm then
-            if not session.telemetrySensor then return false end
+            local telemetrySensor = connectionState.getTelemetrySensor and connectionState.getTelemetrySensor()
+            if not telemetrySensor then return false end
 
             sensorTlm = sport.getSensor()
-            sensorTlm:module(session.telemetrySensor:module())
+            sensorTlm:module(telemetrySensor:module())
 
             if not sensorTlm then return false end
         end

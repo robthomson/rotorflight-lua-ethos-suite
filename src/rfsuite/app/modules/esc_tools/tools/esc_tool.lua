@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 local lcd = lcd
 
@@ -69,6 +70,7 @@ local function setModelHeaderText(text)
 end
 
 local mspBusy = false
+local ethosRunningVersion = rfsuite.config and rfsuite.config.ethosRunningVersion
 
 local function getEscDetailsPollInterval()
     local interval = tonumber(ESC and ESC.escDetailsPollInterval)
@@ -275,9 +277,9 @@ local function openPage(opts)
         folder = title
     end
 
-    local keepEscSessionHot = (rfsuite.session and rfsuite.session.escToolKeepSessionOnce == true) or (type(opts.returnStack) == "table")
-    if rfsuite.session then
-        rfsuite.session.escToolKeepSessionOnce = nil
+    local keepEscSessionHot = (appRuntime and appRuntime.escToolKeepSessionOnce == true) or (type(opts.returnStack) == "table")
+    if appRuntime then
+        appRuntime.escToolKeepSessionOnce = false
     end
     if not keepEscSessionHot then
         clearEscSessionCache()
@@ -384,7 +386,7 @@ local function openPage(opts)
     for childIdx, pvalue in ipairs(ESC.pages) do
 
         local section = pvalue
-        local hideSection = (section.ethosversion and rfsuite.session.ethosRunningVersion < section.ethosversion) or (section.mspversion and rfsuite.utils.apiVersionCompare("<", section.mspversion))
+        local hideSection = (section.ethosversion and ethosRunningVersion < section.ethosversion) or (section.mspversion and rfsuite.utils.apiVersionCompare("<", section.mspversion))
 
         if not pvalue.disablebutton or (pvalue and pvalue.disablebutton(mspBytes) == false) or not hideSection then
 
@@ -409,8 +411,8 @@ local function openPage(opts)
                 paint = function() end,
                 press = function()
                     rfsuite.preferences.menulastselected["esctool"] = childIdx
-                    if rfsuite.session then
-                        rfsuite.session.escToolKeepSessionOnce = true
+                    if appRuntime then
+                        appRuntime.escToolKeepSessionOnce = true
                     end
                     rfsuite.app.ui.progressDisplay(nil, nil, rfsuite.app.loaderSpeed.DEFAULT)
                     local childTitle = title .. " / " .. pvalue.title
@@ -450,9 +452,9 @@ local function openPage(opts)
 end
 
 local function closePage()
-    local keepEscSessionHot = rfsuite.session and rfsuite.session.escToolKeepSessionOnce == true
-    if rfsuite.session then
-        rfsuite.session.escToolKeepSessionOnce = nil
+    local keepEscSessionHot = appRuntime and appRuntime.escToolKeepSessionOnce == true
+    if appRuntime then
+        appRuntime.escToolKeepSessionOnce = false
     end
 
     clearPowercycleLoader()

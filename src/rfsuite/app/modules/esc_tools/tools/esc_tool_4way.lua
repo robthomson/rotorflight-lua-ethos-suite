@@ -9,6 +9,7 @@ local lcd = lcd
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local ethosRunningVersion = rfsuite.config and rfsuite.config.ethosRunningVersion
 
 local function loadMask(path)
     local ui = rfsuite.app and rfsuite.app.ui
@@ -799,7 +800,7 @@ renderToolPage = function(opts)
     for childIdx, pvalue in ipairs(ESC.pages) do
 
         local section = pvalue
-        local hideSection = (section.ethosversion and rfsuite.session.ethosRunningVersion < section.ethosversion) or (section.mspversion and rfsuite.utils.apiVersionCompare("<", section.mspversion))
+        local hideSection = (section.ethosversion and ethosRunningVersion < section.ethosversion) or (section.mspversion and rfsuite.utils.apiVersionCompare("<", section.mspversion))
 
         if not pvalue.disablebutton or (pvalue and pvalue.disablebutton(mspBytes) == false) or not hideSection then
 
