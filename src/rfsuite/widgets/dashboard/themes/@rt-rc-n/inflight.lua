@@ -26,8 +26,9 @@ local function getThemeValue(key)
         end
     end
 
-    if rfsuite and rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences[theme_section] then
-        local val = rfsuite.session.modelPreferences[theme_section][key]
+    local prefs = utils.getModelPreferences()
+    if prefs and prefs[theme_section] then
+        local val = prefs[theme_section][key]
         val = tonumber(val)
         if val ~= nil then return val end
     end
@@ -142,7 +143,8 @@ local function buildBoxes(W)
 end
 
 local function boxes()
-    local config = rfsuite and rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences[theme_section]
+    local prefs = utils.getModelPreferences()
+    local config = prefs and prefs[theme_section]
     local W = lcd.getWindowSize()
     if boxes_cache == nil or themeconfig ~= config or lastScreenW ~= W then
         boxes_cache = buildBoxes(W)
