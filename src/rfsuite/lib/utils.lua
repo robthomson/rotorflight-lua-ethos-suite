@@ -76,7 +76,6 @@ function utils.session()
             mspStatusLast = nil,
             mspStatusClearAt = nil,
             mspCrcErrors = 0,
-            progressDialog = nil,
 
             repairSensors = false,
 
@@ -153,7 +152,6 @@ function utils.session()
         mspStatusLast = nil,
         mspStatusClearAt = nil,
         mspCrcErrors = 0,
-        progressDialog = nil,
 
         repairSensors = false,
 

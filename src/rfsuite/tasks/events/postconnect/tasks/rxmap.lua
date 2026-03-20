@@ -9,11 +9,28 @@ local rxmap = {}
 
 local mspCallMade = false
 local API_NAME = "RX_MAP"
+local RX_CHANNEL_KEYS = {"aileron", "elevator", "rudder", "collective", "throttle", "aux1", "aux2", "aux3"}
 
 local function clearApiEntry()
     local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
     if api and type(api.clearEntry) == "function" then
         api.clearEntry(API_NAME)
+    end
+end
+
+local function getRxMap()
+    local session = rfsuite.session
+    local rx = session and session.rx
+    if not rx then return nil end
+    rx.map = rx.map or {}
+    return rx.map
+end
+
+local function clearTableInPlace(tbl)
+    local key
+    if type(tbl) ~= "table" then return end
+    for key in pairs(tbl) do
+        tbl[key] = nil
     end
 end
 
@@ -37,15 +54,18 @@ function rxmap.wakeup()
             local aux1 = API.readValue("aux1")
             local aux2 = API.readValue("aux2")
             local aux3 = API.readValue("aux3")
+            local rxMap = getRxMap()
 
-            rfsuite.session.rx.map.aileron = aileron
-            rfsuite.session.rx.map.elevator = elevator
-            rfsuite.session.rx.map.rudder = rudder
-            rfsuite.session.rx.map.collective = collective
-            rfsuite.session.rx.map.throttle = throttle
-            rfsuite.session.rx.map.aux1 = aux1
-            rfsuite.session.rx.map.aux2 = aux2
-            rfsuite.session.rx.map.aux3 = aux3
+            if rxMap then
+                rxMap.aileron = aileron
+                rxMap.elevator = elevator
+                rxMap.rudder = rudder
+                rxMap.collective = collective
+                rxMap.throttle = throttle
+                rxMap.aux1 = aux1
+                rxMap.aux2 = aux2
+                rxMap.aux3 = aux3
+            end
 
             rfsuite.utils.log("RX Map: Aileron: " .. aileron .. ", Elevator: " .. elevator .. ", Rudder: " .. rudder .. ", Collective: " .. collective .. ", Throttle: " .. throttle .. ", Aux1: " .. aux1 .. ", Aux2: " .. aux2 .. ", Aux3: " .. aux3, "info")
             rfsuite.utils.log("RX Map: Ail: " .. aileron .. ", Elev: " .. elevator .. ", Rud: " .. rudder .. ", Col: " .. collective .. ", Thr: " .. throttle , "connect")
@@ -60,10 +80,18 @@ function rxmap.wakeup()
 end
 
 function rxmap.reset()
+    local session = rfsuite.session
+    local rx = session and session.rx
+
     clearApiEntry()
-    if rfsuite.session.rx and rfsuite.session.rx.map then for _, key in ipairs({"aileron", "elevator", "rudder", "collective", "throttle", "aux1", "aux2", "aux3"}) do rfsuite.session.rx.map[key] = nil end end
-    rfsuite.session.rxmap = {}
-    rfsuite.session.rxvalues = {}
+    if rx and rx.map then
+        for _, key in ipairs(RX_CHANNEL_KEYS) do
+            rx.map[key] = nil
+        end
+    end
+    if rx and rx.values then
+        clearTableInPlace(rx.values)
+    end
     mspCallMade = false
 end
 

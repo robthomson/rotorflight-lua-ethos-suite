@@ -11,12 +11,14 @@ end
 
 local runtime = {
     progressDialog = nil,
-    lastPage = nil
+    lastPage = nil,
+    telemetryStaticCache = nil
 }
 
 function runtime.reset()
     runtime.progressDialog = nil
     runtime.lastPage = nil
+    runtime.telemetryStaticCache = nil
     return runtime
 end
 

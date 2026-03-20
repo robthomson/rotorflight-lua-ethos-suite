@@ -13,6 +13,27 @@ local log = rfsuite.utils.log
 
 local mspCallMade = false
 
+local function replaceTelemetryConfig(values)
+    local session = rfsuite.session
+    local target
+    local i
+
+    if not session then return end
+
+    target = session.telemetryConfig
+    if type(target) ~= "table" then
+        target = {}
+        session.telemetryConfig = target
+    end
+
+    for i = #target, 1, -1 do
+        target[i] = nil
+    end
+    for i = 1, #(values or {}) do
+        target[i] = values[i]
+    end
+end
+
 function telemetryconfig.wakeup()
 
     if rfsuite.session.apiVersion == nil then return end
@@ -31,7 +52,7 @@ function telemetryconfig.wakeup()
                 slots[i] = tonumber(data[key]) or 0
             end
 
-            rfsuite.session.telemetryConfig = slots
+            replaceTelemetryConfig(slots)
 
             local parts = {}
             for i, v in ipairs(slots) do 

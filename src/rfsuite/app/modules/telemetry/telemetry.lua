@@ -22,6 +22,7 @@ local FEATURE_ENABLED_BITMAP = nil
 local telemetryBuffer = {}
 local lastSessionRef = nil
 local lastLinkReady = false
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local lifecycleEpoch = 0
 local activeApiRefs = setmetatable({}, {__mode = "v"})
 local activeApiRefSeq = 0
@@ -33,8 +34,7 @@ local TELEMETRY_PENDING_UUIDS = {
     ["123e4567-e89b-12d3-a456-426614174120"] = true -- TELEMETRY_CONFIG write
 }
 
-local STATIC_CACHE_HOST = rfsuite.app or rfsuite
-local TELEMETRY_STATIC_CACHE = STATIC_CACHE_HOST and STATIC_CACHE_HOST._telemetryStaticCache or nil
+local TELEMETRY_STATIC_CACHE = appRuntime and appRuntime.telemetryStaticCache or nil
 
 if not TELEMETRY_STATIC_CACHE then
     local sensorList = {
@@ -191,9 +191,7 @@ if not TELEMETRY_STATIC_CACHE then
         }
     }
 
-    if STATIC_CACHE_HOST then
-        STATIC_CACHE_HOST._telemetryStaticCache = TELEMETRY_STATIC_CACHE
-    end
+    if appRuntime then appRuntime.telemetryStaticCache = TELEMETRY_STATIC_CACHE end
 end
 
 local SENSOR_LIST = TELEMETRY_STATIC_CACHE.sensorList
@@ -255,28 +253,28 @@ local function clearTelemetryApiEntries()
     end
 end
 
-local function clearTelemetryStaticCache()
-    if STATIC_CACHE_HOST then
-        STATIC_CACHE_HOST._telemetryStaticCache = nil
-    end
-    if rfsuite and rfsuite.app then
-        rfsuite.app._telemetryStaticCache = nil
-    end
-    if rfsuite then
-        rfsuite._telemetryStaticCache = nil
-    end
-
-    TELEMETRY_STATIC_CACHE = nil
-    SENSOR_LIST = nil
-    SENSOR_IDS = nil
-    SENSOR_GROUPS = nil
-    GROUP_ORDER = nil
-    NOT_AT_SAME_TIME = nil
-end
-
 local function isLinkReady()
     local liveSession = rfsuite.session
     return (liveSession and liveSession.isConnected and liveSession.mcu_id and liveSession.postConnectComplete) and true or false
+end
+
+local function replaceSessionTelemetryConfig(values)
+    local session = rfsuite.session
+    local target
+    local i
+
+    if not session then return end
+
+    target = session.telemetryConfig
+    if type(target) ~= "table" then
+        target = {}
+        session.telemetryConfig = target
+    end
+
+    clearTable(target)
+    for i = 1, #(values or {}) do
+        target[i] = values[i]
+    end
 end
 
 local function snapshotConfig(src, dst)
@@ -671,7 +669,7 @@ local function wakeup()
 
         for i = sensorIndex, 52 do buffer[i] = 0 end
 
-        rfsuite.session.telemetryConfig = appliedSensors
+        replaceSessionTelemetryConfig(appliedSensors)
 
         rfsuite.utils.log("Applied telemetry sensors: " .. table.concat(appliedSensors, ", "), "info")
 
@@ -713,7 +711,6 @@ local function close()
     resetConfigRuntimeState()
     lastSessionRef = nil
     lastLinkReady = false
-    clearTelemetryStaticCache()
 end
 
 local function onSaveMenu()

@@ -428,10 +428,6 @@ function app.close()
         end
     end
 
-    -- Release module-level static caches owned by this app instance.
-    app._telemetryStaticCache = nil
-    rfsuite._telemetryStaticCache = nil
-
     app.uiState = app.uiStatus.init
 
     closeTransientDialogs()
