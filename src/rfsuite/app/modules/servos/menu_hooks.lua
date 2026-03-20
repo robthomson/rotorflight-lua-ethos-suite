@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local servoState = (rfsuite.shared and rfsuite.shared.servo) or assert(loadfile("shared/servo.lua"))()
 
 local MENU_ID = {PWM = 1, BUS = 2}
 
@@ -18,9 +19,7 @@ local function requestServoInfoChain()
     if not (rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.helpers) then return end
 
     local msp = rfsuite.tasks.msp
-    local session = rfsuite.session
-
-    if session.servoCount == nil then
+    if servoState.getCount() == nil then
         chainInFlight = true
         msp.helpers.servoCount(function(servoCount)
             rfsuite.utils.log("Received servo count: " .. tostring(servoCount), "info")
@@ -30,7 +29,7 @@ local function requestServoInfoChain()
         return
     end
 
-    if session.servoOverride == nil then
+    if servoState.getOverride() == nil then
         chainInFlight = true
         msp.helpers.servoOverride(function(servoOverride)
             rfsuite.utils.log("Received servo override: " .. tostring(servoOverride), "info")
@@ -51,7 +50,7 @@ local function requestServoInfoChain()
         return
     end
 
-    if session.servoBusEnabled == nil then
+    if servoState.getBusEnabled() == nil then
         chainInFlight = true
         msp.helpers.servoBusEnabled(function(servoBusEnabled)
             rfsuite.utils.log("Received servo bus enabled: " .. tostring(servoBusEnabled), "info")
@@ -76,11 +75,11 @@ return {
         requestServoInfoChain()
 
         if not fieldFocusSet and
-            rfsuite.session.servoCount ~= nil and
-            rfsuite.session.servoOverride ~= nil and
+            servoState.getCount() ~= nil and
+            servoState.getOverride() ~= nil and
             flightState.getTailMode() ~= nil and
             flightState.getSwashMode() ~= nil and
-            rfsuite.session.servoBusEnabled ~= nil then
+            servoState.getBusEnabled() ~= nil then
 
             if rfsuite.app.formFields[MENU_ID.PWM] then
                 rfsuite.app.formFields[MENU_ID.PWM]:enable(true)
@@ -91,7 +90,7 @@ return {
 
             if rfsuite.utils.apiVersionCompare(">", {12, 0, 8}) and
                 rfsuite.app.formFields[MENU_ID.BUS] and
-                rfsuite.session.servoBusEnabled == true then
+                servoState.getBusEnabled() == true then
                 rfsuite.app.formFields[MENU_ID.BUS]:enable(true)
                 if rfsuite.preferences.menulastselected["servos_type"] == MENU_ID.BUS then
                     rfsuite.app.formFields[MENU_ID.BUS]:focus()

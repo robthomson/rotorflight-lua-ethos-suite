@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
+local servoState = (rfsuite.shared and rfsuite.shared.servo) or assert(loadfile("shared/servo.lua"))()
 
 local triggerOverRide = false
 local triggerOverRideAll = false
@@ -67,7 +68,7 @@ end
 
 local function uiIndexToConfigWriteIndex(ui0)
     -- MSP 212 uses active-output index space on 12.09 BUS targets.
-    return (ui0 or 0) + (rfsuite.session.servoCount - BUS_OUTPUT_COUNT)
+    return (ui0 or 0) + ((servoState.getCount() or 0) - BUS_OUTPUT_COUNT)
 end
 
 local function currentServoReadIndex()
@@ -172,7 +173,7 @@ local function saveServoSettings(self)
     local ok, reason = queueDirect(message, string.format("servo.bus.%d.config", configWriteIndex))
     if not ok then return false, reason end
 
-    if rfsuite.session.servoOverride == true then
+    if servoState.getOverride() == true then
         writeEeprom()
     end
     return true, "queued"
@@ -239,7 +240,7 @@ local function setServoConfigFieldsEnabled(enabled)
 end
 
 local function canSave()
-    if rfsuite.session.servoOverride == true then return false end
+    if servoState.getOverride() == true then return false end
     local pref = rfsuite.preferences and rfsuite.preferences.general and rfsuite.preferences.general.save_dirty_only
     if pref == false or pref == "false" then return true end
     return rfsuite.app.pageDirty == true
@@ -250,7 +251,7 @@ local function wakeup(self)
     if enableWakeup == true then
 
         -- go back to main as this tool is compromised 
-        if rfsuite.session.servoCount == nil or rfsuite.session.servoOverride == nil then
+        if servoState.getCount() == nil or servoState.getOverride() == nil then
             rfsuite.app.ui.openMenuContext()
             return
         end
@@ -260,7 +261,7 @@ local function wakeup(self)
             isSaving = false
         end
 
-        if rfsuite.session.servoOverride == true then
+        if servoState.getOverride() == true then
 
             currentServoCenter = configs[servoIndex]['mid']
 
@@ -284,11 +285,11 @@ local function wakeup(self)
     if triggerOverRide == true then
         triggerOverRide = false
 
-        if rfsuite.session.servoOverride == false then
+        if servoState.getOverride() == false then
             rfsuite.app.audio.playServoOverideEnable = true
             rfsuite.app.ui.progressDisplay("@i18n(app.modules.servos.servo_override)@", "@i18n(app.modules.servos.enabling_servo_override)@")
             rfsuite.app.Page.servoCenterFocusAllOn(self)
-            rfsuite.session.servoOverride = true
+            servoState.setOverride(true)
 
             setServoConfigFieldsEnabled(false)
 
@@ -297,7 +298,7 @@ local function wakeup(self)
             rfsuite.app.audio.playServoOverideDisable = true
             rfsuite.app.ui.progressDisplay("@i18n(app.modules.servos.servo_override)@", "@i18n(app.modules.servos.disabling_servo_override)@")
             rfsuite.app.Page.servoCenterFocusAllOff(self)
-            rfsuite.session.servoOverride = false
+            servoState.setOverride(false)
 
             setServoConfigFieldsEnabled(true)
         end
@@ -319,8 +320,8 @@ local function getServoConfigurationsIndexed(callback, callbackParam)
 
             -- Ensure we have a servoCount for any "all servos" operations (override on/off).
             if not servoCount then
-                servoCount = rfsuite.session.servoCount or (servoTable and #servoTable) or 0
-                rfsuite.session.servoCount = servoCount
+                servoCount = servoState.getCount() or (servoTable and #servoTable) or 0
+                servoState.setCount(servoCount)
             end
 
             local config = configs[servoIndex] or {}
@@ -421,7 +422,7 @@ local function openPage(opts)
         local headerLineText = form.addStaticText(headerLine, {x = 0, y = rfsuite.app.radio.linePaddingTop, w = rfsuite.app.lcdWidth, h = rfsuite.app.radio.navbuttonHeight}, rfsuite.app.Page.headerLine)
     end
 
-    if rfsuite.session.servoOverride == true then rfsuite.app.formNavigationFields['save']:enable(false) end
+    if servoState.getOverride() == true then rfsuite.app.formNavigationFields['save']:enable(false) end
 
     if configs[servoIndex]['mid'] ~= nil then
 
@@ -457,7 +458,7 @@ local function openPage(opts)
         if suffix ~= nil then rfsuite.app.formFields[idx]:suffix(suffix) end
         if defaultValue ~= nil then rfsuite.app.formFields[idx]:default(defaultValue) end
         if helpTxt ~= nil then rfsuite.app.formFields[idx]:help(helpTxt) end
-        if rfsuite.session.servoOverride == true then rfsuite.app.formFields[idx]:enable(false) end
+        if servoState.getOverride() == true then rfsuite.app.formFields[idx]:enable(false) end
     end
 
     if configs[servoIndex]['max'] ~= nil then
@@ -475,7 +476,7 @@ local function openPage(opts)
         if suffix ~= nil then rfsuite.app.formFields[idx]:suffix(suffix) end
         if defaultValue ~= nil then rfsuite.app.formFields[idx]:default(defaultValue) end
         if helpTxt ~= nil then rfsuite.app.formFields[idx]:help(helpTxt) end
-        if rfsuite.session.servoOverride == true then rfsuite.app.formFields[idx]:enable(false) end
+        if servoState.getOverride() == true then rfsuite.app.formFields[idx]:enable(false) end
     end
 
     if configs[servoIndex]['scaleNeg'] ~= nil then
@@ -493,7 +494,7 @@ local function openPage(opts)
         if suffix ~= nil then rfsuite.app.formFields[idx]:suffix(suffix) end
         if defaultValue ~= nil then rfsuite.app.formFields[idx]:default(defaultValue) end
         if helpTxt ~= nil then rfsuite.app.formFields[idx]:help(helpTxt) end
-        if rfsuite.session.servoOverride == true then rfsuite.app.formFields[idx]:enable(false) end
+        if servoState.getOverride() == true then rfsuite.app.formFields[idx]:enable(false) end
     end
 
     if configs[servoIndex]['scalePos'] ~= nil then
@@ -511,7 +512,7 @@ local function openPage(opts)
         if suffix ~= nil then rfsuite.app.formFields[idx]:suffix(suffix) end
         if defaultValue ~= nil then rfsuite.app.formFields[idx]:default(defaultValue) end
         if helpTxt ~= nil then rfsuite.app.formFields[idx]:help(helpTxt) end
-        if rfsuite.session.servoOverride == true then rfsuite.app.formFields[idx]:enable(false) end
+        if servoState.getOverride() == true then rfsuite.app.formFields[idx]:enable(false) end
     end
 
     if configs[servoIndex]['speed'] ~= nil then
@@ -529,7 +530,7 @@ local function openPage(opts)
         if suffix ~= nil then rfsuite.app.formFields[idx]:suffix(suffix) end
         if defaultValue ~= nil then rfsuite.app.formFields[idx]:default(defaultValue) end
         if helpTxt ~= nil then rfsuite.app.formFields[idx]:help(helpTxt) end
-        if rfsuite.session.servoOverride == true then rfsuite.app.formFields[idx]:enable(false) end
+        if servoState.getOverride() == true then rfsuite.app.formFields[idx]:enable(false) end
     end
 
     if configs[servoIndex]['flags'] ~= nil then
@@ -544,7 +545,7 @@ local function openPage(opts)
             configs[servoIndex]['reverse'] = value
             rfsuite.app.ui.markPageDirty()
         end)
-        if rfsuite.session.servoOverride == true then rfsuite.app.formFields[idx]:enable(false) end
+        if servoState.getOverride() == true then rfsuite.app.formFields[idx]:enable(false) end
     end
 
 
@@ -561,7 +562,7 @@ local function openPage(opts)
                 configs[servoIndex]['geometry'] = value
                 rfsuite.app.ui.markPageDirty()
             end)
-            if rfsuite.session.servoOverride == true then rfsuite.app.formFields[idx]:enable(false) end
+            if servoState.getOverride() == true then rfsuite.app.formFields[idx]:enable(false) end
         end
     end    
 
@@ -577,7 +578,7 @@ end
 local function onToolMenu(self)
 
     local buttons
-    if rfsuite.session.servoOverride == false then
+    if servoState.getOverride() == false then
         buttons = {
             {
                 label = "@i18n(app.btn_ok_long)@",
@@ -603,7 +604,7 @@ local function onToolMenu(self)
     end
     local message
     local title
-    if rfsuite.session.servoOverride == false then
+    if servoState.getOverride() == false then
         title = "@i18n(app.modules.servos.enable_servo_override)@"
         message = "@i18n(app.modules.servos.enable_servo_override_msg)@"
     else

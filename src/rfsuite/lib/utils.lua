@@ -21,6 +21,7 @@ function utils.session()
     local craftState = rfsuite.shared and rfsuite.shared.craft
     local modelPreferencesState = rfsuite.shared and rfsuite.shared.modelPreferences
     local rxState = rfsuite.shared and rfsuite.shared.rx
+    local servoState = rfsuite.shared and rfsuite.shared.servo
     local telemetryConfigState = rfsuite.shared and rfsuite.shared.telemetryConfig
 
     local function prefBool(value, default)
@@ -123,6 +124,7 @@ function utils.session()
         if mspStatus and mspStatus.reset then mspStatus.reset() end
         if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
         if rxState and rxState.reset then rxState.reset() end
+        if servoState and servoState.reset then servoState.reset() end
         if telemetryConfigState and telemetryConfigState.reset then telemetryConfigState.reset() end
         rfsuite.session = session
         return session
@@ -209,6 +211,7 @@ function utils.session()
     if mspStatus and mspStatus.reset then mspStatus.reset() end
     if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
     if rxState and rxState.reset then rxState.reset() end
+    if servoState and servoState.reset then servoState.reset() end
     if telemetryConfigState and telemetryConfigState.reset then telemetryConfigState.reset() end
 
     return rfsuite.session

@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local servoState = (rfsuite.shared and rfsuite.shared.servo) or assert(loadfile("shared/servo.lua"))()
 local lcd = lcd
 
 local function loadMask(path)
@@ -39,12 +40,12 @@ local function buildServoTable()
     local swashMode = flightState.getSwashMode and flightState.getSwashMode()
     local tailMode = flightState.getTailMode and flightState.getTailMode()
 
-    local totalServoCount = tonumber(rfsuite.session.servoCount or 0) or 0
+    local totalServoCount = tonumber(servoState.getCount() or 0) or 0
     pwmServoCount = totalServoCount
 
     -- On some targets/API variants servoCount already excludes BUS outputs.
     -- Only subtract BUS offset when the total clearly includes those outputs.
-    if rfsuite.session.servoBusEnabled == true and rfsuite.utils.apiVersionCompare(">=", {12, 0, 9}) and not system.getVersion().simulation and totalServoCount > busServoOffset then
+    if servoState.getBusEnabled() == true and rfsuite.utils.apiVersionCompare(">=", {12, 0, 9}) and not system.getVersion().simulation and totalServoCount > busServoOffset then
         pwmServoCount = totalServoCount - busServoOffset
     end
 
@@ -266,7 +267,7 @@ local function openPage(opts)
     end
 
     -- for a write if we are in over-ride and returning to main page
-    if rfsuite.session.servoOverride == false then
+    if servoState.getOverride() == false then
         writeEeprom()
     end
 
@@ -284,7 +285,7 @@ end
 local function onToolMenu(self)
 
     local buttons
-    if rfsuite.session.servoOverride == false then
+    if servoState.getOverride() == false then
         buttons = {
             {
                 label = "@i18n(app.btn_ok_long)@",
@@ -310,7 +311,7 @@ local function onToolMenu(self)
     end
     local message
     local title
-    if rfsuite.session.servoOverride == false then
+    if servoState.getOverride() == false then
         title = "@i18n(app.modules.servos.enable_servo_override)@"
         message = "@i18n(app.modules.servos.enable_servo_override_msg)@"
     else
@@ -325,7 +326,7 @@ end
 local function wakeup()
 
     -- go back to main as this tool is compromised 
-    if rfsuite.session.servoCount == nil or rfsuite.session.servoOverride == nil then
+    if servoState.getCount() == nil or servoState.getOverride() == nil then
         pageRuntime.openMenuContext()
         return
     end
@@ -333,16 +334,16 @@ local function wakeup()
     if triggerOverRide == true then
         triggerOverRide = false
 
-        if rfsuite.session.servoOverride == false then
+        if servoState.getOverride() == false then
             rfsuite.app.audio.playServoOverideEnable = true
             rfsuite.app.ui.progressDisplay("@i18n(app.modules.servos.servo_override)@", "@i18n(app.modules.servos.enabling_servo_override)@")
             rfsuite.app.Page.servoCenterFocusAllOn(self)
-            rfsuite.session.servoOverride = true
+            servoState.setOverride(true)
         else
             rfsuite.app.audio.playServoOverideDisable = true
             rfsuite.app.ui.progressDisplay("@i18n(app.modules.servos.servo_override)@", "@i18n(app.modules.servos.disabling_servo_override)@")
             rfsuite.app.Page.servoCenterFocusAllOff(self)
-            rfsuite.session.servoOverride = false
+            servoState.setOverride(false)
             writeEeprom()
         end
     end
@@ -389,9 +390,9 @@ end
 
 onNavMenu = function(self)
 
-    if rfsuite.session.servoOverride == true or inFocus == true then
+    if servoState.getOverride() == true or inFocus == true then
         rfsuite.app.audio.playServoOverideDisable = true
-        rfsuite.session.servoOverride = false
+        servoState.setOverride(false)
         inFocus = false
         rfsuite.app.ui.progressDisplay("@i18n(app.modules.servos.servo_override)@", "@i18n(app.modules.servos.disabling_servo_override)@")
         rfsuite.app.Page.servoCenterFocusAllOff(self)
