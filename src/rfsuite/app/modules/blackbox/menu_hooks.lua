@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local mspHelper = rfsuite.tasks.msp.mspHelper
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local blackboxConfigState = (rfsuite.shared and rfsuite.shared.blackboxConfig) or assert(loadfile("shared/blackboxconfig.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
@@ -60,12 +61,7 @@ end
 local function onPrereqDone()
     prereqReady = featureConfigReady and blackboxConfigReady and dataflashStatusReady and sdcardStatusReady
     if prereqReady then
-        rfsuite.session.blackbox = {
-            feature = {enabledFeatures = featureBitmap},
-            config = copyTable(blackboxConfigParsed or {}),
-            media = copyTable(media),
-            ready = blackboxSupported
-        }
+        blackboxConfigState.setSnapshot({enabledFeatures = featureBitmap}, copyTable(blackboxConfigParsed or {}), copyTable(media), blackboxSupported)
         updateMenuAvailability()
         rfsuite.app.triggers.closeProgressLoader = true
     end

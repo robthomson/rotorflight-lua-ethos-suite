@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware"})
+local beepersState = (rfsuite.shared and rfsuite.shared.beepers) or assert(loadfile("shared/beepers.lua"))()
 
 local app = rfsuite.app
 local tasks = rfsuite.tasks
@@ -128,10 +129,7 @@ local function renderForm()
 end
 
 local function syncSessionSnapshot()
-    if not rfsuite.session then return end
-    if not rfsuite.session.beepers then rfsuite.session.beepers = {} end
-    rfsuite.session.beepers.config = copyTable(state.cfg)
-    rfsuite.session.beepers.ready = true
+    beepersState.setSnapshot(copyTable(state.cfg), true)
 end
 
 local function onReadDone()
@@ -145,7 +143,7 @@ local function onReadDone()
 end
 
 local function loadFromSessionSnapshot()
-    local snapshot = rfsuite.session and rfsuite.session.beepers or nil
+    local snapshot = beepersState.getSnapshot()
     if not snapshot or not snapshot.config then return false end
 
     local parsed = snapshot.config

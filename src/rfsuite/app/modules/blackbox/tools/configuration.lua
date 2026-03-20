@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware"})
+local blackboxConfigState = (rfsuite.shared and rfsuite.shared.blackboxConfig) or assert(loadfile("shared/blackboxconfig.lua"))()
 
 local app = rfsuite.app
 local tasks = rfsuite.tasks
@@ -221,10 +222,9 @@ end
 local function onReadDone()
     state.pendingReads = state.pendingReads - 1
     if state.pendingReads <= 0 then
-        if rfsuite.session then
-            if not rfsuite.session.blackbox then rfsuite.session.blackbox = {} end
-            rfsuite.session.blackbox.feature = {enabledFeatures = state.featureBitmap or 0}
-            rfsuite.session.blackbox.config = {
+        blackboxConfigState.setSnapshot(
+            {enabledFeatures = state.featureBitmap or 0},
+            {
                 blackbox_supported = state.cfg.blackbox_supported,
                 device = state.cfg.device,
                 mode = state.cfg.mode,
@@ -233,13 +233,13 @@ local function onReadDone()
                 initialEraseFreeSpaceKiB = state.cfg.initialEraseFreeSpaceKiB,
                 rollingErase = state.cfg.rollingErase,
                 gracePeriod = state.cfg.gracePeriod
-            }
-            rfsuite.session.blackbox.media = {
+            },
+            {
                 dataflashSupported = state.media.dataflashSupported,
                 sdcardSupported = state.media.sdcardSupported
-            }
-            rfsuite.session.blackbox.ready = tonumber(state.cfg.blackbox_supported or 0) == 1
-        end
+            },
+            tonumber(state.cfg.blackbox_supported or 0) == 1
+        )
         state.loading = false
         state.loaded = true
         renderForm()
@@ -247,7 +247,7 @@ local function onReadDone()
 end
 
 local function loadFromSessionSnapshot()
-    local snapshot = rfsuite.session and rfsuite.session.blackbox or nil
+    local snapshot = blackboxConfigState.getSnapshot()
     if not snapshot or not snapshot.config then return false end
     local media = snapshot.media or nil
     if not media or media.dataflashSupported == nil or media.sdcardSupported == nil then
@@ -270,7 +270,7 @@ local function loadFromSessionSnapshot()
 end
 
 local function seedMediaFromSession()
-    local snapshot = rfsuite.session and rfsuite.session.blackbox or nil
+    local snapshot = blackboxConfigState.getSnapshot()
     local media = snapshot and snapshot.media or nil
     if not media then return end
     state.media.dataflashSupported = coerceBool(media.dataflashSupported, state.media.dataflashSupported)
@@ -363,8 +363,9 @@ local function performSave()
             processReply = function()
                 state.saving = false
                 state.dirty = false
-                if rfsuite.session and rfsuite.session.blackbox then
-                    rfsuite.session.blackbox.config = {
+                blackboxConfigState.setSnapshot(
+                    {enabledFeatures = state.featureBitmap or 0},
+                    {
                         blackbox_supported = state.cfg.blackbox_supported,
                         device = state.cfg.device,
                         mode = state.cfg.mode,
@@ -373,12 +374,13 @@ local function performSave()
                         initialEraseFreeSpaceKiB = state.cfg.initialEraseFreeSpaceKiB,
                         rollingErase = state.cfg.rollingErase,
                         gracePeriod = state.cfg.gracePeriod
-                    }
-                    rfsuite.session.blackbox.media = {
+                    },
+                    {
                         dataflashSupported = state.media.dataflashSupported,
                         sdcardSupported = state.media.sdcardSupported
-                    }
-                end
+                    },
+                    tonumber(state.cfg.blackbox_supported or 0) == 1
+                )
                 app.triggers.closeSave = true
                 updateSaveEnabled()
             end,

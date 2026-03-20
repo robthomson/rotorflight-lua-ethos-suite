@@ -17,7 +17,9 @@ function utils.session()
     local mspStatus = rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status
     local connectionState = rfsuite.shared and rfsuite.shared.connection
     local batteryState = rfsuite.shared and rfsuite.shared.battery
+    local beepersState = rfsuite.shared and rfsuite.shared.beepers
     local blackboxState = rfsuite.shared and rfsuite.shared.blackbox
+    local blackboxConfigState = rfsuite.shared and rfsuite.shared.blackboxConfig
     local craftState = rfsuite.shared and rfsuite.shared.craft
     local modelPreferencesState = rfsuite.shared and rfsuite.shared.modelPreferences
     local rxState = rfsuite.shared and rfsuite.shared.rx
@@ -118,7 +120,9 @@ function utils.session()
         })
         if connectionState and connectionState.reset then connectionState.reset() end
         if batteryState and batteryState.reset then batteryState.reset() end
+        if beepersState and beepersState.reset then beepersState.reset() end
         if blackboxState and blackboxState.reset then blackboxState.reset() end
+        if blackboxConfigState and blackboxConfigState.reset then blackboxConfigState.reset() end
         if craftState and craftState.reset then craftState.reset() end
         if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
         if mspStatus and mspStatus.reset then mspStatus.reset() end
@@ -205,7 +209,9 @@ function utils.session()
 
     if connectionState and connectionState.reset then connectionState.reset() end
     if batteryState and batteryState.reset then batteryState.reset() end
+    if beepersState and beepersState.reset then beepersState.reset() end
     if blackboxState and blackboxState.reset then blackboxState.reset() end
+    if blackboxConfigState and blackboxConfigState.reset then blackboxConfigState.reset() end
     if craftState and craftState.reset then craftState.reset() end
     if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
     if mspStatus and mspStatus.reset then mspStatus.reset() end

@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local beepersState = (rfsuite.shared and rfsuite.shared.beepers) or assert(loadfile("shared/beepers.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
@@ -45,10 +46,7 @@ end
 local function onPrereqDone()
     prereqReady = beepersConfigReady
     if prereqReady then
-        rfsuite.session.beepers = {
-            config = copyTable(beepersConfigParsed or {}),
-            ready = true
-        }
+        beepersState.setSnapshot(copyTable(beepersConfigParsed or {}), true)
         updateMenuAvailability()
         rfsuite.app.triggers.closeProgressLoader = true
     end

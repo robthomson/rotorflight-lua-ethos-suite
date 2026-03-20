@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({defaultSection = "hardware"})
+local blackboxConfigState = (rfsuite.shared and rfsuite.shared.blackboxConfig) or assert(loadfile("shared/blackboxconfig.lua"))()
 
 local app = rfsuite.app
 local tasks = rfsuite.tasks
@@ -163,11 +164,13 @@ local function renderForm()
 end
 
 local function syncSessionSnapshot()
-    if not rfsuite.session then return end
-    if not rfsuite.session.blackbox then rfsuite.session.blackbox = {} end
-    rfsuite.session.blackbox.feature = {enabledFeatures = state.featureBitmap or 0}
-    rfsuite.session.blackbox.config = copyTable(state.cfg)
-    rfsuite.session.blackbox.ready = tonumber(state.cfg.blackbox_supported or 0) == 1
+    local snapshot = blackboxConfigState.getSnapshot()
+    blackboxConfigState.setSnapshot(
+        {enabledFeatures = state.featureBitmap or 0},
+        copyTable(state.cfg),
+        snapshot and snapshot.media or nil,
+        tonumber(state.cfg.blackbox_supported or 0) == 1
+    )
 end
 
 local function onReadDone()
@@ -181,7 +184,7 @@ local function onReadDone()
 end
 
 local function loadFromSessionSnapshot()
-    local snapshot = rfsuite.session and rfsuite.session.blackbox or nil
+    local snapshot = blackboxConfigState.getSnapshot()
     if not snapshot or not snapshot.config then return false end
 
     state.featureBitmap = tonumber(snapshot.feature and snapshot.feature.enabledFeatures or 0) or 0
