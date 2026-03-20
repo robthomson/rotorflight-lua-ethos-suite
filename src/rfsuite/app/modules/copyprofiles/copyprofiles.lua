@@ -72,11 +72,12 @@ local function openPage(opts)
     if app.formLines then for k in pairs(app.formLines) do app.formLines[k] = nil end end
 
     rfsuite.app.lastIdx = idx
+    rfsuite.app.lastPage = script
     rfsuite.app.lastTitle = title
     rfsuite.app.lastScript = script
 
     form.clear()
-    rfsuite.session.lastPage = script
+    if rfsuite.shared and rfsuite.shared.app then rfsuite.shared.app.lastPage = script end
 
     local pageTitle = rfsuite.app.Page.pageTitle or title
     rfsuite.app.ui.fieldHeader(pageTitle)

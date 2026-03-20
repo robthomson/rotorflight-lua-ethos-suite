@@ -1773,9 +1773,10 @@ local function openPage(opts)
     state.title = opts.title or MODULE_TITLE
 
     rfsuite.app.lastIdx = idx
+    rfsuite.app.lastPage = opts.script
     rfsuite.app.lastTitle = state.title
     rfsuite.app.lastScript = opts.script
-    rfsuite.session.lastPage = opts.script
+    if rfsuite.shared and rfsuite.shared.app then rfsuite.shared.app.lastPage = opts.script end
 
     buildFunctionOptions(nil)
     startLoad()

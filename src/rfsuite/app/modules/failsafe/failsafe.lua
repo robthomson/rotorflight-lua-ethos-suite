@@ -89,9 +89,10 @@ local function openPage(opts)
     local app = rfsuite.app
 
     app.lastIdx = idx
+    app.lastPage = script
     app.lastTitle = title
     app.lastScript = script
-    rfsuite.session.lastPage = script
+    if rfsuite.shared and rfsuite.shared.app then rfsuite.shared.app.lastPage = script end
 
     form.clear()
     app.ui.fieldHeader(title)

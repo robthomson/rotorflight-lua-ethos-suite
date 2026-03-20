@@ -296,6 +296,7 @@ local function openPage(opts)
     app.triggers.isReady = false
     app.lastLabel = nil
     app.lastIdx = idx
+    app.lastPage = script
     app.lastTitle = title
     app.lastScript = script
 
@@ -304,7 +305,7 @@ local function openPage(opts)
 
     -- build form
     form.clear()
-    rfsuite.session.lastPage = script
+    if rfsuite.shared and rfsuite.shared.app then rfsuite.shared.app.lastPage = script end
 
     local pageTitle = app.Page.pageTitle or title
     app.ui.fieldHeader(pageTitle)

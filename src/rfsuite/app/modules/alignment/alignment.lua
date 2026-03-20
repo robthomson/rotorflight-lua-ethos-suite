@@ -706,9 +706,10 @@ local function openPage(opts)
     local title = opts.title or "@i18n(app.modules.alignment.name)@"
 
     app.lastIdx = opts.idx
+    app.lastPage = opts.script
     app.lastTitle = opts.title
     app.lastScript = opts.script
-    session.lastPage = opts.script
+    if rfsuite.shared and rfsuite.shared.app then rfsuite.shared.app.lastPage = opts.script end
 
     state.dirty = false
     state.triggerSave = false

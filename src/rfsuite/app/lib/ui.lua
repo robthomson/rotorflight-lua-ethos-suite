@@ -16,6 +16,7 @@ local tableConcat = table.concat
 local mathFloor = math.floor
 local app = rfsuite.app
 local session = rfsuite.session
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local rfutils = rfsuite.utils
 
 local ui = {}
@@ -597,16 +598,14 @@ local function getMspStatusForDialog()
 end
 
 function ui.registerProgressDialog(handle, baseMessage)
-    if not session then return end
-    session.progressDialog = {
+    if not appRuntime then return end
+    appRuntime.progressDialog = {
         handle = handle,
         baseMessage = baseMessage or ""
     }
 end
 
 function ui.clearProgressDialog(handle)
-    if not session or not session.progressDialog then return end
-
     if app and app.dialogs then
         if handle == nil or app.dialogs.progress == handle then
             app.dialogs.progress = nil
@@ -616,8 +615,11 @@ function ui.clearProgressDialog(handle)
         end
     end
 
-    if handle == nil or session.progressDialog.handle == handle then
-        session.progressDialog = nil
+    local pd = appRuntime and appRuntime.progressDialog
+    if not pd then return end
+
+    if handle == nil or pd.handle == handle then
+        appRuntime.progressDialog = nil
     end
 end
 
@@ -644,7 +646,7 @@ function ui.updateProgressDialogMessage(statusOverride)
     end
 
     -- Then update any custom registered dialog
-    local pd = session and session.progressDialog
+    local pd = appRuntime and appRuntime.progressDialog
     if pd and pd.handle then
         local mspStatus = statusOverride or getMspStatusForDialog()
         local composedMessage = pd.baseMessage or ""
@@ -1280,7 +1282,8 @@ function ui.resetPageState(activesection)
     app.activeManifestMenuId = nil
     app.pendingManifestMenuId = nil
 
-    session.lastPage = nil
+    app.lastPage = nil
+    if appRuntime then appRuntime.lastPage = nil end
     app.triggers.isReady = false
     app.uiState = app.uiStatus.mainMenu
     app.triggers.disableRssiTimeout = false
@@ -2424,9 +2427,10 @@ function ui.openPage(opts)
     app.lastIdx = idx
     app.lastTitle = title
     app.lastScript = script
+    app.lastPage = script
 
     form.clear()
-    session.lastPage = script
+    if appRuntime then appRuntime.lastPage = script end
 
     local pageTitle = app.Page.pageTitle or title
     app.ui.fieldHeader(pageTitle)

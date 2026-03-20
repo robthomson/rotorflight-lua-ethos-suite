@@ -68,9 +68,10 @@ local function openPage(opts)
     end
 
     rfsuite.app.lastIdx = idx
+    rfsuite.app.lastPage = relativeScript or script
     rfsuite.app.lastTitle = title
     rfsuite.app.lastScript = relativeScript or script
-    rfsuite.session.lastPage = relativeScript or script
+    if rfsuite.shared and rfsuite.shared.app then rfsuite.shared.app.lastPage = relativeScript or script end
 
     rfsuite.app.uiState = rfsuite.app.uiStatus.pages
 

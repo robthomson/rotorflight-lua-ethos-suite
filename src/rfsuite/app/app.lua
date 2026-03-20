@@ -11,6 +11,7 @@ local app = {}
 local utils = rfsuite.utils
 local log = utils.log
 local compile = loadfile
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 local lastNoOpSaveToneAt = 0
 local busyUiTick = 0
 -- Busy cadence: run app tasks on RUN_NUM of RUN_DEN ticks while MSP is busy.
@@ -149,6 +150,10 @@ end
 
 function app.create()
     app._closing = false
+    app.runtime = appRuntime
+    if app.runtime and app.runtime.reset then
+        app.runtime.reset()
+    end
 
     if not app.initialized then
 
@@ -398,6 +403,7 @@ function app.close()
     app.guiIsRunning = false
     app.offlineMode = false
     app.escPowerCycleLoader = false
+    app.lastPage = nil
 
     if app.ui and app.ui.cleanupCurrentPage then
         local ok, err = pcall(app.ui.cleanupCurrentPage)
@@ -446,6 +452,9 @@ function app.close()
     app.triggers.profileswitchLast = nil
 
     if rfsuite.tasks.msp then rfsuite.tasks.msp.api.resetApidata() end
+    if app.runtime and app.runtime.reset then
+        app.runtime.reset()
+    end
 
     rfsuite.utils.reportMemoryUsage("app.close", "end")
 

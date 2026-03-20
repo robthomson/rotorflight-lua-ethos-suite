@@ -127,9 +127,10 @@ local function openPage(opts)
     app.triggers.isReady = false
 
     app.lastIdx = idx
+    app.lastPage = script
     app.lastTitle = title
     app.lastScript = script
-    session.lastPage = script
+    if rfsuite.shared and rfsuite.shared.app then rfsuite.shared.app.lastPage = script end
 
     app.uiState = app.uiStatus.pages
 
