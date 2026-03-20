@@ -6,9 +6,18 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({showProgress = true})
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 
-local activateWakeup = false
-local governorDisabledMsg = false
+local state = appRuntime.profileGovernorFlagsState
+if not state then
+    state = {
+        activateWakeup = false,
+        lastGovEnabled = nil,
+        lastAdcVoltage = nil
+    }
+    appRuntime.profileGovernorFlagsState = state
+end
 
 local FIELD_FALLBACK_PRECOMP = 1
 local FIELD_PID_SPOOLUP = 2
@@ -33,7 +42,7 @@ local apidata = {
 
 local function postLoad(self)
     rfsuite.app.triggers.closeProgressLoader = true
-    activateWakeup = true
+    state.activateWakeup = true
 end
 
 local function setNavEnabled(id, enabled)
@@ -49,7 +58,8 @@ local function setFieldEnabled(index, enabled)
 end
 
 local function canSave()
-    local govEnabled = (rfsuite.session.governorMode ~= nil and rfsuite.session.governorMode ~= 0)
+    local governorMode = flightState.getGovernorMode()
+    local govEnabled = (governorMode ~= nil and governorMode ~= 0)
     if not govEnabled then return false end
     local pref = rfsuite.preferences and rfsuite.preferences.general and rfsuite.preferences.general.save_dirty_only
     if pref == false or pref == "false" then return true end
@@ -57,15 +67,19 @@ local function canSave()
 end
 
 local function wakeup()
+    local governorMode
+    local govEnabled
+    local adcVoltage
 
     -- we are compromised if we don't have governor mode known
-    if rfsuite.session.governorMode == nil then
+    governorMode = flightState.getGovernorMode()
+    if governorMode == nil then
         pageRuntime.openMenuContext()
         return
     end
 
     local mspQueue = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.mspQueue
-    if activateWakeup ~= true or not (mspQueue and mspQueue.isProcessed and mspQueue:isProcessed()) then
+    if state.activateWakeup ~= true or not (mspQueue and mspQueue.isProcessed and mspQueue:isProcessed()) then
         return
     end
 
@@ -76,29 +90,31 @@ local function wakeup()
     end
 
     -- Enable/disable fields based on firmware/session state.
-    local govEnabled = (rfsuite.session.governorMode ~= nil and rfsuite.session.governorMode ~= 0)
-    local adcVoltage = (rfsuite.session.batteryConfig ~= nil and rfsuite.session.batteryConfig.voltageMeterSource == 1)
+    govEnabled = (governorMode ~= 0)
+    adcVoltage = (rfsuite.session.batteryConfig ~= nil and rfsuite.session.batteryConfig.voltageMeterSource == 1)
 
-    -- Navigation buttons (if present)
-    setNavEnabled("save", canSave())
-    setNavEnabled("reload", govEnabled)
+    if state.lastGovEnabled ~= govEnabled then
+        setNavEnabled("save", canSave())
+        setNavEnabled("reload", govEnabled)
+        state.lastGovEnabled = govEnabled
+    end
 
-    -- If governor is disabled in firmware, lock the page.
     if not govEnabled then
         setFieldEnabled(FIELD_FALLBACK_PRECOMP, false)
         setFieldEnabled(FIELD_PID_SPOOLUP, false)
         setFieldEnabled(FIELD_VOLTAGE_COMP, false)
         setFieldEnabled(FIELD_DYN_MIN_THROTTLE, false)
+        state.lastAdcVoltage = adcVoltage
         return
     end
 
-    -- Governor enabled: field availability.
-    setFieldEnabled(FIELD_FALLBACK_PRECOMP, true)
-    setFieldEnabled(FIELD_PID_SPOOLUP, true)
-    setFieldEnabled(FIELD_DYN_MIN_THROTTLE, true)
-
-    -- Voltage compensation requires an ADC voltage source.
-    setFieldEnabled(FIELD_VOLTAGE_COMP, adcVoltage)
+    if state.lastGovEnabled ~= govEnabled or state.lastAdcVoltage ~= adcVoltage then
+        setFieldEnabled(FIELD_FALLBACK_PRECOMP, true)
+        setFieldEnabled(FIELD_PID_SPOOLUP, true)
+        setFieldEnabled(FIELD_DYN_MIN_THROTTLE, true)
+        setFieldEnabled(FIELD_VOLTAGE_COMP, adcVoltage)
+        state.lastAdcVoltage = adcVoltage
+    end
 end
 
 local function event(widget, category, value, x, y)
@@ -109,4 +125,10 @@ local function onNavMenu()
     return navHandlers.onNavMenu()
 end
 
-return {apidata = apidata, title = "@i18n(app.modules.profile_governor.name)@", reboot = false, event = event, onNavMenu = onNavMenu, refreshOnProfileChange = true, eepromWrite = true, postLoad = postLoad, wakeup = wakeup, canSave = canSave, API = {}}
+local function close()
+    state.activateWakeup = false
+    state.lastGovEnabled = nil
+    state.lastAdcVoltage = nil
+end
+
+return {apidata = apidata, title = "@i18n(app.modules.profile_governor.name)@", reboot = false, event = event, onNavMenu = onNavMenu, refreshOnProfileChange = true, eepromWrite = true, postLoad = postLoad, wakeup = wakeup, canSave = canSave, close = close, API = {}}

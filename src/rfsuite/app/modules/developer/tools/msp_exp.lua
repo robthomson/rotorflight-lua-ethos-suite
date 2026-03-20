@@ -78,13 +78,15 @@ local function periodicSync()
 end
 
 local function postLoad()
+    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+    local experimentalBytes = api and api.getPageReceivedBytesCount and api.getPageReceivedBytesCount("EXPERIMENTAL")
 
     fieldMap = {}
     int8_dirty = false
     uint8_dirty = true
     enableWakeup = false
 
-    if rfsuite.tasks.msp.api.apidata.receivedBytesCount['EXPERIMENTAL'] == 0 then
+    if experimentalBytes == 0 then
         rfsuite.app.triggers.closeProgressLoader = true
         rfsuite.app.ui.disableAllFields()
         rfsuite.app.ui.disableAllNavigationFields()
@@ -92,9 +94,9 @@ local function postLoad()
         return
     end
 
-    if total_bytes ~= rfsuite.tasks.msp.api.apidata.receivedBytesCount['EXPERIMENTAL'] then
+    if experimentalBytes ~= nil and total_bytes ~= experimentalBytes then
 
-        rfsuite.preferences.developer.mspexpbytes = rfsuite.tasks.msp.api.apidata.receivedBytesCount['EXPERIMENTAL']
+        rfsuite.preferences.developer.mspexpbytes = experimentalBytes
         rfsuite.app.triggers.reloadFull = true
     end
 
@@ -113,9 +115,16 @@ end
 
 local function preUnload() enableWakeup = false end
 
+local function close()
+    fieldMap = {}
+    int8_dirty = false
+    uint8_dirty = false
+    enableWakeup = false
+end
+
 local function onNavMenu()
     pageRuntime.openMenuContext()
     return true
 end
 
-return {apidata = apidata, title = "Experimental", navButtons = {menu = true, save = true, reload = true, help = true}, onNavMenu = onNavMenu, eepromWrite = true, postLoad = postLoad, wakeup = wakeup, preUnload = preUnload, API = {}}
+return {apidata = apidata, title = "Experimental", navButtons = {menu = true, save = true, reload = true, help = true}, onNavMenu = onNavMenu, eepromWrite = true, postLoad = postLoad, wakeup = wakeup, preUnload = preUnload, close = close, API = {}}

@@ -17,6 +17,7 @@ local runtime = {
     mixerLegacyTailState = nil,
     governorGeneralState = nil,
     profileGovernorGeneralState = nil,
+    profileGovernorFlagsState = nil,
     servoTableLast = nil
 }
 
@@ -28,6 +29,7 @@ function runtime.reset()
     runtime.mixerLegacyTailState = nil
     runtime.governorGeneralState = nil
     runtime.profileGovernorGeneralState = nil
+    runtime.profileGovernorFlagsState = nil
     runtime.servoTableLast = nil
     return runtime
 end

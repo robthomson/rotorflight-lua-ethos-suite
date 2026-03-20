@@ -537,6 +537,14 @@ function api.getPageValue(apiName, fieldName, fallbackApiName)
     return entry[fieldName]
 end
 
+function api.getPageReceivedBytesCount(apiName)
+    local d = ensureApidata()
+    if not (d and d.receivedBytesCount and type(apiName) == "string" and apiName ~= "") then
+        return nil
+    end
+    return d.receivedBytesCount[apiName]
+end
+
 function api.setPageResult(apiName, data, cacheEnabled)
     local d = ensureApidata()
 

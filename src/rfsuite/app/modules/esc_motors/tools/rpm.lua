@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 
 local enableWakeup = false
+local lastDshotTelemetryEnabled = nil
 
 local function rpmSensor(field, value)
     --print("RPM Sensor Source changed to: " .. tostring(value))
@@ -56,17 +57,31 @@ local function postLoad(self)
 end
 
 local function wakeup() 
+    local api
+    local motorConfig
+    local pwmProtocol
+    local dshotEnabled
+
     if enableWakeup == true then
-        if rfsuite.tasks.msp.api.apidata.values["MOTOR_CONFIG"].motor_pwm_protocol >=5 and rfsuite.tasks.msp.api.apidata.values["MOTOR_CONFIG"].motor_pwm_protocol <= 8 then
-            -- dshot compatable
-            formFields[FIELDS.DSHOT_TELEMETRY]:enable(true)
-        else
-            -- not dshot
-            formFields[FIELDS.DSHOT_TELEMETRY]:enable(false)
+        api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+        motorConfig = api and api.getPageApiValues and api.getPageApiValues("MOTOR_CONFIG")
+        pwmProtocol = motorConfig and motorConfig.motor_pwm_protocol
+
+        if pwmProtocol ~= nil then
+            dshotEnabled = pwmProtocol >= 5 and pwmProtocol <= 8
+            if lastDshotTelemetryEnabled ~= dshotEnabled and formFields[FIELDS.DSHOT_TELEMETRY] and formFields[FIELDS.DSHOT_TELEMETRY].enable then
+                formFields[FIELDS.DSHOT_TELEMETRY]:enable(dshotEnabled)
+                lastDshotTelemetryEnabled = dshotEnabled
+            end
         end
 
         -- No additional processing for motor protocol here.
     end 
+end
+
+local function close()
+    enableWakeup = false
+    lastDshotTelemetryEnabled = nil
 end
 
 local function onNavMenu(self)
@@ -78,4 +93,4 @@ local function event(_, category, value)
     return pageRuntime.handleCloseEvent(category, value, {onClose = onNavMenu})
 end
 
-return {apidata = apidata, reboot = true, eepromWrite = true, event = event, wakeup = wakeup, postLoad = postLoad, onNavMenu = onNavMenu}
+return {apidata = apidata, reboot = true, eepromWrite = true, event = event, wakeup = wakeup, postLoad = postLoad, onNavMenu = onNavMenu, close = close}

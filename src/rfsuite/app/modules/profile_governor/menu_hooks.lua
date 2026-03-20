@@ -4,25 +4,35 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local prevConnectedState = nil
 local initTime = os.clock()
 local focused = false
+local requestPending = false
 
 return {
+    onOpenPost = function()
+        initTime = os.clock()
+        focused = false
+        requestPending = false
+    end,
     onWakeup = function()
         if os.clock() - initTime < 0.25 then return end
 
-        if rfsuite.session.governorMode == nil then
+        if flightState.getGovernorMode() == nil then
             if rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.helpers then
+                if requestPending then return end
+                requestPending = true
                 rfsuite.tasks.msp.helpers.governorMode(function(governorMode)
+                    requestPending = false
                     rfsuite.utils.log("Received governor mode: " .. tostring(governorMode), "info")
                 end)
             end
             return
         end
 
-        local enabled = rfsuite.session.governorMode ~= 0
+        local enabled = flightState.getGovernorMode() ~= 0
         if rfsuite.app.formFields then
             for i, v in pairs(rfsuite.app.formFields) do
                 if v and v.enable then v:enable(enabled) end
