@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local sharedTimer = (rfsuite.shared and rfsuite.shared.timer) or assert(loadfile("shared/timer.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local timer = {}
 
@@ -34,8 +35,7 @@ function timer.wakeup()
         return
     end
 
-    local session = rfsuite.session
-    local modelPrefs = session and session.modelPreferences
+    local modelPrefs = modelPreferencesState.get()
     local targetSeconds = (modelPrefs and modelPrefs.battery and modelPrefs.battery.flighttime) or 0
 
     if targetSeconds == 0 then

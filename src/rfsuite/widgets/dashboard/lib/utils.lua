@@ -22,6 +22,7 @@ local tonumber = tonumber
 
 local utils = {}
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local SKIP_CALL_KEYS = {transform = true, thresholds = true, value = true}
 local MAX_BATTERY_PROFILES = 6
@@ -162,7 +163,15 @@ function utils.isFullScreen(w, h)
     return nil
 end
 
-function utils.isModelPrefsReady() return rfsuite and rfsuite.session and rfsuite.session.modelPreferences end
+function utils.getModelPreferences()
+    return modelPreferencesState and modelPreferencesState.get and modelPreferencesState.get() or nil
+end
+
+function utils.getModelPreferencesFile()
+    return modelPreferencesState and modelPreferencesState.getFile and modelPreferencesState.getFile() or nil
+end
+
+function utils.isModelPrefsReady() return utils.getModelPreferences() end
 
 function utils.resetBoxCache(box) if box._cache then for k in pairs(box._cache) do box._cache[k] = nil end end end
 
@@ -868,7 +877,8 @@ function utils.maxVoltageToCellVoltage(value, defaultCellCount)
 end
 
 function utils.isElectricEngine()
-    local batteryPrefs = rfsuite and rfsuite.session and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.battery
+    local prefs = utils.getModelPreferences()
+    local batteryPrefs = prefs and prefs.battery
     local modelType = batteryPrefs and tonumber(batteryPrefs.smartfuel_model_type) or 0
 
     if modelType == 0 then

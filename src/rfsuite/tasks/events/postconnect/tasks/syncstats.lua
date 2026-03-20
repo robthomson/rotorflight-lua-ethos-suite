@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local sync = {}
 
@@ -61,7 +62,7 @@ function sync.wakeup()
         return
     end
 
-    local prefs = rfsuite.session.modelPreferences
+    local prefs = modelPreferencesState.get()
     if not prefs then return end
 
     -- we dont support this feature on older firmwares
@@ -113,7 +114,7 @@ function sync.wakeup()
             -- remote is higher, update local
             rfsuite.ini.setvalue(prefs, "general", "totalflighttime", tostring(totalflighttimeRemote))
             rfsuite.ini.setvalue(prefs, "general", "flightcount", tostring(flightcountRemote))
-            rfsuite.ini.save_ini_file(rfsuite.session.modelPreferencesFile, prefs)
+            rfsuite.ini.save_ini_file(modelPreferencesState.getFile(), prefs)
 
             rfsuite.utils.log("Updated radio flight stats from FBL", "info")
 

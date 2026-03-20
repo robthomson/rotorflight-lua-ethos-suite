@@ -5,6 +5,8 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local settings = {}
 local settings_model = {}
@@ -30,8 +32,9 @@ local function generateThemeList()
 
     settings = rfsuite.preferences.dashboard or {}
 
-    if rfsuite.session.modelPreferences and type(rfsuite.session.modelPreferences.dashboard) == "table" then
-        settings_model = rfsuite.session.modelPreferences.dashboard
+    local modelPrefs = modelPreferencesState.get()
+    if modelPrefs and type(modelPrefs.dashboard) == "table" then
+        settings_model = modelPrefs.dashboard
     else
         settings_model = {}
     end
@@ -237,10 +240,12 @@ local function onSaveMenu()
         for key, value in pairs(settings) do rfsuite.preferences.dashboard[key] = value end
         rfsuite.ini.save_ini_file("SCRIPTS:/" .. rfsuite.config.preferences .. "/preferences.ini", rfsuite.preferences)
 
-        if rfsuite.session.isConnected and rfsuite.session.mcu_id and rfsuite.session.modelPreferencesFile then
-            rfsuite.session.modelPreferences.dashboard = rfsuite.session.modelPreferences.dashboard or {}
-            for key, value in pairs(settings_model) do rfsuite.session.modelPreferences.dashboard[key] = value end
-            rfsuite.ini.save_ini_file(rfsuite.session.modelPreferencesFile, rfsuite.session.modelPreferences)
+        local modelPrefs = modelPreferencesState.get()
+        local modelPrefsFile = modelPreferencesState.getFile()
+        if connectionState.getConnected() and connectionState.getMcuId() and modelPrefs and modelPrefsFile then
+            modelPrefs.dashboard = modelPrefs.dashboard or {}
+            for key, value in pairs(settings_model) do modelPrefs.dashboard[key] = value end
+            rfsuite.ini.save_ini_file(modelPrefsFile, modelPrefs)
         end
 
         rfsuite.widgets.dashboard.reload_themes(true)
@@ -275,7 +280,7 @@ end
 local function wakeup()
     if not enableWakeup then return end
 
-    local currState = (rfsuite.session.isConnected and rfsuite.session.mcu_id) and true or false
+    local currState = connectionState.getConnected() and connectionState.getMcuId() and true or false
 
     if currState ~= prevConnectedState then
 

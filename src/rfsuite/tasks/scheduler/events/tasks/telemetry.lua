@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local arg = {...}
 
@@ -188,7 +189,8 @@ local function refreshBatteryConfigCache()
     batteryConfigCache.hasAnyProfileCapacity = hasProfileCapacity
     batteryConfigCache.hasAnyBatteryCapacity = (batteryCapacity > 0) or hasProfileCapacity
 
-    local modelPrefs = (session.modelPreferences and session.modelPreferences.battery) or {}
+    local prefs = modelPreferencesState.get()
+    local modelPrefs = (prefs and prefs.battery) or {}
     batteryConfigCache.modelPrefs = modelPrefs
     batteryConfigCache.smartfuelModelType = tonumber(modelPrefs.smartfuel_model_type) or 0
 

@@ -23,6 +23,8 @@ local tostring = tostring
 local tonumber = tonumber
 
 local dashboard = {}
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local compile = loadfile
 
@@ -1135,7 +1137,8 @@ local function load_state_script(theme_folder, state, isFallback)
 end
 
 local function getThemeForState(state)
-    local modelPrefs = rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.dashboard
+    local prefs = modelPreferencesState.get()
+    local modelPrefs = prefs and prefs.dashboard
     local userPrefs = rfsuite.preferences.dashboard
     local val = nil
     if modelPrefs then
@@ -1696,7 +1699,8 @@ function dashboard.wakeup_protected(widget)
     if not dashboard.utils then return end
 
     if rfsuite.session.isConnected and rfsuite.session.showBatteryTypeStartup and not rfsuite.session.batteryDialogShown then
-        if rfsuite.session.batteryConfig and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.dashboard then
+        local prefs = modelPreferencesState.get()
+        if rfsuite.session.batteryConfig and prefs and prefs.dashboard then
             rfsuite.session.batteryDialogShown = true
             if dashboard.utils.hasMultipleBatteryProfiles and dashboard.utils.hasMultipleBatteryProfiles() then
                 local actions = dashboard.toolbar_actions
@@ -1759,9 +1763,10 @@ function dashboard.wakeup_protected(widget)
         statePreloadIndex = statePreloadIndex + 1
     end
 
-    if firstWakeupCustomTheme and rfsuite.session.mcu_id and rfsuite.session.modelPreferences and rfsuite.session.modelPreferences.dashboard then
+    local prefs = modelPreferencesState.get()
+    if firstWakeupCustomTheme and connectionState.getMcuId() and prefs and prefs.dashboard then
 
-        local modelPrefs = rfsuite.session.modelPreferences.dashboard
+        local modelPrefs = prefs.dashboard
         local currentPrefs = rfsuite.preferences.dashboard
 
         if (modelPrefs.theme_preflight and modelPrefs.theme_preflight ~= "nil" and modelPrefs.theme_preflight ~= currentPrefs.theme_preflight) or (modelPrefs.theme_inflight and modelPrefs.theme_inflight ~= "nil" and modelPrefs.theme_inflight ~= currentPrefs.theme_inflight) or (modelPrefs.theme_postflight and modelPrefs.theme_postflight ~= "nil" and modelPrefs.theme_postflight ~= currentPrefs.theme_postflight) then
@@ -1968,23 +1973,26 @@ end
 
 
 function dashboard.getPreference(key)
-    if not rfsuite.session.modelPreferences or not dashboard.currentWidgetPath then return nil end
+    local prefs = modelPreferencesState.get()
+    if not prefs or not dashboard.currentWidgetPath then return nil end
 
     if not rfsuite.app.guiIsRunning then
-        return rfsuite.ini.getvalue(rfsuite.session.modelPreferences, dashboard.currentWidgetPath, key)
+        return rfsuite.ini.getvalue(prefs, dashboard.currentWidgetPath, key)
     else
-        return rfsuite.ini.getvalue(rfsuite.session.modelPreferences, rfsuite.app.dashboardEditingTheme, key)
+        return rfsuite.ini.getvalue(prefs, rfsuite.app.dashboardEditingTheme, key)
     end
 end
 
 function dashboard.savePreference(key, value)
-    if not rfsuite.session.modelPreferences or not rfsuite.session.modelPreferencesFile or not dashboard.currentWidgetPath then return false end
+    local prefs = modelPreferencesState.get()
+    local prefsFile = modelPreferencesState.getFile()
+    if not prefs or not prefsFile or not dashboard.currentWidgetPath then return false end
     if not rfsuite.app.guiIsRunning then
-        rfsuite.ini.setvalue(rfsuite.session.modelPreferences, dashboard.currentWidgetPath, key, value)
-        return rfsuite.ini.save_ini_file(rfsuite.session.modelPreferencesFile, rfsuite.session.modelPreferences)
+        rfsuite.ini.setvalue(prefs, dashboard.currentWidgetPath, key, value)
+        return rfsuite.ini.save_ini_file(prefsFile, prefs)
     else
-        rfsuite.ini.setvalue(rfsuite.session.modelPreferences, rfsuite.app.dashboardEditingTheme, key, value)
-        return rfsuite.ini.save_ini_file(rfsuite.session.modelPreferencesFile, rfsuite.session.modelPreferences)
+        rfsuite.ini.setvalue(prefs, rfsuite.app.dashboardEditingTheme, key, value)
+        return rfsuite.ini.save_ini_file(prefsFile, prefs)
     end
 end
 

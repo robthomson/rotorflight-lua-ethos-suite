@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local enableWakeup = false
 local FBL_STATS = {} -- holder for fbl stats to sync
@@ -42,7 +43,7 @@ local function postSave()
 
 
     -- merge old data sync with new deferred timer-based sync
-    local prefs = rfsuite.session.modelPreferences
+    local prefs = modelPreferencesState.get()
     if not prefs then return end
 
 
