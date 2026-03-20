@@ -503,6 +503,42 @@ function api.resetApidata()
     return d
 end
 
+function api.getPageData()
+    return ensureApidata()
+end
+
+function api.getPageValues()
+    local d = ensureApidata()
+    return d and d.values or nil
+end
+
+function api.getPageStructure()
+    local d = ensureApidata()
+    return d and d.structure or nil
+end
+
+function api.setPageResult(apiName, data, cacheEnabled)
+    local d = ensureApidata()
+
+    if type(apiName) ~= "string" or apiName == "" or type(data) ~= "table" then
+        return false
+    end
+
+    d.values[apiName] = data.parsed
+    d.structure[apiName] = data.structure
+    if cacheEnabled == true then
+        d.receivedBytes[apiName] = data.buffer
+        d.receivedBytesCount[apiName] = data.receivedBytesCount
+        d.positionmap[apiName] = data.positionmap
+    else
+        d.receivedBytes[apiName] = nil
+        d.receivedBytesCount[apiName] = nil
+        d.positionmap[apiName] = nil
+    end
+    d.other[apiName] = data.other or {}
+    return true
+end
+
 function api.releaseAppMemory()
     api.resetApidata()
     api.clearHelpCache()

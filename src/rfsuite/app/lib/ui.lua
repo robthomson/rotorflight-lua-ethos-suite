@@ -2812,8 +2812,9 @@ end
 
 function ui.mspApiUpdateFormAttributes()
 
-    local values = tasks.msp.api.apidata.values
-    local structure = tasks.msp.api.apidata.structure
+    local apiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or tasks.msp.api.apidata
+    local values = apiData and apiData.values
+    local structure = apiData and apiData.structure
 
     local log = utils.log
 
@@ -2979,15 +2980,7 @@ function ui.requestPage()
     end
     state.isProcessing = true
 
-    if not tasks.msp.api.apidata.values then
-        --log("requestPage Initialize values on first run", "debug")
-        tasks.msp.api.apidata.values = {}
-        tasks.msp.api.apidata.structure = {}
-        tasks.msp.api.apidata.receivedBytesCount = {}
-        tasks.msp.api.apidata.receivedBytes = {}
-        tasks.msp.api.apidata.positionmap = {}
-        tasks.msp.api.apidata.other = {}
-    end
+    local pageApiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or tasks.msp.api.apidata
 
     if state.currentIndex == nil then state.currentIndex = 1 end
 
@@ -3105,18 +3098,22 @@ function ui.requestPage()
             if cacheEnabled == nil then cacheEnabled = true end
 
             local data = API.data()
-            tasks.msp.api.apidata.values[apiKey] = data.parsed
-            tasks.msp.api.apidata.structure[apiKey] = data.structure
-            if cacheEnabled == true then
-                tasks.msp.api.apidata.receivedBytes[apiKey] = data.buffer
-                tasks.msp.api.apidata.receivedBytesCount[apiKey] = data.receivedBytesCount
-                tasks.msp.api.apidata.positionmap[apiKey] = data.positionmap
+            if tasks.msp.api.setPageResult then
+                tasks.msp.api.setPageResult(apiKey, data, cacheEnabled)
             else
-                tasks.msp.api.apidata.receivedBytes[apiKey] = nil
-                tasks.msp.api.apidata.receivedBytesCount[apiKey] = nil
-                tasks.msp.api.apidata.positionmap[apiKey] = nil
+                pageApiData.values[apiKey] = data.parsed
+                pageApiData.structure[apiKey] = data.structure
+                if cacheEnabled == true then
+                    pageApiData.receivedBytes[apiKey] = data.buffer
+                    pageApiData.receivedBytesCount[apiKey] = data.receivedBytesCount
+                    pageApiData.positionmap[apiKey] = data.positionmap
+                else
+                    pageApiData.receivedBytes[apiKey] = nil
+                    pageApiData.receivedBytesCount[apiKey] = nil
+                    pageApiData.positionmap[apiKey] = nil
+                end
+                pageApiData.other[apiKey] = data.other or {}
             end
-            tasks.msp.api.apidata.other[apiKey] = data.other or {}
             app.Page.apidata.retryCount[apiKey] = 0
             state.currentIndex = state.currentIndex + 1
             API = nil
@@ -3182,7 +3179,8 @@ function ui.saveSettings(sourcePage)
 
     local mspapi = page.apidata
     local apiList = mspapi.api
-    local values = tasks.msp.api.apidata.values
+    local apiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or tasks.msp.api.apidata
+    local values = apiData and apiData.values
 
     local totalRequests = #apiList
     local completedRequests = 0
@@ -3220,7 +3218,7 @@ function ui.saveSettings(sourcePage)
         utils.reportMemoryUsage("ui.saveSettings " .. apiNAME, "start")
 
         local payloadData = values[apiNAME]
-        local payloadStructure = tasks.msp.api.apidata.structure[apiNAME]
+        local payloadStructure = apiData and apiData.structure and apiData.structure[apiNAME]
 
         local API = tasks.msp.api.load(apiNAME)
         if API and API.enableDeltaCache then

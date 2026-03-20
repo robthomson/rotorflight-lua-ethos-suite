@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 
 local triggerOverRide = false
 local triggerOverRideAll = false
@@ -20,6 +21,24 @@ local USE_INDEXED = false       -- INDEX code not merged yet - force off for now
 local servoTable
 local servoCount
 local configs = {}
+
+local function resetLocalState()
+    local key
+
+    triggerOverRide = false
+    triggerOverRideAll = false
+    currentServoCenter = nil
+    lastSetServoCenter = nil
+    lastServoChangeTime = os.clock()
+    isSaving = false
+    enableWakeup = false
+    servoTable = nil
+    servoCount = nil
+
+    for key in pairs(configs) do
+        configs[key] = nil
+    end
+end
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
@@ -385,9 +404,9 @@ local function openPage(opts)
 
     if servoTableIn ~= nil then
         servoTable = servoTableIn
-        rfsuite.servoTableLast = servoTable
+        appRuntime.servoTableLast = servoTable
     else
-        if rfsuite.servoTableLast ~= nil then servoTable = rfsuite.servoTableLast end
+        if appRuntime.servoTableLast ~= nil then servoTable = appRuntime.servoTableLast end
     end
 
     configs = {}
@@ -643,6 +662,10 @@ end
 
 local function onReloadMenu() rfsuite.app.triggers.triggerReloadFull = true end
 
+local function close()
+    resetLocalState()
+end
+
 return {
 
     reboot = false,
@@ -662,6 +685,7 @@ return {
     canSave = canSave,
     onSaveMenu = onSaveMenu,
     onReloadMenu = onReloadMenu,
+    close = close,
     navButtons = {menu = true, save = true, reload = true, tool = true, help = true},
     API = {}
 

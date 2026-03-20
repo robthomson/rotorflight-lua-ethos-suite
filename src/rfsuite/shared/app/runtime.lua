@@ -15,7 +15,8 @@ local runtime = {
     telemetryStaticCache = nil,
     mixerTrimsState = nil,
     mixerLegacyTailState = nil,
-    governorGeneralState = nil
+    governorGeneralState = nil,
+    servoTableLast = nil
 }
 
 function runtime.reset()
@@ -25,6 +26,7 @@ function runtime.reset()
     runtime.mixerTrimsState = nil
     runtime.mixerLegacyTailState = nil
     runtime.governorGeneralState = nil
+    runtime.servoTableLast = nil
     return runtime
 end
 
