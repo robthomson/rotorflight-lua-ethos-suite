@@ -17,6 +17,7 @@ Update process:
 ]]
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
 
@@ -137,13 +138,13 @@ local function clearRuntimeCaches()
     memo_listSensors, memo_listSwitchSensors, memo_listAudioUnits = nil, nil, nil
 end
 
-local function detectSourceMode(session)
+local function detectSourceMode()
     if isSim then
         protocol = "sport"
         return "sim"
     end
 
-    if session and session.telemetryType == "crsf" then
+    if connectionState.getTelemetryType() == "crsf" then
         if not crsfSOURCE then crsfSOURCE = sys_getSource({category = CATEGORY_TELEMETRY_SENSOR, appId = 0xEE01}) end
         if crsfSOURCE then
             protocol = "crsf"
@@ -153,7 +154,7 @@ local function detectSourceMode(session)
         return "crsfLegacy"
     end
 
-    if session and session.telemetryType == "sport" then
+    if connectionState.getTelemetryType() == "sport" then
         protocol = "sport"
         return "sport"
     end
@@ -245,8 +246,7 @@ end
 
 local function checkCondition(sensorEntry)
     if t_type(sensorEntry) ~= "table" then return true end
-    local sess = rfsuite.session
-    if not (sess and sess.apiVersion) then return true end
+    if connectionState.getApiVersion() == nil then return true end
     local gt, lt = sensorEntry.mspgt, sensorEntry.msplt
     if gt and not rfsuite.utils.apiVersionCompare(">=", gt) then return false end
     if lt and not rfsuite.utils.apiVersionCompare("<=", lt) then return false end
@@ -254,12 +254,10 @@ local function checkCondition(sensorEntry)
 end
 
 function telemetry.getSensorSource(name)
-
-    local session = rfsuite.session
     local entry = sensorTable[name]
     if not entry then return nil end
 
-    local mode = detectSourceMode(session)
+    local mode = detectSourceMode()
     local sourceTable = setActiveSourceMode(mode)
     if not sourceTable then return nil end
 
@@ -356,8 +354,7 @@ function telemetry.validateSensors(returnValid)
     if (now - lastValidationTime) < VALIDATION_RATE_LIMIT then return lastValidationResult or true end
     lastValidationTime = now
 
-    local session = rfsuite.session
-    if not (session and session.telemetryState) then
+    if not connectionState.isTelemetryActive() then
         if not memo_listSensors then build_memo_lists() end
         lastValidationResult = memo_listSensors
         return memo_listSensors
@@ -389,7 +386,7 @@ function telemetry.simSensors(returnValid)
     return result
 end
 
-function telemetry.active() return (rfsuite.session and rfsuite.session.telemetryState) or false end
+function telemetry.active() return connectionState.isTelemetryActive() end
 
 function telemetry.reset()
     protocol, crsfSOURCE = nil, nil
@@ -399,9 +396,8 @@ end
 
 function telemetry.wakeup()
     local now = os_clock()
-    local session = rfsuite.session
 
-    if session and session.mspBusy then return end
+    if connectionState.getMspBusy() then return end
 
     local tasks = rfsuite.tasks
     if tasks and tasks.onconnect and tasks.onconnect.active and tasks.onconnect.active() then return end
@@ -431,7 +427,7 @@ function telemetry.wakeup()
         end
     end
 
-    if not (session and session.telemetryState) then telemetry.reset() end
+    if not connectionState.isTelemetryActive() then telemetry.reset() end
 end
 
 function telemetry.getSensorStats(sensorKey) return telemetry.sensorStats[sensorKey] or {min = nil, max = nil} end

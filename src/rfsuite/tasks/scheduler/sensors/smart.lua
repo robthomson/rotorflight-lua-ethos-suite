@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local smart = {}
 
@@ -79,7 +80,8 @@ smart.sensors = smart_sensors
 
 local function createOrUpdateSensor(appId, fieldMeta, value)
 
-    local currentModule = rfsuite.session.telemetrySensor and rfsuite.session.telemetrySensor:module()
+    local telemetrySensor = connectionState.getTelemetrySensor()
+    local currentModule = telemetrySensor and telemetrySensor:module()
     if lastModule ~= currentModule then
         sensorCache = {}
         negativeCache = {}
@@ -95,7 +97,7 @@ local function createOrUpdateSensor(appId, fieldMeta, value)
         if existingSensor then
             sensorCache[appId] = existingSensor
         else
-            if not rfsuite.session.telemetrySensor then
+            if not telemetrySensor then
                 negativeCache[appId] = true
                 return
             end
@@ -103,7 +105,7 @@ local function createOrUpdateSensor(appId, fieldMeta, value)
             sensor:name(fieldMeta.name)
             sensor:appId(appId)
             sensor:physId(0)
-            sensor:module(rfsuite.session.telemetrySensor:module())
+            sensor:module(telemetrySensor:module())
 
             if fieldMeta.unit then
                 sensor:unit(fieldMeta.unit)
@@ -141,7 +143,7 @@ local function createOrUpdateSensor(appId, fieldMeta, value)
 end
 function smart.wakeup()
 
-    if not rfsuite.session.isConnected then return end
+    if not connectionState.getConnected() then return end
     if rfsuite.tasks and rfsuite.tasks.onconnect and rfsuite.tasks.onconnect.active and rfsuite.tasks.onconnect.active() then return end
 
     if firstWakeup then
@@ -150,7 +152,7 @@ function smart.wakeup()
         firstWakeup = false
     end
 
-    if not (rfsuite.session.telemetryState and rfsuite.session.telemetrySensor) then
+    if not (connectionState.isTelemetryActive() and connectionState.getTelemetrySensor()) then
         sensorCache = {}
         negativeCache = {}
         lastValue = {}

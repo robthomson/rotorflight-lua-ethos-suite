@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local msp = {}
 local os_clock = os.clock
@@ -242,7 +243,8 @@ end
 
 local function createOrUpdateSensor(appId, fieldMeta, value)
 
-    local currentModule = rfsuite.session.telemetrySensor and rfsuite.session.telemetrySensor:module()
+    local telemetrySensor = connectionState.getTelemetrySensor()
+    local currentModule = telemetrySensor and telemetrySensor:module()
     if lastModule ~= currentModule then
         sensorCache = {}
         negativeCache = {}
@@ -258,7 +260,7 @@ local function createOrUpdateSensor(appId, fieldMeta, value)
         if existingSensor then
             sensorCache[appId] = existingSensor
         else
-            if not (rfsuite.session.telemetryState and rfsuite.session.telemetrySensor) then
+            if not (connectionState.isTelemetryActive() and telemetrySensor) then
                 negativeCache[appId] = true
                 return
             end
@@ -266,7 +268,7 @@ local function createOrUpdateSensor(appId, fieldMeta, value)
             sensor:name(fieldMeta.sensorname)
             sensor:appId(appId)
             sensor:physId(0)
-            sensor:module(rfsuite.session.telemetrySensor:module())
+            sensor:module(telemetrySensor:module())
 
             if fieldMeta.unit then
                 sensor:unit(fieldMeta.unit)
@@ -361,8 +363,8 @@ local lastWakeupTime = 0
 function msp.wakeup()
 
     if rfsuite.flightmode and rfsuite.flightmode.current ~= "inflight" then
-        if not rfsuite.session.isConnected then return end
-        if rfsuite.session.mspBusy then return end
+        if not connectionState.getConnected() then return end
+        if connectionState.getMspBusy() then return end
         if rfsuite.tasks and rfsuite.tasks.onconnect and rfsuite.tasks.onconnect.active and rfsuite.tasks.onconnect.active() then return end
     end
 
@@ -374,7 +376,7 @@ function msp.wakeup()
         firstWakeup = false
     end
 
-    if rfsuite.session.apiVersion == nil then
+    if connectionState.getApiVersion() == nil then
         log("MSP API version not set; skipping MSP sensors", "debug")
         rfsuite.session.resetMSPSensors = true
         return
@@ -388,7 +390,7 @@ function msp.wakeup()
         rfsuite.session.resetMSPSensors = false
     end
 
-    if not (rfsuite.session.telemetryState and rfsuite.session.telemetrySensor) then
+    if not (connectionState.isTelemetryActive() and connectionState.getTelemetrySensor()) then
         sensorCache = {}
         negativeCache = {}
         lastValue = {}
@@ -406,7 +408,7 @@ function msp.wakeup()
     local isArmed = armSource:value()
     local isAdmin = (rfsuite.app and rfsuite.app.guiIsRunning) or false
 
-    local isConnected = rfsuite.session.isConnected == true
+    local isConnected = connectionState.getConnected()
 
 
     local armedBool = (isArmed == 1 or isArmed == 3)

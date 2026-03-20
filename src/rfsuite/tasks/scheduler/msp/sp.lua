@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local transport = {}
 local os_clock = os.clock
@@ -23,9 +24,6 @@ local expect_seq = nil
 -- Cached sensor handle
 local sensor
 
--- Localize session for faster access
-local session = rfsuite.session
-
 -- Convert a 16-bit dataId + 32-bit value into 6 bytes as per FrSky subframe format
 local function _map_subframe(dataId, value)
     return {
@@ -42,7 +40,7 @@ end
 function transport.sportTelemetryPush(sensorId, frameId, dataId, value)
      
     if not sensor then
-        local activeModule = rfsuite.session.telemetryModuleNumber or 0   -- keep full lookup
+        local activeModule = connectionState.getTelemetryModuleNumber() or 0
         sensor = sport.getSensor({module = activeModule, primId = REPLY_FRAME_ID})
     end
     return sensor:pushFrame({physId = sensorId, primId = frameId, appId = dataId, value = value})
@@ -51,7 +49,7 @@ end
 -- Pop next telemetry frame
 function transport.sportTelemetryPop()
     if not sensor then
-        local activeModule = rfsuite.session.telemetryModuleNumber or 0   -- keep full lookup
+        local activeModule = connectionState.getTelemetryModuleNumber() or 0
         sensor = sport.getSensor({module = activeModule, primId = REPLY_FRAME_ID})
         return nil, nil, nil, nil
     end

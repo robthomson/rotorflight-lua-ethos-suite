@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local protocol = {}
 local pairs = pairs
@@ -47,8 +48,7 @@ local supportedProtocols = {
 }
 
 function protocol.getProtocol()
-    local session = rfsuite.session
-    if session and session.telemetryType == "crsf" then
+    if connectionState.getTelemetryType() == "crsf" then
         return supportedProtocols.crsf
     end
     return supportedProtocols.sport
