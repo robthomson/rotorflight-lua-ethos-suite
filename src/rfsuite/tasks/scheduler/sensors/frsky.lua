@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local telemetryConfigState = (rfsuite.shared and rfsuite.shared.telemetryConfig) or assert(loadfile("shared/telemetryconfig.lua"))()
 
 local arg = {...}
 local os_clock = os.clock
@@ -231,7 +232,7 @@ local function ensureSensorsFromConfig()
 
     if frsky._provisioned then return end
 
-    local cfg = rfsuite and rfsuite.session and rfsuite.session.telemetryConfig
+    local cfg = telemetryConfigState.get()
     if not cfg then return end
 
     local telePhysId, teleModule

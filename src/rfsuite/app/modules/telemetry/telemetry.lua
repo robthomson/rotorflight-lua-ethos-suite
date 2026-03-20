@@ -4,6 +4,8 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local telemetryConfigState = (rfsuite.shared and rfsuite.shared.telemetryConfig) or assert(loadfile("shared/telemetryconfig.lua"))()
 
 local enableWakeup = false
 
@@ -254,27 +256,14 @@ local function clearTelemetryApiEntries()
 end
 
 local function isLinkReady()
-    local liveSession = rfsuite.session
-    return (liveSession and liveSession.isConnected and liveSession.mcu_id and liveSession.postConnectComplete) and true or false
+    return connectionState.getConnected()
+        and connectionState.getMcuId()
+        and connectionState.getPostConnectComplete()
+        and true or false
 end
 
-local function replaceSessionTelemetryConfig(values)
-    local session = rfsuite.session
-    local target
-    local i
-
-    if not session then return end
-
-    target = session.telemetryConfig
-    if type(target) ~= "table" then
-        target = {}
-        session.telemetryConfig = target
-    end
-
-    clearTable(target)
-    for i = 1, #(values or {}) do
-        target[i] = values[i]
-    end
+local function replaceTelemetryConfig(values)
+    telemetryConfigState.replace(values)
 end
 
 local function snapshotConfig(src, dst)
@@ -669,7 +658,7 @@ local function wakeup()
 
         for i = sensorIndex, 52 do buffer[i] = 0 end
 
-        replaceSessionTelemetryConfig(appliedSensors)
+        replaceTelemetryConfig(appliedSensors)
 
         rfsuite.utils.log("Applied telemetry sensors: " .. table.concat(appliedSensors, ", "), "info")
 

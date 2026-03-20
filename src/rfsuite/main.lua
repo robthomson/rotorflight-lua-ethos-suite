@@ -52,6 +52,7 @@ rfsuite.shared.blackbox = assert(loadfile("shared/blackbox.lua"))()
 rfsuite.shared.craft = assert(loadfile("shared/craft.lua"))()
 rfsuite.shared.flight = assert(loadfile("shared/flight.lua"))()
 rfsuite.shared.modelPreferences = assert(loadfile("shared/modelpreferences.lua"))()
+rfsuite.shared.telemetryConfig = assert(loadfile("shared/telemetryconfig.lua"))()
 rfsuite.shared.connection = assert(loadfile("shared/connection.lua"))()
 rfsuite.shared.timer = assert(loadfile("shared/timer.lua"))()
 rfsuite.shared.msp = rfsuite.shared.msp or {}

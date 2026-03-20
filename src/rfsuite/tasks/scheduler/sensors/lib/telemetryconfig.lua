@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local telemetryConfigState = (rfsuite.shared and rfsuite.shared.telemetryConfig) or assert(loadfile("shared/telemetryconfig.lua"))()
 
 local telemetryconfig = {}
 local tonumber = tonumber
@@ -14,34 +15,13 @@ local log = rfsuite.utils.log
 
 local mspCallMade = false
 
-local function replaceTelemetryConfig(values)
-    local session = rfsuite.session
-    local target
-    local i
-
-    if not session then return end
-
-    target = session.telemetryConfig
-    if type(target) ~= "table" then
-        target = {}
-        session.telemetryConfig = target
-    end
-
-    for i = #target, 1, -1 do
-        target[i] = nil
-    end
-    for i = 1, #(values or {}) do
-        target[i] = values[i]
-    end
-end
-
 function telemetryconfig.wakeup()
 
     if connectionState.getApiVersion() == nil then return end
     if connectionState.getMspBusy() then return end
     if rfsuite.tasks.msp.mspQueue:isProcessed() == false then return end
 
-    if (rfsuite.session.telemetryConfig == nil) and (mspCallMade == false) then
+    if (not telemetryConfigState.hasConfig()) and (mspCallMade == false) then
         mspCallMade = true
         local API = rfsuite.tasks.msp.api.load("TELEMETRY_CONFIG")
         API.setCompleteHandler(function(self, buf)
@@ -53,7 +33,7 @@ function telemetryconfig.wakeup()
                 slots[i] = tonumber(data[key]) or 0
             end
 
-            replaceTelemetryConfig(slots)
+            telemetryConfigState.replace(slots)
 
             local parts = {}
             for i, v in ipairs(slots) do 
@@ -80,13 +60,12 @@ function telemetryconfig.wakeup()
 end
 
 function telemetryconfig.reset()
-
-    rfsuite.session.telemetryConfig = nil
+    telemetryConfigState.reset()
     mspCallMade = false
 end
 
 function telemetryconfig.isComplete() 
-    if rfsuite.session.telemetryConfig ~= nil then 
+    if telemetryConfigState.hasConfig() then 
         return true 
     end 
 end

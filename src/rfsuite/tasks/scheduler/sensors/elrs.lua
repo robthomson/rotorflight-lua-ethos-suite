@@ -21,6 +21,7 @@ Flow summary:
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local telemetryConfigState = (rfsuite.shared and rfsuite.shared.telemetryConfig) or assert(loadfile("shared/telemetryconfig.lua"))()
 
 local arg = {...}
 local config = arg[1]
@@ -104,8 +105,7 @@ local function resetSensors()
 end
 
 local function rebuildRelevantSidSet()
-
-    local cfg = rfsuite and rfsuite.session and rfsuite.session.telemetryConfig
+    local cfg = telemetryConfigState.get()
     if not cfg then
 
         elrs._relevantSidSet = nil
