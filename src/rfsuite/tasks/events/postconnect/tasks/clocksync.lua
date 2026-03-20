@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local lifecycleState = (rfsuite.shared and rfsuite.shared.lifecycle) or assert(loadfile("shared/lifecycle.lua"))()
 
 local clocksync = {}
 local API_NAME = "RTC"
@@ -22,12 +23,12 @@ function clocksync.wakeup()
 
     if connectionState.getMspBusy() then return end
 
-    if rfsuite.session.clockSet == nil then
+    if lifecycleState.getClockSet() == nil then
 
         local API = rfsuite.tasks.msp.api.load(API_NAME, 1)
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
-            rfsuite.session.clockSet = true
+            lifecycleState.setClockSet(true)
             rfsuite.utils.log("Sync clock: " .. os.date("%c"), "info")
             rfsuite.utils.log("Sync clock: " .. os.date("%c"), "connect")
             clearApiEntry()
@@ -43,9 +44,9 @@ end
 
 function clocksync.reset()
     clearApiEntry()
-    rfsuite.session.clockSet = nil
+    lifecycleState.setClockSet(nil)
 end
 
-function clocksync.isComplete() if rfsuite.session.clockSet ~= nil then return true end end
+function clocksync.isComplete() if lifecycleState.getClockSet() ~= nil then return true end end
 
 return clocksync

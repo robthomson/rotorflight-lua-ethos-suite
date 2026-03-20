@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local lifecycleState = (rfsuite.shared and rfsuite.shared.lifecycle) or assert(loadfile("shared/lifecycle.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local tasks = {}
@@ -244,7 +245,7 @@ function tasks.wakeup()
                 rfsuite.tasks.reset()
             end
 
-            rfsuite.session.resetMSPSensors = true
+            lifecycleState.setResetMSPSensors(true)
         else
             resetSessionFlags()
         end

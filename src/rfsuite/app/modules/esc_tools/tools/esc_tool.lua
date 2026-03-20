@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 local lcd = lcd
 
 local function loadMask(path)
@@ -174,8 +175,9 @@ local function getESCDetails()
     end
     if not rfsuite.tasks.msp.mspQueue:isProcessed() then return end
 
-    if rfsuite.session.escDetails ~= nil then
-        escDetails = rfsuite.session.escDetails
+    local sharedEscDetails = escState.getDetails()
+    if sharedEscDetails ~= nil then
+        escDetails = sharedEscDetails
         foundESC = true
         return
     end
@@ -199,9 +201,12 @@ local function getESCDetails()
             escDetails.version = ESC.getEscVersion(buf)
             escDetails.firmware = ESC.getEscFirmware(buf)
 
-            rfsuite.session.escDetails = escDetails
-
-            if ESC.mspBufferCache == true then rfsuite.session.escBuffer = buf end
+            escState.setDetails(escDetails)
+            if ESC.mspBufferCache == true then
+                escState.setBuffer(buf)
+            else
+                escState.setBuffer(nil)
+            end
 
             if escDetails.model ~= nil then 
                 foundESC = true 
@@ -255,10 +260,7 @@ local function clearPowercycleLoader()
 end
 
 local function clearEscSessionCache()
-    if rfsuite.session then
-        rfsuite.session.escDetails = nil
-        rfsuite.session.escBuffer = nil
-    end
+    escState.clearReadCache()
     escDetails = {}
 end
 

@@ -5,10 +5,11 @@
 
 local rfsuite = require("rfsuite")
 local escToolsPage = assert(loadfile("app/lib/esc_tools_page.lua"))()
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 
 local folder = "omp"
 local ESC = assert(loadfile("app/modules/esc_tools/tools/escmfg/" .. folder .. "/init.lua"))()
-local activeFields = ESC.getActiveFields(rfsuite.session.escBuffer)
+local activeFields = ESC.getActiveFields(escState.getBuffer())
 local activateWakeup = false
 
 

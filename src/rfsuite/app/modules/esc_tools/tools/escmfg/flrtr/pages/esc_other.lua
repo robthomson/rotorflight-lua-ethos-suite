@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local escToolsPage = assert(loadfile("app/lib/esc_tools_page.lua"))()
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 
 local folder = "flrtr"
 local ESC = assert(loadfile("app/modules/esc_tools/tools/escmfg/" .. folder .. "/init.lua"))()
@@ -28,11 +29,12 @@ local apidata = {
     }
 }
 
-if rfsuite.session.escDetails and rfsuite.session.escDetails.model then
+local escDetails = escState.getDetails()
+if escDetails and escDetails.model then
 
     local TEST_150A = false
 
-    if string.find(rfsuite.session.escDetails.model, "FLYROTOR 150A") or TEST_150A == true then
+    if string.find(escDetails.model, "FLYROTOR 150A") or TEST_150A == true then
 
         if apidata and apidata.formdata and apidata.formdata.fields then
             table.remove(apidata.formdata.fields, 1)

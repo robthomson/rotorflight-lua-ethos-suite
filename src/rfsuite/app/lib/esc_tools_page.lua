@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 
 local escToolsPage = {}
 
@@ -312,7 +313,7 @@ function escToolsPage.createEsc4WayPostSaveHandler(folder, escConfig)
             if complete then complete() end
         end
 
-        local target = normalizeEscTarget(rfsuite.session and rfsuite.session.esc4WayTarget, ESC)
+        local target = normalizeEscTarget(escState.get4WayTarget(), ESC)
         if rfsuite.utils and rfsuite.utils.log then
             rfsuite.utils.log("ESC 4WIF post-save cycle: " .. tostring(resetTarget) .. " -> " .. tostring(target), "info")
         end

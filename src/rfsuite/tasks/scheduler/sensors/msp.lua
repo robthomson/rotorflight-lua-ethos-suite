@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local blackboxState = (rfsuite.shared and rfsuite.shared.blackbox) or assert(loadfile("shared/blackbox.lua"))()
+local lifecycleState = (rfsuite.shared and rfsuite.shared.lifecycle) or assert(loadfile("shared/lifecycle.lua"))()
 
 local msp = {}
 local os_clock = os.clock
@@ -391,16 +392,16 @@ function msp.wakeup()
 
     if connectionState.getApiVersion() == nil then
         log("MSP API version not set; skipping MSP sensors", "debug")
-        rfsuite.session.resetMSPSensors = true
+        lifecycleState.setResetMSPSensors(true)
         return
     end
 
-    if rfsuite.session.resetMSPSensors then
+    if lifecycleState.getResetMSPSensors() then
         sensorCache = {}
         negativeCache = {}
         lastValue = {}
         lastPush = {}
-        rfsuite.session.resetMSPSensors = false
+        lifecycleState.setResetMSPSensors(false)
     end
 
     if not (connectionState.isTelemetryActive() and connectionState.getTelemetrySensor()) then

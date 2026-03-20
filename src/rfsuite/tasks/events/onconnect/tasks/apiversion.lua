@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local lifecycleState = (rfsuite.shared and rfsuite.shared.lifecycle) or assert(loadfile("shared/lifecycle.lua"))()
 
 local apiversion = {}
 
@@ -106,7 +107,7 @@ function apiversion.wakeup()
 
                 if wantProto ~= rfsuite.config.mspProtocolVersion then
                     rfsuite.config.mspProtocolVersion = wantProto
-                    rfsuite.session.mspProtocolVersion = wantProto
+                    lifecycleState.setMspProtocolVersion(wantProto)
 
                     if rfsuite.tasks.msp.common.setProtocolVersion then
                         rfsuite.tasks.msp.common.setProtocolVersion(wantProto)

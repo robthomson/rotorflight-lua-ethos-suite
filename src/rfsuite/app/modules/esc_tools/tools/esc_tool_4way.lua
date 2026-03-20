@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local lcd = lcd
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 
 local function loadMask(path)
@@ -177,10 +178,7 @@ local function scheduleEscDetailsReadAt(delaySeconds)
 end
 
 local function clearEscSession()
-    if rfsuite.session then
-        rfsuite.session.escDetails = nil
-        rfsuite.session.escBuffer = nil
-    end
+    escState.clearReadCache()
     escDetails = {}
 end
 
@@ -303,8 +301,9 @@ local function getESCDetails()
     end
     if not rfsuite.tasks.msp.mspQueue:isProcessed() then return end
 
-    if rfsuite.session.escDetails ~= nil then
-        escDetails = rfsuite.session.escDetails
+    local sharedEscDetails = escState.getDetails()
+    if sharedEscDetails ~= nil then
+        escDetails = sharedEscDetails
         foundESC = true
         return
     end
@@ -336,9 +335,12 @@ local function getESCDetails()
             escDetails.version = ESC.getEscVersion(buf)
             escDetails.firmware = ESC.getEscFirmware(buf)
 
-            rfsuite.session.escDetails = escDetails
-
-            if ESC.mspBufferCache == true then rfsuite.session.escBuffer = buf end
+            escState.setDetails(escDetails)
+            if ESC.mspBufferCache == true then
+                escState.setBuffer(buf)
+            else
+                escState.setBuffer(nil)
+            end
 
             if escDetails.model ~= nil then
                 foundESC = true
@@ -406,13 +408,13 @@ end
 local function updateEsc2AvailabilityFromCount(count)
     local n = tonumber(count)
     if n == nil then return false end
-    if rfsuite.session then rfsuite.session.esc4WayMotorCount = n end
+    escState.set4WayMotorCount(n)
     esc2Available = n >= 2
     return true
 end
 
 local function resolveEsc2AvailabilityFromSession()
-    if rfsuite.session and updateEsc2AvailabilityFromCount(rfsuite.session.esc4WayMotorCount) then
+    if updateEsc2AvailabilityFromCount(escState.get4WayMotorCount()) then
         return true
     end
     return false
@@ -475,20 +477,20 @@ local function setESC4WayMode(id)
     if rfsuite.utils and rfsuite.utils.log then
         rfsuite.utils.log("ESC 4WIF set target: " .. tostring(target), "info")
     end
-    rfsuite.session.esc4WayTarget = target
-    rfsuite.session.esc4WaySetComplete = false
+    escState.set4WayTarget(target)
+    escState.set4WaySetComplete(false)
     API.setValue("target", target)
     API.setCompleteHandler(function(self, buf)
         if seq == lastWriteSeq then
             last4WayWriteOk = true
         end
-        rfsuite.session.esc4WaySetComplete = true
+        escState.set4WaySetComplete(true)
     end)
     API.setErrorHandler(function(self, err)
         if seq == lastWriteSeq then
             last4WayWriteOk = false
         end
-        rfsuite.session.esc4WaySetComplete = false
+        escState.set4WaySetComplete(false)
         if rfsuite.utils and rfsuite.utils.log then
             rfsuite.utils.log("ESC 4WIF set target: " .. tostring(target) .. " failed", "info")
         end
@@ -559,9 +561,9 @@ local function beginEscSwitch(target, opts)
         writeStartedAt = 0,
         writeTimeout = 2.5
     }
-    rfsuite.session.esc4WaySelected = false
-    rfsuite.session.esc4WaySet = false
-    rfsuite.session.esc4WaySetComplete = false
+    escState.set4WaySelected(false)
+    escState.set4WaySet(false)
+    escState.set4WaySetComplete(false)
     clearEscState(isRecovery)
     renderLoading(lastOpts.title or "")
 end
@@ -605,9 +607,9 @@ local function processEscSwitch()
             switchState.nextPhaseReadyAt = now + (switchState.retryDelay or 0.8)
             return true
         end
-        rfsuite.session.esc4WayTarget = switchState.target
-        rfsuite.session.esc4WaySelected = true
-        rfsuite.session.esc4WaySet = true
+        escState.set4WayTarget(switchState.target)
+        escState.set4WaySelected(true)
+        escState.set4WaySet(true)
         escSwitchReadFlushPending = (ESC and ESC.flushFirstReadAfterSwitch == true) and true or false
         escReadReadyAt = now + (switchState.readDelay or 2)
         switchState = nil
@@ -634,8 +636,8 @@ local function processEscSwitch()
         expectedTarget = inPrePhase and switchState.preSwitchTarget or switchState.target
         switchState.attempts = switchState.attempts + 1
         switchState.lastAttempt = now
-        rfsuite.session.esc4WaySet = true
-        rfsuite.session.esc4WaySetComplete = false
+        escState.set4WaySet(true)
+        escState.set4WaySetComplete(false)
         switchState.writeInFlight = true
         switchState.writeStartedAt = now
         setESC4WayMode(expectedTarget)
@@ -645,7 +647,7 @@ local function processEscSwitch()
 end
 
 local function getSelectedEsc4WayTarget()
-    local target = tonumber(rfsuite.session and rfsuite.session.esc4WayTarget)
+    local target = tonumber(escState.get4WayTarget())
     local esc1Target, esc2Target = getEsc4WayTargets()
     if target == esc2Target then return esc2Target end
     if target == esc1Target then return esc1Target end
@@ -853,9 +855,7 @@ renderToolPage = function(opts)
                         return
                     end
 
-                    if rfsuite.session then
-                        rfsuite.session.esc4WaySkipEntrySwitchOnce = true
-                    end
+                    escState.set4WaySkipEntrySwitchOnce(true)
                     rfsuite.app.ui.openPage(childOpts)
 
                 end
@@ -885,7 +885,6 @@ openSelector = function()
     local title = lastOpts.title
     local folder = lastOpts.folder
     local script = lastOpts.script
-    local prevTarget = rfsuite.session and rfsuite.session.esc4WayTarget or nil
 
     inSelector = true
     selectorPostConnectReady = isPostConnectComplete()
@@ -893,9 +892,9 @@ openSelector = function()
         switchLoadingActive = false
         rfsuite.app.triggers.closeProgressLoader = true
     end
-    rfsuite.session.esc4WaySelected = false
-    rfsuite.session.esc4WaySet = nil
-    rfsuite.session.esc4WaySetComplete = nil
+    escState.set4WaySelected(false)
+    escState.set4WaySet(nil)
+    escState.set4WaySetComplete(nil)
 
     clearEscState()
     selectorGuardPending = false
@@ -1022,14 +1021,12 @@ local function openPage(opts)
     end
 
     local skipEntrySwitchOnce = false
-    if rfsuite.session and rfsuite.session.esc4WaySkipEntrySwitchOnce == true then
+    if escState.get4WaySkipEntrySwitchOnce() == true then
         skipEntrySwitchOnce = true
     end
-    if rfsuite.session then
-        rfsuite.session.esc4WaySkipEntrySwitchOnce = nil
-    end
+    escState.set4WaySkipEntrySwitchOnce(nil)
 
-    if not rfsuite.session.esc4WaySelected then
+    if not escState.get4WaySelected() then
         openSelector()
         return
     end
@@ -1044,22 +1041,20 @@ local function openPage(opts)
 end
 
 local function onNavMenu()
-    if rfsuite.session then
-        rfsuite.session.esc4WaySkipEntrySwitchOnce = nil
-    end
+    escState.set4WaySkipEntrySwitchOnce(nil)
     if ESC then
         if not inSelector then
-            rfsuite.session.esc4WaySelected = nil
-            rfsuite.session.esc4WaySet = nil
-            rfsuite.session.esc4WaySetComplete = nil
-            rfsuite.session.esc4WayTarget = nil
+            escState.set4WaySelected(nil)
+            escState.set4WaySet(nil)
+            escState.set4WaySetComplete(nil)
+            escState.set4WayTarget(nil)
             openSelector()
             return true
         end
-        rfsuite.session.esc4WaySelected = nil
-        rfsuite.session.esc4WaySet = nil
-        rfsuite.session.esc4WaySetComplete = nil
-        rfsuite.session.esc4WayTarget = nil
+        escState.set4WaySelected(nil)
+        escState.set4WaySet(nil)
+        escState.set4WaySetComplete(nil)
+        escState.set4WayTarget(nil)
         clearEscSession()
     end
     pageRuntime.openMenuContext({defaultSection = "system"})
@@ -1067,7 +1062,7 @@ local function onNavMenu()
 end
 
 local function closePage()
-    local keepEscSessionHot = rfsuite.session and rfsuite.session.esc4WaySkipEntrySwitchOnce == true
+    local keepEscSessionHot = escState.get4WaySkipEntrySwitchOnce() == true
 
     if switchLoadingActive then
         switchLoadingActive = false
@@ -1133,14 +1128,12 @@ end
 local function onReloadMenu()
     closePage()
     rfsuite.app.Page = nil
-    if rfsuite.session then
-        rfsuite.session.esc4WaySkipEntrySwitchOnce = nil
-        rfsuite.session.esc4WayTarget = nil
-        rfsuite.session.esc4WayMotorCount = nil
-        rfsuite.session.esc4WaySelected = nil
-        rfsuite.session.esc4WaySet = nil
-        rfsuite.session.esc4WaySetComplete = nil
-    end
+    escState.set4WaySkipEntrySwitchOnce(nil)
+    escState.set4WayTarget(nil)
+    escState.set4WayMotorCount(nil)
+    escState.set4WaySelected(nil)
+    escState.set4WaySet(nil)
+    escState.set4WaySetComplete(nil)
     rfsuite.app.triggers.triggerReloadFull = true
     return true
 end
@@ -1202,9 +1195,7 @@ local function wakeup()
         if (not switchState) and (not escReadReadyAt or os.clock() >= escReadReadyAt) and not escSwitchReadFlushPending then
             local opts = pendingChildOpen
             pendingChildOpen = nil
-            if rfsuite.session then
-                rfsuite.session.esc4WaySkipEntrySwitchOnce = true
-            end
+            escState.set4WaySkipEntrySwitchOnce(true)
             rfsuite.app.ui.openPage(opts)
             return
         end
@@ -1212,7 +1203,7 @@ local function wakeup()
 
     if pendingTailModeResolve then
         pendingTailModeResolve = false
-        if not rfsuite.session.esc4WaySelected then
+        if not escState.get4WaySelected() then
             if not inSelector then openSelector() end
             return
         end
@@ -1223,11 +1214,11 @@ local function wakeup()
     if waitingTailMode then return end
 
     if foundESC == false then
-        if not rfsuite.session.esc4WaySelected then
+        if not escState.get4WaySelected() then
             if not inSelector then openSelector() end
             return
         end
-        if rfsuite.session.esc4WaySet == true and rfsuite.session.esc4WaySetComplete == true then
+        if escState.get4WaySet() == true and escState.get4WaySetComplete() == true then
             if escReadReadyAt and os.clock() < escReadReadyAt then return end
             getESCDetails()
         end
@@ -1238,7 +1229,7 @@ local function wakeup()
 
         if escDetails.model ~= nil and escDetails.model ~= nil and escDetails.firmware ~= nil then
             local prefix = ""
-            local target = rfsuite.session and rfsuite.session.esc4WayTarget or 0
+            local target = escState.get4WayTarget() or 0
             local _, esc2Target = getEsc4WayTargets()
             if target == esc2Target then
                 prefix = "ESC2 - "

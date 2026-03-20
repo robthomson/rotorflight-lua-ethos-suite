@@ -7,6 +7,7 @@ local rfsuite = require("rfsuite")
 local lcd = lcd
 local system = system
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 
 local app = {}
 local utils = rfsuite.utils
@@ -457,6 +458,9 @@ function app.close()
     end
     if app.runtime and app.runtime.reset then
         app.runtime.reset()
+    end
+    if escState and escState.reset then
+        escState.reset()
     end
 
     rfsuite.utils.reportMemoryUsage("app.close", "end")

@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 local lcd = lcd
 
 local function loadMask(path)
@@ -102,8 +103,7 @@ local function openPage(opts)
     local _, relativeScript = resolveModulePath(script)
 
     rfsuite.tasks.msp.protocol.mspIntervalOveride = nil
-    rfsuite.session.escDetails = nil
-    rfsuite.session.escBuffer = nil
+    escState.clearReadCache()
 
     rfsuite.app.triggers.isReady = false
     rfsuite.app.uiState = rfsuite.app.uiStatus.pages

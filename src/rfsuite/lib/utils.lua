@@ -21,6 +21,8 @@ function utils.session()
     local blackboxState = rfsuite.shared and rfsuite.shared.blackbox
     local blackboxConfigState = rfsuite.shared and rfsuite.shared.blackboxConfig
     local craftState = rfsuite.shared and rfsuite.shared.craft
+    local escState = rfsuite.shared and rfsuite.shared.esc
+    local lifecycleState = rfsuite.shared and rfsuite.shared.lifecycle
     local modelPreferencesState = rfsuite.shared and rfsuite.shared.modelPreferences
     local rxState = rfsuite.shared and rfsuite.shared.rx
     local servoState = rfsuite.shared and rfsuite.shared.servo
@@ -124,6 +126,8 @@ function utils.session()
         if blackboxState and blackboxState.reset then blackboxState.reset() end
         if blackboxConfigState and blackboxConfigState.reset then blackboxConfigState.reset() end
         if craftState and craftState.reset then craftState.reset() end
+        if escState and escState.reset then escState.reset() end
+        if lifecycleState and lifecycleState.reset then lifecycleState.reset() end
         if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
         if mspStatus and mspStatus.reset then mspStatus.reset() end
         if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
@@ -213,6 +217,8 @@ function utils.session()
     if blackboxState and blackboxState.reset then blackboxState.reset() end
     if blackboxConfigState and blackboxConfigState.reset then blackboxConfigState.reset() end
     if craftState and craftState.reset then craftState.reset() end
+    if escState and escState.reset then escState.reset() end
+    if lifecycleState and lifecycleState.reset then lifecycleState.reset() end
     if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
     if mspStatus and mspStatus.reset then mspStatus.reset() end
     if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
@@ -712,10 +718,10 @@ end
 
 function utils.onReboot()
     rfsuite.utils.log("utils.onReboot called", "info")
-    rfsuite.session.resetSensors = true
-    rfsuite.session.resetTelemetry = true
+    local lifecycleState = rfsuite.shared and rfsuite.shared.lifecycle
+    if lifecycleState and lifecycleState.setResetSensors then lifecycleState.setResetSensors(true) end
     connectionState.setResetMSP(true)
-    rfsuite.session.resetMSPSensors = true
+    if lifecycleState and lifecycleState.setResetMSPSensors then lifecycleState.setResetMSPSensors(true) end
 end
 
 function utils.splitVersionStringToNumbers(versionString)

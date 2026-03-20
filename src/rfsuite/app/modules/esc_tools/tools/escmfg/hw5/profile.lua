@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local escState = (rfsuite.shared and rfsuite.shared.esc) or assert(loadfile("shared/esc.lua"))()
 
 local helper = {}
 
@@ -167,7 +168,7 @@ local function getPageAllowed(profile, pageKey)
 end
 
 local function getProfileKey()
-    local escDetails = rfsuite.session and rfsuite.session.escDetails or {}
+    local escDetails = escState.getDetails() or {}
     local version = trim(escDetails.version) or "default"
     local model = string.upper(trim(escDetails.model) or "")
     local firmware = string.upper(trim(escDetails.firmware) or "")

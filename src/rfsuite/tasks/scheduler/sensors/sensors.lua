@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local lifecycleState = (rfsuite.shared and rfsuite.shared.lifecycle) or assert(loadfile("shared/lifecycle.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
 local arg = {...}
@@ -69,10 +70,10 @@ function sensors.wakeup()
 
     schedulerTick = schedulerTick + 1
 
-    if rfsuite.session.resetSensors and not delayPending then
+    if lifecycleState.getResetSensors() and not delayPending then
         delayStartTime = os_clock()
         delayPending = true
-        rfsuite.session.resetSensors = false
+        lifecycleState.setResetSensors(false)
 
         log("Delaying sensor wakeup for " .. delayDuration .. " seconds", "info")
         return

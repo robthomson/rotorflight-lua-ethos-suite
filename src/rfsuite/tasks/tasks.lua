@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local lifecycleState = (rfsuite.shared and rfsuite.shared.lifecycle) or assert(loadfile("shared/lifecycle.lua"))()
 
 local utils = rfsuite.utils
 local config = rfsuite.config
@@ -321,9 +322,9 @@ local function clearSessionAndQueue()
     if rfsuite.tasks.msp and rfsuite.tasks.msp.common and rfsuite.tasks.msp.common.setProtocolVersion then
         rfsuite.tasks.msp.common.setProtocolVersion(1)
     end
-    if rfsuite.config and rfsuite.session then
+    if rfsuite.config then
         rfsuite.config.mspProtocolVersion = 1
-        rfsuite.session.mspProtocolVersion = 1
+        lifecycleState.setMspProtocolVersion(1)
     end
 
 end
