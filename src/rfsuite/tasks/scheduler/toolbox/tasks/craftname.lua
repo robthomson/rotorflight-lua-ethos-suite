@@ -9,11 +9,10 @@ local arg = {...}
 
 local craftname = {}
 local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
+local craftState = (rfsuite.shared and rfsuite.shared.craft) or assert(loadfile("shared/craft.lua"))()
 
 function craftname.wakeup()
-    local session = rfsuite.session
-    if not session then return end
-    sharedToolbox.set("craftname", session.craftName or model.name())
+    sharedToolbox.set("craftname", craftState.getName() or model.name())
 end
 
 return craftname

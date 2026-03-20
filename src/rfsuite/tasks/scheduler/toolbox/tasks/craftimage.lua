@@ -9,6 +9,7 @@ local arg = {...}
 
 local craftimage = {}
 local sharedToolbox = (rfsuite.shared and rfsuite.shared.toolbox) or assert(loadfile("shared/toolbox.lua"))()
+local craftState = (rfsuite.shared and rfsuite.shared.craft) or assert(loadfile("shared/craft.lua"))()
 
 local default_image = "widgets/toolbox/gfx/default_image.png"
 local bitmapPtr
@@ -63,10 +64,9 @@ local function getBitmapCandidates(bitmap)
 end
 
 function craftimage.wakeup()
-    local session = rfsuite.session
     if sharedToolbox.get("craftimage") ~= nil then return end
 
-    local craftName = session.craftName
+    local craftName = craftState.getName()
 
     local imageBase
     if craftName then

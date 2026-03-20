@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
@@ -104,7 +105,8 @@ local function applySagCompensation(voltage)
 end
 
 local function fuelPercentageCalcByVoltage(voltage, cellCount)
-    local bc = rfsuite.session.batteryConfig
+    local bc = batteryState.get()
+    if not bc then return 0 end
     local minV = bc.vbatmincellvoltage or 3.30
     local fullV = bc.vbatfullcellvoltage or 4.10
     local reserve = bc.consumptionWarningPercentage or 30
@@ -128,7 +130,8 @@ end
 local function smartFuelCalc()
     if not telemetry then telemetry = rfsuite.tasks.telemetry end
 
-    if not connectionState.getConnected() or not rfsuite.session.batteryConfig then
+    local bc = batteryState.get()
+    if not connectionState.getConnected() or not bc then
         resetVoltageTracking()
         return nil
     end
@@ -141,7 +144,6 @@ local function smartFuelCalc()
         end
     end
 
-    local bc = rfsuite.session.batteryConfig
     local configSig = table.concat({bc.batteryCellCount, bc.batteryCapacity, bc.consumptionWarningPercentage, bc.vbatmaxcellvoltage, bc.vbatmincellvoltage, bc.vbatfullcellvoltage}, ":")
 
     if configSig ~= batteryConfigCache then

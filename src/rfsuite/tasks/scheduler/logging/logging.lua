@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local craftState = (rfsuite.shared and rfsuite.shared.craft) or assert(loadfile("shared/craft.lua"))()
 
 local arg = { ... }
 
@@ -289,9 +290,8 @@ end
 -- --- Main loop --------------------------------------------------------------
 
 function logging.wakeup()
-    local session = rfsuite.session
     local mcu_id = connectionState.getMcuId()
-    if not session or not mcu_id then return end
+    if not mcu_id then return end
     if not refreshSessionCaches(mcu_id) then return end
 
     if not telemetry then
@@ -318,7 +318,7 @@ function logging.wakeup()
 
             local iniData = ini.load_ini_file(cachedIniPath) or {}
             if not iniData.model then iniData.model = {} end
-            iniData.model.name = session.craftName or model.name() or "Unknown"
+            iniData.model.name = craftState.getName() or model.name() or "Unknown"
             ini.save_ini_file(cachedIniPath, iniData)
 
             sourcesCached = false

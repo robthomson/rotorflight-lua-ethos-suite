@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local craftState = (rfsuite.shared and rfsuite.shared.craft) or assert(loadfile("shared/craft.lua"))()
 
 local craftname = {}
 
@@ -24,25 +25,25 @@ function craftname.wakeup()
 
     if connectionState.getMspBusy() then return end
 
-    if (rfsuite.session.craftName == nil) and (mspCallMade == false) then
+    if (craftState.getName() == nil) and (mspCallMade == false) then
         mspCallMade = true
         local API = rfsuite.tasks.msp.api.load(API_NAME)
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
-            rfsuite.session.craftName = API.readValue("name")
-            if rfsuite.preferences.general.syncname == true and model.name and rfsuite.session.craftName ~= nil then
-                if not rfsuite.session.originalModelName then
-                    rfsuite.session.originalModelName = model.name()
+            local craftName = craftState.setName(API.readValue("name"))
+            if rfsuite.preferences.general.syncname == true and model.name and craftName ~= nil then
+                if not craftState.getOriginalModelName() then
+                    craftState.setOriginalModelName(model.name())
                 end
-                rfsuite.utils.log("Setting model name to: " .. rfsuite.session.craftName, "info")
-                model.name(rfsuite.session.craftName)
+                rfsuite.utils.log("Setting model name to: " .. craftName, "info")
+                model.name(craftName)
                 lcd.invalidate()
             end
-            if rfsuite.session.craftName and rfsuite.session.craftName ~= "" then
-                rfsuite.utils.log("Craft name: " .. rfsuite.session.craftName, "info")
-                rfsuite.utils.log("Craft name: " .. rfsuite.session.craftName, "connect")
+            if craftName and craftName ~= "" then
+                rfsuite.utils.log("Craft name: " .. craftName, "info")
+                rfsuite.utils.log("Craft name: " .. craftName, "connect")
             else
-                rfsuite.session.craftName = model.name()
+                craftState.setName(model.name())
             end
             clearApiEntry()
         end)
@@ -55,10 +56,10 @@ end
 
 function craftname.reset()
     clearApiEntry()
-    rfsuite.session.craftName = nil
+    craftState.setName(nil)
     mspCallMade = false
 end
 
-function craftname.isComplete() if rfsuite.session.craftName ~= nil then return true end end
+function craftname.isComplete() if craftState.getName() ~= nil then return true end end
 
 return craftname

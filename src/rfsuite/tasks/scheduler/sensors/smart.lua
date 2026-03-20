@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
@@ -45,9 +46,10 @@ end
 local function calculateConsumption()
     local prefs = modelPreferencesState.get()
     if prefs and prefs.battery and prefs.battery.calc_local == 1 then
-        local capacity = (rfsuite.session.batteryConfig and rfsuite.session.batteryConfig.batteryCapacity) or 1000
+        local batteryConfig = batteryState.get()
+        local capacity = (batteryConfig and batteryConfig.batteryCapacity) or 1000
         local smartfuelPct = rfsuite.tasks.telemetry.getSensor("smartfuel")
-        local warningPercentage = (rfsuite.session.batteryConfig and rfsuite.session.batteryConfig.consumptionWarningPercentage) or 30
+        local warningPercentage = (batteryConfig and batteryConfig.consumptionWarningPercentage) or 30
         if smartfuelPct then
             local usableCapacity = capacity * (1 - warningPercentage / 100)
             local usedPercent = 100 - smartfuelPct

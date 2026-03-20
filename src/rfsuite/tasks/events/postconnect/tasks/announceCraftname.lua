@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local craftState = (rfsuite.shared and rfsuite.shared.craft) or assert(loadfile("shared/craft.lua"))()
 
 local announceCraftname = {}
 
@@ -19,7 +20,7 @@ function announceCraftname.wakeup()
         return
     end
 
-    local craftName = rfsuite.session.craftName
+    local craftName = craftState.getName()
     if not craftName or craftName == "" then return end
 
     -- Try exact match and underscore replacement for spaces

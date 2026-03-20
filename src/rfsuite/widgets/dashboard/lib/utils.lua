@@ -22,6 +22,7 @@ local tonumber = tonumber
 
 local utils = {}
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 
 local SKIP_CALL_KEYS = {transform = true, thresholds = true, value = true}
@@ -795,8 +796,7 @@ local function extractProfileCapacity(profiles, idx)
 end
 
 local function refreshBatteryConfigCache()
-    local session = rfsuite and rfsuite.session
-    local bc = session and session.batteryConfig
+    local bc = batteryState.get()
 
     if not bc then
         resetBatteryConfigCache()

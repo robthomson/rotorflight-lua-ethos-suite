@@ -16,6 +16,8 @@ function utils.session()
     local sharedTimer = rfsuite.shared and rfsuite.shared.timer
     local mspStatus = rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status
     local connectionState = rfsuite.shared and rfsuite.shared.connection
+    local batteryState = rfsuite.shared and rfsuite.shared.battery
+    local craftState = rfsuite.shared and rfsuite.shared.craft
     local modelPreferencesState = rfsuite.shared and rfsuite.shared.modelPreferences
 
     local function prefBool(value, default)
@@ -27,9 +29,10 @@ function utils.session()
 
     local prefs = rfsuite.preferences and rfsuite.preferences.general or {}
     
-     if session and session.originalModelName and model.name then
-        rfsuite.utils.log("Restoring model name to: " .. session.originalModelName, "info")
-        model.name(session.originalModelName)
+     local originalModelName = craftState and craftState.getOriginalModelName and craftState.getOriginalModelName()
+     if originalModelName and model.name then
+        rfsuite.utils.log("Restoring model name to: " .. originalModelName, "info")
+        model.name(originalModelName)
     end
 
     if not session then
@@ -110,6 +113,8 @@ function utils.session()
             showConfirmationDialog = prefBool(prefs.show_confirmation_dialog, false)
         })
         if connectionState and connectionState.reset then connectionState.reset() end
+        if batteryState and batteryState.reset then batteryState.reset() end
+        if craftState and craftState.reset then craftState.reset() end
         if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
         if mspStatus and mspStatus.reset then mspStatus.reset() end
         if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end
@@ -191,6 +196,8 @@ function utils.session()
     }
 
     if connectionState and connectionState.reset then connectionState.reset() end
+    if batteryState and batteryState.reset then batteryState.reset() end
+    if craftState and craftState.reset then craftState.reset() end
     if sharedTimer and sharedTimer.reset then sharedTimer.reset(0) end
     if mspStatus and mspStatus.reset then mspStatus.reset() end
     if modelPreferencesState and modelPreferencesState.reset then modelPreferencesState.reset() end

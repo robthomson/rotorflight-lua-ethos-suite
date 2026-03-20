@@ -23,6 +23,7 @@ local tostring = tostring
 local tonumber = tonumber
 
 local dashboard = {}
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 
@@ -1700,7 +1701,7 @@ function dashboard.wakeup_protected(widget)
 
     if connectionState.getConnected() and rfsuite.session.showBatteryTypeStartup and not rfsuite.session.batteryDialogShown then
         local prefs = modelPreferencesState.get()
-        if rfsuite.session.batteryConfig and prefs and prefs.dashboard then
+        if batteryState.hasConfig() and prefs and prefs.dashboard then
             rfsuite.session.batteryDialogShown = true
             if dashboard.utils.hasMultipleBatteryProfiles and dashboard.utils.hasMultipleBatteryProfiles() then
                 local actions = dashboard.toolbar_actions

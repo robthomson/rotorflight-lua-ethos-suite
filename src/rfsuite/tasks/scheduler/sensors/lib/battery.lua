@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 
 local battery = {}
 local log = rfsuite.utils.log
@@ -18,7 +19,7 @@ function battery.wakeup()
     if connectionState.getMspBusy() then return end
     if rfsuite.tasks.msp.mspQueue:isProcessed() == false then return end
 
-    if (rfsuite.session.batteryConfig == nil) and mspCallMade == false then
+    if (not batteryState.hasConfig()) and mspCallMade == false then
         mspCallMade = true
 
         local API = rfsuite.tasks.msp.api.load("BATTERY_CONFIG")
@@ -33,24 +34,25 @@ function battery.wakeup()
             local consumptionWarningPercentage = API.readValue("consumptionWarningPercentage")
             local voltageMeterSource = API.readValue("voltageMeterSource")
 
-            rfsuite.session.batteryConfig = {}
-            rfsuite.session.batteryConfig.voltageMeterSource = voltageMeterSource
-            rfsuite.session.batteryConfig.batteryCapacity = batteryCapacity
-            rfsuite.session.batteryConfig.batteryCellCount = batteryCellCount
-            rfsuite.session.batteryConfig.vbatwarningcellvoltage = vbatwarningcellvoltage
-            rfsuite.session.batteryConfig.vbatmincellvoltage = vbatmincellvoltage
-            rfsuite.session.batteryConfig.vbatmaxcellvoltage = vbatmaxcellvoltage
-            rfsuite.session.batteryConfig.vbatfullcellvoltage = vbatfullcellvoltage
-            rfsuite.session.batteryConfig.lvcPercentage = lvcPercentage
-            rfsuite.session.batteryConfig.consumptionWarningPercentage = consumptionWarningPercentage
-
-            rfsuite.session.batteryConfig.profiles = {}
+            local profiles = {}
             for i = 0, 5 do
                 local val = API.readValue("batteryCapacity_" .. i)
                 if val then
-                    rfsuite.session.batteryConfig.profiles[i] = val
+                    profiles[i] = val
                 end
             end
+
+            batteryState.setAll({
+                voltageMeterSource = voltageMeterSource,
+                batteryCapacity = batteryCapacity,
+                batteryCellCount = batteryCellCount,
+                vbatwarningcellvoltage = vbatwarningcellvoltage,
+                vbatmincellvoltage = vbatmincellvoltage,
+                vbatmaxcellvoltage = vbatmaxcellvoltage,
+                vbatfullcellvoltage = vbatfullcellvoltage,
+                lvcPercentage = lvcPercentage,
+                consumptionWarningPercentage = consumptionWarningPercentage
+            }, profiles)
 
             log("Capacity: " .. batteryCapacity .. "mAh", "info")
             log("Cell Count: " .. batteryCellCount, "info")
@@ -86,10 +88,10 @@ function battery.wakeup()
 end
 
 function battery.reset()
-    rfsuite.session.batteryConfig = nil
+    batteryState.reset()
     mspCallMade = false
 end
 
-function battery.isComplete() if rfsuite.session.batteryConfig ~= nil then return true end end
+function battery.isComplete() if batteryState.hasConfig() then return true end end
 
 return battery

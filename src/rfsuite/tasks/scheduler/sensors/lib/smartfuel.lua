@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
@@ -98,12 +99,11 @@ local function smartFuelCalc()
         flightState.setActiveBatteryType(normalizedBatType)
     end
 
-    if not connectionState.getConnected() or not rfsuite.session.batteryConfig then
+    local bc = batteryState.get()
+    if not connectionState.getConnected() or not bc then
         resetVoltageTracking()
         return nil
     end
-
-    local bc = rfsuite.session.batteryConfig
 
     local packCapacity = bc.batteryCapacity
     local activeProfile = flightState.getActiveBatteryType and flightState.getActiveBatteryType()

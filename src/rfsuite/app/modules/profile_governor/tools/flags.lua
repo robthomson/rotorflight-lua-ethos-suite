@@ -6,6 +6,7 @@
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 local navHandlers = pageRuntime.createMenuHandlers({showProgress = true})
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local appRuntime = (rfsuite.shared and rfsuite.shared.app) or assert(loadfile("shared/app/runtime.lua"))()
 
@@ -91,7 +92,7 @@ local function wakeup()
 
     -- Enable/disable fields based on firmware/session state.
     govEnabled = (governorMode ~= 0)
-    adcVoltage = (rfsuite.session.batteryConfig ~= nil and rfsuite.session.batteryConfig.voltageMeterSource == 1)
+    adcVoltage = (batteryState.getField("voltageMeterSource") == 1)
 
     if state.lastGovEnabled ~= govEnabled then
         setNavEnabled("save", canSave())

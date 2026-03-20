@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
 
@@ -100,26 +101,23 @@ local function saveProfileCapacity(profileIndex, capacity)
     local finalVal = math.floor(v + 0.5)
     batteryValues["batteryCapacity_" .. tostring(profileIndex)] = finalVal
 
-    if rfsuite.session.batteryConfig and rfsuite.session.batteryConfig.profiles then
-        rfsuite.session.batteryConfig.profiles[profileIndex] = finalVal
-    end
+    batteryState.setProfile(profileIndex, finalVal)
 end
 
-local function syncSessionBatteryConfig(self, editingType, capacityValue)
-    local batteryConfig = rfsuite.session and rfsuite.session.batteryConfig
+local function syncBatteryConfig(self, editingType, capacityValue)
+    local batteryConfig = batteryState.get()
     if not batteryConfig then return end
 
     for i = 1, #SESSION_BATTERY_FIELDS do
         local apikey = SESSION_BATTERY_FIELDS[i]
         local value = tonumber(getFieldValue(self, apikey))
         if value ~= nil then
-            batteryConfig[apikey] = value
+            batteryState.setField(apikey, value)
         end
     end
 
     if editingType ~= nil and capacityValue ~= nil then
-        if not batteryConfig.profiles then batteryConfig.profiles = {} end
-        batteryConfig.profiles[editingType] = capacityValue
+        batteryState.setProfile(editingType, capacityValue)
     end
 end
 
@@ -252,7 +250,7 @@ local function preSave(self)
     local finalVal = math.floor(capacityValue + 0.5)
     batteryValues["batteryCapacity_" .. tostring(editingType)] = finalVal
 
-    syncSessionBatteryConfig(self, editingType, finalVal)
+    syncBatteryConfig(self, editingType, finalVal)
     resetSmartfuel()
 end
 

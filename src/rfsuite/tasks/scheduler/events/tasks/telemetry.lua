@@ -4,6 +4,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local modelPreferencesState = (rfsuite.shared and rfsuite.shared.modelPreferences) or assert(loadfile("shared/modelpreferences.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
@@ -152,8 +153,7 @@ local function resetSmartfuelSensor()
 end
 
 local function refreshBatteryConfigCache()
-    local session = rfsuite.session
-    local bc = session and session.batteryConfig
+    local bc = batteryState.get()
 
     if not bc then
         resetBatteryConfigCache()

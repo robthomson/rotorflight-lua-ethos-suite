@@ -108,7 +108,8 @@ end
 
 local function resolveModelImage(cfg)
 
-    local craftName = rfsuite and rfsuite.session and rfsuite.session.craftName
+    local craftState = rfsuite and rfsuite.shared and rfsuite.shared.craft
+    local craftName = craftState and craftState.getName and craftState.getName()
     if craftName and craftName ~= "" then
         local cached = _imgCache[craftName]
         if cached == nil then
@@ -187,7 +188,8 @@ end
 function render.wakeup(box)
     local cfg = ensureCfg(box)
 
-    local craftName = rfsuite and rfsuite.session and rfsuite.session.craftName
+    local craftState = rfsuite and rfsuite.shared and rfsuite.shared.craft
+    local craftName = craftState and craftState.getName and craftState.getName()
     if cfg._lastCraftName ~= craftName then
         cfg.image = resolveModelImage(cfg)
         cfg._lastCraftName = craftName

@@ -3,6 +3,7 @@
 ]] --
 
 local rfsuite = require("rfsuite")
+local batteryState = (rfsuite.shared and rfsuite.shared.battery) or assert(loadfile("shared/battery.lua"))()
 local flightState = (rfsuite.shared and rfsuite.shared.flight) or assert(loadfile("shared/flight.lua"))()
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
 local mspStatusState = (rfsuite.shared and rfsuite.shared.msp and rfsuite.shared.msp.status) or assert(loadfile("shared/msp/status.lua"))()
@@ -163,7 +164,8 @@ function M.chooseBatteryType()
     end
 
     -- Normalize profiles to a sequential array of tables with .name and .idx
-    local profilesRaw = rfsuite.session.batteryConfig and rfsuite.session.batteryConfig.profiles
+    local batteryConfig = batteryState.get()
+    local profilesRaw = batteryConfig and batteryConfig.profiles
     local profileList = {}
     if profilesRaw then
         -- Legacy: numeric keys 0-5, value is capacity

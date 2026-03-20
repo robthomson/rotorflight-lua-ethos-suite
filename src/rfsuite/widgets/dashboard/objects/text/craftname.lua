@@ -32,6 +32,7 @@
 
 local rfsuite = require("rfsuite")
 local connectionState = (rfsuite.shared and rfsuite.shared.connection) or assert(loadfile("shared/connection.lua"))()
+local craftState = (rfsuite.shared and rfsuite.shared.craft) or assert(loadfile("shared/craft.lua"))()
 
 local rep = string.rep
 
@@ -94,7 +95,7 @@ end
 function render.wakeup(box)
     local cfg = ensureCfg(box)
 
-    local value = rfsuite.session.craftName
+    local value = craftState.getName()
     local telemetryActive = connectionState.getConnected()
 
     if value and type(value) == "string" and value:match("^%s*$") == nil and telemetryActive then box._lastValidCraftName = value end
