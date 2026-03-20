@@ -82,16 +82,16 @@ end
 
 local function getProfileCapacity(profileIndex)
     if profileIndex == nil then return nil end
-    local values = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata and rfsuite.tasks.msp.api.apidata.values
-    local batteryValues = values and values.BATTERY_CONFIG
+    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+    local batteryValues = api and api.getPageApiValues and api.getPageApiValues("BATTERY_CONFIG")
     if not batteryValues then return nil end
     return tonumber(batteryValues["batteryCapacity_" .. tostring(profileIndex)])
 end
 
 local function saveProfileCapacity(profileIndex, capacity)
     if profileIndex == nil or capacity == nil then return end
-    local values = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata and rfsuite.tasks.msp.api.apidata.values
-    local batteryValues = values and values.BATTERY_CONFIG
+    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+    local batteryValues = api and api.getPageApiValues and api.getPageApiValues("BATTERY_CONFIG")
     if not batteryValues then return end
     local v = tonumber(capacity)
     if v < CAPACITY_PROFILE_MIN then v = CAPACITY_PROFILE_MIN end
@@ -244,8 +244,8 @@ local function preSave(self)
     if capacityValue < CAPACITY_PROFILE_MIN then capacityValue = CAPACITY_PROFILE_MIN end
     if capacityValue > CAPACITY_PROFILE_MAX then capacityValue = CAPACITY_PROFILE_MAX end
 
-    local values = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata and rfsuite.tasks.msp.api.apidata.values
-    local batteryValues = values and values.BATTERY_CONFIG
+    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+    local batteryValues = api and api.getPageApiValues and api.getPageApiValues("BATTERY_CONFIG")
     if not batteryValues then return end
 
     local finalVal = math.floor(capacityValue + 0.5)

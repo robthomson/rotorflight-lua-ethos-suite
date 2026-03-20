@@ -35,10 +35,11 @@ end
 
 local function getRateType()
     local apiName = getApiEntryName(apidata and apidata.api and apidata.api[1])
-    local values = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata and rfsuite.tasks.msp.api.apidata.values
+    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+    local rateType = api and api.getPageValue and api.getPageValue(apiName, "rates_type")
 
-    if values and apiName and values[apiName] and values[apiName].rates_type ~= nil then
-        return values[apiName].rates_type
+    if rateType ~= nil then
+        return rateType
     end
 
     local fields = rfsuite.app and rfsuite.app.Page and rfsuite.app.Page.apidata and rfsuite.app.Page.apidata.formdata and rfsuite.app.Page.apidata.formdata.fields

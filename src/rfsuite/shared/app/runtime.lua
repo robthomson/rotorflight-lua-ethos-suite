@@ -16,6 +16,7 @@ local runtime = {
     mixerTrimsState = nil,
     mixerLegacyTailState = nil,
     governorGeneralState = nil,
+    profileGovernorGeneralState = nil,
     servoTableLast = nil
 }
 
@@ -26,6 +27,7 @@ function runtime.reset()
     runtime.mixerTrimsState = nil
     runtime.mixerLegacyTailState = nil
     runtime.governorGeneralState = nil
+    runtime.profileGovernorGeneralState = nil
     runtime.servoTableLast = nil
     return runtime
 end

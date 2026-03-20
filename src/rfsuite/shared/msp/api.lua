@@ -517,6 +517,26 @@ function api.getPageStructure()
     return d and d.structure or nil
 end
 
+function api.getPageApiValues(apiName, fallbackApiName)
+    local values = api.getPageValues()
+    if not values then return nil end
+    if type(apiName) == "string" and values[apiName] ~= nil then
+        return values[apiName]
+    end
+    if type(fallbackApiName) == "string" then
+        return values[fallbackApiName]
+    end
+    return nil
+end
+
+function api.getPageValue(apiName, fieldName, fallbackApiName)
+    local entry
+    if type(fieldName) ~= "string" or fieldName == "" then return nil end
+    entry = api.getPageApiValues(apiName, fallbackApiName)
+    if type(entry) ~= "table" then return nil end
+    return entry[fieldName]
+end
+
 function api.setPageResult(apiName, data, cacheEnabled)
     local d = ensureApidata()
 

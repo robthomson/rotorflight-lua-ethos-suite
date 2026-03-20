@@ -163,10 +163,10 @@ function utils.getCurrentBatteryType()
     local telemetryType = tasks.telemetry.getSensor("battery_profile")
     local telemetryValue = normalizeBatteryProfileIndex(telemetryType)
 
-    local values = tasks and tasks.msp and tasks.msp.api and tasks.msp.api.apidata and tasks.msp.api.apidata.values
-    local mspType = values and values.BATTERY_PROFILE and values.BATTERY_PROFILE.batteryProfile
-    if mspType == nil and values and values.BATTERY_CONFIG then
-        mspType = values.BATTERY_CONFIG.batteryProfile
+    local api = tasks and tasks.msp and tasks.msp.api
+    local mspType = api and api.getPageValue and api.getPageValue("BATTERY_PROFILE", "batteryProfile")
+    if mspType == nil and api and api.getPageValue then
+        mspType = api.getPageValue("BATTERY_CONFIG", "batteryProfile")
     end
     local mspValue = normalizeBatteryProfileIndex(mspType)
 
