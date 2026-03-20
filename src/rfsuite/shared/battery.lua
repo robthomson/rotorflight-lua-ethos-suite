@@ -36,16 +36,9 @@ local function clearProfiles(profiles)
     end
 end
 
-local function syncSession()
-    local session = rfsuite and rfsuite.session
-    if not session then return end
-    session.batteryConfig = battery.loaded and battery.config or nil
-end
-
 local function ensureConfig()
     if battery.loaded ~= true then
         battery.loaded = true
-        syncSession()
     end
     return battery.config
 end
@@ -83,14 +76,12 @@ function battery.setField(key, value)
     else
         config[key] = value
     end
-    syncSession()
     return value
 end
 
 function battery.setProfile(index, value)
     local config = ensureConfig()
     config.profiles[index] = value
-    syncSession()
     return value
 end
 
@@ -113,7 +104,6 @@ function battery.setAll(values, profiles)
         end
     end
 
-    syncSession()
     return config
 end
 
@@ -124,11 +114,9 @@ function battery.reset()
     end
     clearProfiles(config.profiles)
     battery.loaded = false
-    syncSession()
     return battery
 end
 
-syncSession()
 package.loaded[BATTERY_SINGLETON_KEY] = battery
 
 return battery

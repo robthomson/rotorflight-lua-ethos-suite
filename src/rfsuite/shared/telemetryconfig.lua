@@ -22,12 +22,6 @@ local function clearSlots(target)
     end
 end
 
-local function syncSession()
-    local session = rfsuite and rfsuite.session
-    if not session then return end
-    session.telemetryConfig = telemetryConfig.loaded and telemetryConfig.slots or nil
-end
-
 function telemetryConfig.get()
     return telemetryConfig.loaded and telemetryConfig.slots or nil
 end
@@ -43,18 +37,15 @@ function telemetryConfig.replace(values)
     for i = 1, #(values or {}) do
         target[i] = values[i]
     end
-    syncSession()
     return target
 end
 
 function telemetryConfig.reset()
     telemetryConfig.loaded = false
     clearSlots(telemetryConfig.slots)
-    syncSession()
     return telemetryConfig
 end
 
-syncSession()
 package.loaded[TELEMETRY_CONFIG_SINGLETON_KEY] = telemetryConfig
 
 return telemetryConfig

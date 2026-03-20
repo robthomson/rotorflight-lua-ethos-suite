@@ -16,13 +16,6 @@ local modelPreferences = {
     file = nil
 }
 
-local function syncSession()
-    local session = rfsuite and rfsuite.session
-    if not session then return end
-    session.modelPreferences = modelPreferences.values
-    session.modelPreferencesFile = modelPreferences.file
-end
-
 function modelPreferences.get()
     return modelPreferences.values
 end
@@ -33,31 +26,26 @@ end
 
 function modelPreferences.set(values)
     modelPreferences.values = values
-    syncSession()
     return modelPreferences.values
 end
 
 function modelPreferences.setFile(path)
     modelPreferences.file = path
-    syncSession()
     return modelPreferences.file
 end
 
 function modelPreferences.setAll(values, path)
     modelPreferences.values = values
     modelPreferences.file = path
-    syncSession()
     return modelPreferences.values, modelPreferences.file
 end
 
 function modelPreferences.reset()
     modelPreferences.values = nil
     modelPreferences.file = nil
-    syncSession()
     return modelPreferences
 end
 
-syncSession()
 package.loaded[MODEL_PREFERENCES_SINGLETON_KEY] = modelPreferences
 
 return modelPreferences

@@ -24,14 +24,7 @@ local timerState = {
     flightCounted = false
 }
 
-local function syncSession()
-    if not (rfsuite and rfsuite.session) then return end
-    rfsuite.session.timer = timerState.data
-    rfsuite.session.flightCounted = timerState.flightCounted
-end
-
 function timerState.get()
-    syncSession()
     return timerState.data
 end
 
@@ -43,7 +36,6 @@ function timerState.reset(baseLifetime)
     data.session = 0
     data.baseLifetime = tonumber(baseLifetime) or 0
     timerState.flightCounted = false
-    syncSession()
     return data
 end
 
@@ -53,7 +45,6 @@ end
 
 function timerState.setFlightCounted(value)
     timerState.flightCounted = (value == true)
-    syncSession()
     return timerState.flightCounted
 end
 

@@ -24,12 +24,6 @@ local function clearTable(tbl)
     end
 end
 
-local function syncSession()
-    local session = rfsuite and rfsuite.session
-    if not session then return end
-    session.rx = rx.data
-end
-
 function rx.get()
     return rx.data
 end
@@ -44,36 +38,30 @@ end
 
 function rx.setMapValue(key, value)
     rx.data.map[key] = value
-    syncSession()
     return value
 end
 
 function rx.setValue(key, value)
     rx.data.values[key] = value
-    syncSession()
     return value
 end
 
 function rx.clearMap()
     clearTable(rx.data.map)
-    syncSession()
     return rx.data.map
 end
 
 function rx.clearValues()
     clearTable(rx.data.values)
-    syncSession()
     return rx.data.values
 end
 
 function rx.reset()
     clearTable(rx.data.map)
     clearTable(rx.data.values)
-    syncSession()
     return rx
 end
 
-syncSession()
 package.loaded[RX_SINGLETON_KEY] = rx
 
 return rx

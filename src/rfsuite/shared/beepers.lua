@@ -27,12 +27,6 @@ local function copyTable(src)
     return dst
 end
 
-local function syncSession()
-    local session = rfsuite and rfsuite.session
-    if not session then return end
-    session.beepers = beepers.snapshot
-end
-
 function beepers.getSnapshot()
     return beepers.snapshot
 end
@@ -48,18 +42,15 @@ end
 function beepers.setSnapshot(config, ready)
     beepers.snapshot.config = copyTable(config)
     beepers.snapshot.ready = (ready == true)
-    syncSession()
     return beepers.snapshot
 end
 
 function beepers.reset()
     beepers.snapshot.config = nil
     beepers.snapshot.ready = false
-    syncSession()
     return beepers
 end
 
-syncSession()
 package.loaded[BEEPERS_SINGLETON_KEY] = beepers
 
 return beepers
