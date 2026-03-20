@@ -35,6 +35,12 @@ local function getCallback()
     return tasks and tasks.callback or nil
 end
 
+local function getApi()
+    local tasks = rfsuite.tasks
+    local msp = tasks and tasks.msp
+    return msp and msp.api or nil
+end
+
 function core.scheduleWakeup(func)
     local callback = getCallback()
     if callback and callback.now then
@@ -65,15 +71,13 @@ function core.parseMSPData(API_NAME, buf, structure, processed, other, options)
     end
 
     local enableDeltaCache = true
-    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+    local api = getApi()
     if api and api.isDeltaCacheEnabled then
         enableDeltaCache = api.isDeltaCacheEnabled(API_NAME)
     end
     local keepBuffers = (enableDeltaCache == true)
-    local apidata = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata
-    if apidata then
-        apidata._lastReadMode = apidata._lastReadMode or {}
-        apidata._lastReadMode[API_NAME] = keepBuffers and "delta" or "no-delta"
+    if api and api.setLastReadMode then
+        api.setLastReadMode(API_NAME, keepBuffers and "delta" or "no-delta")
     end
 
     local chunked = (options.chunked == true)
@@ -220,26 +224,23 @@ function core.buildWritePayload(apiname, payload, api_structure, noDelta)
         return core.buildFullPayload(apiname, payload, api_structure)
     end
 
-    local positionmap = rfsuite.tasks.msp.api.apidata.positionmap and rfsuite.tasks.msp.api.apidata.positionmap[apiname]
-    local receivedBytes = rfsuite.tasks.msp.api.apidata.receivedBytes and rfsuite.tasks.msp.api.apidata.receivedBytes[apiname]
-    local receivedBytesCount = rfsuite.tasks.msp.api.apidata.receivedBytesCount and rfsuite.tasks.msp.api.apidata.receivedBytesCount[apiname]
+    local api = getApi()
+    local positionmap = api and api.getPagePositionMap and api.getPagePositionMap(apiname)
+    local receivedBytes = api and api.getPageReceivedBytes and api.getPageReceivedBytes(apiname)
+    local receivedBytesCount = api and api.getPageReceivedBytesCount and api.getPageReceivedBytesCount(apiname)
 
     local useDelta = positionmap and receivedBytes and receivedBytesCount
     if noDelta == true then useDelta = false end
 
-    local apidata = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata
-
     if useDelta then
-        if apidata then
-            apidata._lastWriteMode = apidata._lastWriteMode or {}
-            apidata._lastWriteMode[apiname] = "delta"
+        if api and api.setLastWriteMode then
+            api.setLastWriteMode(apiname, "delta")
         end
         return core.buildDeltaPayload(apiname, payload, api_structure, positionmap, receivedBytes, receivedBytesCount)
     end
 
-    if apidata then
-        apidata._lastWriteMode = apidata._lastWriteMode or {}
-        apidata._lastWriteMode[apiname] = (noDelta == true) and "rebuild" or "full"
+    if api and api.setLastWriteMode then
+        api.setLastWriteMode(apiname, (noDelta == true) and "rebuild" or "full")
     end
     return core.buildFullPayload(apiname, payload, api_structure)
 end

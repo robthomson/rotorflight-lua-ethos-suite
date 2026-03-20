@@ -545,6 +545,56 @@ function api.getPageReceivedBytesCount(apiName)
     return d.receivedBytesCount[apiName]
 end
 
+function api.getPageReceivedBytes(apiName)
+    local d = ensureApidata()
+    if not (d and d.receivedBytes and type(apiName) == "string" and apiName ~= "") then
+        return nil
+    end
+    return d.receivedBytes[apiName]
+end
+
+function api.getPagePositionMap(apiName)
+    local d = ensureApidata()
+    if not (d and d.positionmap and type(apiName) == "string" and apiName ~= "") then
+        return nil
+    end
+    return d.positionmap[apiName]
+end
+
+function api.getLastReadMode(apiName)
+    local d = ensureApidata()
+    if not (d and d._lastReadMode and type(apiName) == "string" and apiName ~= "") then
+        return nil
+    end
+    return d._lastReadMode[apiName]
+end
+
+function api.setLastReadMode(apiName, mode)
+    local d = ensureApidata()
+    if not (d and d._lastReadMode and type(apiName) == "string" and apiName ~= "") then
+        return false
+    end
+    d._lastReadMode[apiName] = mode
+    return true
+end
+
+function api.getLastWriteMode(apiName)
+    local d = ensureApidata()
+    if not (d and d._lastWriteMode and type(apiName) == "string" and apiName ~= "") then
+        return nil
+    end
+    return d._lastWriteMode[apiName]
+end
+
+function api.setLastWriteMode(apiName, mode)
+    local d = ensureApidata()
+    if not (d and d._lastWriteMode and type(apiName) == "string" and apiName ~= "") then
+        return false
+    end
+    d._lastWriteMode[apiName] = mode
+    return true
+end
+
 function api.setPageResult(apiName, data, cacheEnabled)
     local d = ensureApidata()
 

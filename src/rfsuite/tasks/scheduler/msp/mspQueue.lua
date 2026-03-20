@@ -114,17 +114,17 @@ local function LOG_ENABLED_MSP_RW() return rfsuite and rfsuite.preferences and r
 local function getRwModeSuffix(msg, rwState, ok)
     if not LOG_ENABLED_MSP_RW() then return "" end
     if not msg or not msg.apiname or not rwState then return "" end
-    local apidata = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.apidata
-    if not apidata then return "" end
+    local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api
+    if not api then return "" end
 
     if rwState == "WRITE" then
-        local mode = apidata._lastWriteMode and apidata._lastWriteMode[msg.apiname]
+        local mode = api.getLastWriteMode and api.getLastWriteMode(msg.apiname)
         if not mode then return "" end
         return " mode=" .. tostring(mode)
     end
 
     if rwState == "READ" and ok == true then
-        local mode = apidata._lastReadMode and apidata._lastReadMode[msg.apiname]
+        local mode = api.getLastReadMode and api.getLastReadMode(msg.apiname)
         if not mode then return "" end
         return " mode=" .. tostring(mode)
     end

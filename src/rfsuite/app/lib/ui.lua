@@ -1079,6 +1079,9 @@ function ui.disableNavigationField(x)
 end
 
 function ui.cleanupCurrentPage()
+    local apiLoader = tasks and tasks.msp and tasks.msp.api
+    local pageApiData = apiLoader and apiLoader.getPageData and apiLoader.getPageData() or nil
+
     if preferences and preferences.developer and preferences.developer.memstats then
         local mem_kb = collectgarbage("count")
         local function tcount(t)
@@ -1087,8 +1090,6 @@ function ui.cleanupCurrentPage()
             for _ in pairs(t) do n = n + 1 end
             return n
         end
-        local apidata = tasks and tasks.msp and tasks.msp.api and tasks.msp.api.apidata
-        local apiLoader = tasks and tasks.msp and tasks.msp.api
         local cbq = tasks and tasks.callback and tasks.callback._queue
         local cacheStats = utils and utils.getCacheStats and utils.getCacheStats() or nil
         local pageLabel = (app and app.lastScript) or (app and app.Page and app.Page.pageTitle) or "?"
@@ -1105,12 +1106,12 @@ function ui.cleanupCurrentPage()
         utils.log(string.format(
             "[mem] cleanup start: %.1f KB | page=%s | apidata v=%d s=%d b=%d bc=%d p=%d o=%d | apiCache file=%d chunk=%d | help=%d gfx=%d mask=%d cbq=%d",
             mem_kb, tostring(pageLabel),
-            tcount(apidata and apidata.values),
-            tcount(apidata and apidata.structure),
-            tcount(apidata and apidata.receivedBytes),
-            tcount(apidata and apidata.receivedBytesCount),
-            tcount(apidata and apidata.positionmap),
-            tcount(apidata and apidata.other),
+            tcount(pageApiData and pageApiData.values),
+            tcount(pageApiData and pageApiData.structure),
+            tcount(pageApiData and pageApiData.receivedBytes),
+            tcount(pageApiData and pageApiData.receivedBytesCount),
+            tcount(pageApiData and pageApiData.positionmap),
+            tcount(pageApiData and pageApiData.other),
             tcount(apiLoader and apiLoader._fileExistsCache),
             tcount(apiLoader and apiLoader._chunkCache),
             tcount(ui._helpCache),
@@ -1133,22 +1134,12 @@ function ui.cleanupCurrentPage()
 
     if app.Page and app.Page.apidata then
         -- Drop cached MSP API data for just this page's APIs.
-        if tasks and tasks.msp and tasks.msp.api and tasks.msp.api.apidata and app.Page.apidata.api then
-            local apidata = tasks.msp.api.apidata
-            local clearEntry = tasks.msp.api.clearEntry
+        if apiLoader and app.Page.apidata.api then
+            local clearEntry = apiLoader.clearEntry
             for _, v in ipairs(app.Page.apidata.api) do
                 local apiKey = type(v) == "string" and v or v.name
-                if apiKey then
-                    if type(clearEntry) == "function" then
-                        clearEntry(apiKey)
-                    else
-                        if apidata.values then apidata.values[apiKey] = nil end
-                        if apidata.structure then apidata.structure[apiKey] = nil end
-                        if apidata.receivedBytes then apidata.receivedBytes[apiKey] = nil end
-                        if apidata.receivedBytesCount then apidata.receivedBytesCount[apiKey] = nil end
-                        if apidata.positionmap then apidata.positionmap[apiKey] = nil end
-                        if apidata.other then apidata.other[apiKey] = nil end
-                    end
+                if apiKey and type(clearEntry) == "function" then
+                    clearEntry(apiKey)
                 end
             end
         end
@@ -1201,8 +1192,6 @@ function ui.cleanupCurrentPage()
             for _ in pairs(t) do n = n + 1 end
             return n
         end
-        local apidata = tasks and tasks.msp and tasks.msp.api and tasks.msp.api.apidata
-        local apiLoader = tasks and tasks.msp and tasks.msp.api
         local cbq = tasks and tasks.callback and tasks.callback._queue
         local cacheStats = (logCache and utils and utils.getCacheStats and utils.getCacheStats()) or nil
         local pageLabel = (app and app.lastScript) or (app and app.Page and app.Page.pageTitle) or "?"
@@ -1232,12 +1221,12 @@ function ui.cleanupCurrentPage()
             utils.log(string.format(
                 "[mem] cleanup end: %.1f KB | page=%s | apidata v=%d s=%d b=%d bc=%d p=%d o=%d | apiCache file=%d chunk=%d | help=%d gfx=%d mask=%d cbq=%d%s",
                 mem_kb, tostring(pageLabel),
-                tcount(apidata and apidata.values),
-                tcount(apidata and apidata.structure),
-                tcount(apidata and apidata.receivedBytes),
-                tcount(apidata and apidata.receivedBytesCount),
-                tcount(apidata and apidata.positionmap),
-                tcount(apidata and apidata.other),
+                tcount(pageApiData and pageApiData.values),
+                tcount(pageApiData and pageApiData.structure),
+                tcount(pageApiData and pageApiData.receivedBytes),
+                tcount(pageApiData and pageApiData.receivedBytesCount),
+                tcount(pageApiData and pageApiData.positionmap),
+                tcount(pageApiData and pageApiData.other),
                 tcount(apiLoader and apiLoader._fileExistsCache),
                 tcount(apiLoader and apiLoader._chunkCache),
                 tcount(ui._helpCache),
@@ -2812,7 +2801,7 @@ end
 
 function ui.mspApiUpdateFormAttributes()
 
-    local apiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or tasks.msp.api.apidata
+    local apiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or nil
     local values = apiData and apiData.values
     local structure = apiData and apiData.structure
 
@@ -2980,8 +2969,6 @@ function ui.requestPage()
     end
     state.isProcessing = true
 
-    local pageApiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or tasks.msp.api.apidata
-
     if state.currentIndex == nil then state.currentIndex = 1 end
 
     local function checkForUnresolvedTimeouts()
@@ -3100,19 +3087,6 @@ function ui.requestPage()
             local data = API.data()
             if tasks.msp.api.setPageResult then
                 tasks.msp.api.setPageResult(apiKey, data, cacheEnabled)
-            else
-                pageApiData.values[apiKey] = data.parsed
-                pageApiData.structure[apiKey] = data.structure
-                if cacheEnabled == true then
-                    pageApiData.receivedBytes[apiKey] = data.buffer
-                    pageApiData.receivedBytesCount[apiKey] = data.receivedBytesCount
-                    pageApiData.positionmap[apiKey] = data.positionmap
-                else
-                    pageApiData.receivedBytes[apiKey] = nil
-                    pageApiData.receivedBytesCount[apiKey] = nil
-                    pageApiData.positionmap[apiKey] = nil
-                end
-                pageApiData.other[apiKey] = data.other or {}
             end
             app.Page.apidata.retryCount[apiKey] = 0
             state.currentIndex = state.currentIndex + 1
@@ -3179,7 +3153,7 @@ function ui.saveSettings(sourcePage)
 
     local mspapi = page.apidata
     local apiList = mspapi.api
-    local apiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or tasks.msp.api.apidata
+    local apiData = tasks.msp.api.getPageData and tasks.msp.api.getPageData() or nil
     local values = apiData and apiData.values
 
     local totalRequests = #apiList
