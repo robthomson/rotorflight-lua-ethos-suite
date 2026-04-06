@@ -68,7 +68,12 @@ return {
         mandatory = true,
         stats = false,
         set_telemetry_sensors = 90,
-        onchange = function(value) rfsuite.session.isArmed = (value == 1 or value == 3) end
+        onchange = function(value)
+            local armed = rfsuite.utils.armFlagsToIsArmed(value)
+            if armed ~= nil then
+                rfsuite.session.isArmed = armed
+            end
+        end
     },
 
     voltage = {
@@ -190,6 +195,15 @@ return {
         switch_alerts = true,
         unit = UNIT_MILLIAMPERE_HOUR,
         unit_string = "mAh",
+        default_telemetry_sensor = function()
+            return rfsuite.utils.apiVersionCompare(">=", {12, 0, 10})
+        end,
+        set_telemetry_sensors = function()
+            if rfsuite.utils.apiVersionCompare(">=", {12, 0, 10}) then
+                return 119
+            end
+            return nil
+        end,
     },
 
     consumption = {
