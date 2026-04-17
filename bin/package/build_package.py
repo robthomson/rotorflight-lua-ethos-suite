@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -16,7 +17,6 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src"
-DEFAULT_BUILD_ROOT = REPO_ROOT / "build" / "package"
 DEFAULT_PACKAGE_DIR = "rfsuite"
 
 MAIN_VERSION_RE = re.compile(
@@ -70,8 +70,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--build-root",
-        default=str(DEFAULT_BUILD_ROOT),
-        help="Scratch directory used for staging and packaging.",
+        help="Scratch directory used for staging and packaging. Defaults to a temporary directory.",
+    )
+    parser.add_argument(
+        "--keep-build-root",
+        action="store_true",
+        help="Keep the per-run scratch directory instead of deleting it after packaging.",
     )
     parser.add_argument(
         "--output-dir",
@@ -164,6 +168,16 @@ def remove_tree(path: Path) -> None:
             return
         time.sleep(0.1)
     raise OSError(f"Could not remove directory tree: {path}")
+
+
+def remove_empty_parents(path: Path, stop_at: Path) -> None:
+    current = path
+    while current != stop_at and current.exists():
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
 
 
 def stage_source_tree(stage_scripts_dir: Path) -> None:
@@ -278,44 +292,59 @@ def create_zip(package_root: Path, zip_path: Path) -> None:
 def main() -> int:
     args = parse_args()
 
-    build_root = Path(args.build_root).resolve()
     output_dir = Path(args.output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
     artifact_name = (
         args.artifact_name
         or f"rotorflight-lua-ethos-suite-{args.artifact_version}-{args.lang}.zip"
     )
+    zip_path = output_dir / artifact_name
 
-    lang_root = build_root / args.lang
+    using_temp_build_root = args.build_root is None
+    if using_temp_build_root:
+        build_root = Path(
+            tempfile.mkdtemp(prefix=f"rfsuite-package-{args.lang}-", dir=str(output_dir))
+        ).resolve()
+        lang_root = build_root
+    else:
+        build_root = Path(args.build_root).resolve()
+        lang_root = build_root / args.lang
+
     stage_scripts_dir = lang_root / "scripts"
     package_root = lang_root / "suite"
-    zip_path = output_dir / artifact_name
 
     base_version = read_base_version(SRC_ROOT / "rfsuite" / "main.lua")
     manifest_version = choose_manifest_version(
         args.manifest_version, args.artifact_version, base_version
     )
 
-    build_locale_json(args.lang)
-    stage_source_tree(stage_scripts_dir)
-    resolve_i18n(stage_scripts_dir, args.lang)
-    copy_sound_pack(stage_scripts_dir, args.lang)
-    update_staged_main_version(
-        stage_scripts_dir / args.package_dir / "main.lua", args.artifact_version
-    )
-    build_package_root(stage_scripts_dir, package_root, args.package_dir)
+    try:
+        build_locale_json(args.lang)
+        stage_source_tree(stage_scripts_dir)
+        resolve_i18n(stage_scripts_dir, args.lang)
+        copy_sound_pack(stage_scripts_dir, args.lang)
+        update_staged_main_version(
+            stage_scripts_dir / args.package_dir / "main.lua", args.artifact_version
+        )
+        build_package_root(stage_scripts_dir, package_root, args.package_dir)
 
-    files = collect_files(package_root)
-    release_notes = load_release_notes(args.release_notes_file, args.release_notes_format)
-    write_manifest(
-        package_root=package_root,
-        package_name=args.package_name,
-        package_key=args.package_key,
-        version=manifest_version,
-        folder=args.folder,
-        files=files,
-        release_notes=release_notes,
-    )
-    create_zip(package_root, zip_path)
+        files = collect_files(package_root)
+        release_notes = load_release_notes(args.release_notes_file, args.release_notes_format)
+        write_manifest(
+            package_root=package_root,
+            package_name=args.package_name,
+            package_key=args.package_key,
+            version=manifest_version,
+            folder=args.folder,
+            files=files,
+            release_notes=release_notes,
+        )
+        create_zip(package_root, zip_path)
+    finally:
+        if not args.keep_build_root:
+            remove_tree(lang_root)
+            if not using_temp_build_root:
+                remove_empty_parents(lang_root.parent, build_root.parent)
 
     print(f"[package] Created {zip_path}")
     print(

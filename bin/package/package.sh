@@ -11,12 +11,13 @@ Usage: package.sh [lang] [artifact-version] [extra build_package.py args...]
 Defaults:
   lang             en
   artifact-version local-test
-  build-root       REPO_ROOT/build/package
-  output-dir       REPO_ROOT/build/test-output
+  build-root       temporary scratch directory
+  output-dir       current directory
 
 Examples:
   ./package.sh
   ./package.sh en 2.3.0
+  ./package.sh en 2.3.0 --keep-build-root --build-root /tmp/rfsuite-package
   ./package.sh fr 2.3.0-20260208 --release-notes-file /tmp/Notes.md
 EOF
   exit 0
@@ -32,8 +33,6 @@ if [[ $# -gt 0 ]]; then
   shift
 fi
 
-OUTPUT_DIR="${REPO_ROOT}/build/test-output"
-BUILD_ROOT="${REPO_ROOT}/build/package"
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
 
@@ -49,6 +48,5 @@ echo "[package] artifact-version=${ARTIFACT_VERSION}"
 exec "${PYTHON_BIN}" "${SCRIPT_DIR}/build_package.py" \
   --lang "${LANGUAGE}" \
   --artifact-version "${ARTIFACT_VERSION}" \
-  --build-root "${BUILD_ROOT}" \
-  --output-dir "${OUTPUT_DIR}" \
+  --output-dir "$(pwd)" \
   "$@"

@@ -17,8 +17,6 @@ if "%ARTIFACT_VERSION%"=="" set "ARTIFACT_VERSION=local-test"
 if not "%~1"=="" shift
 if not "%~1"=="" shift
 
-set "OUTPUT_DIR=%REPO_ROOT%\build\test-output"
-set "BUILD_ROOT=%REPO_ROOT%\build\package"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 
@@ -35,8 +33,7 @@ echo [package] artifact-version=%ARTIFACT_VERSION%
 %PYTHON% "%SCRIPT_DIR%build_package.py" ^
     --lang "%LANGUAGE%" ^
     --artifact-version "%ARTIFACT_VERSION%" ^
-    --build-root "%BUILD_ROOT%" ^
-    --output-dir "%OUTPUT_DIR%" ^
+    --output-dir "%CD%" ^
     %*
 exit /b %errorlevel%
 
@@ -46,11 +43,12 @@ echo.
 echo Defaults:
 echo   lang             en
 echo   artifact-version local-test
-echo   build-root       REPO_ROOT\build\package
-echo   output-dir       REPO_ROOT\build\test-output
+echo   build-root       temporary scratch directory
+echo   output-dir       current directory
 echo.
 echo Examples:
 echo   package.cmd
 echo   package.cmd en 2.3.0
+echo   package.cmd en 2.3.0 --keep-build-root --build-root C:\temp\rfsuite-package
 echo   package.cmd fr 2.3.0-20260208 --release-notes-file C:\temp\Notes.md
 exit /b 0
