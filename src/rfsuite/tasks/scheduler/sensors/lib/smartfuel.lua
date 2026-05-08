@@ -27,20 +27,6 @@ local telemetry
 local lastMode = rfsuite.flightmode.current or "preflight"
 local currentMode = rfsuite.flightmode.current or "preflight"
 local lastSensorMode
-local lastLocalFuelStatus
-
-local function logSmartFuelStatus(status, detail)
-    if lastLocalFuelStatus == status then return end
-    lastLocalFuelStatus = status
-
-    local logger = rfsuite and rfsuite.utils and rfsuite.utils.log
-    if not logger then return end
-
-    local msg = "Smart Fuel local current: " .. status
-    if detail then msg = msg .. " (" .. detail .. ")" end
-    logger(msg, "info")
-    logger(msg, "connect")
-end
 
 local function normalizeBatteryProfileIndex(value)
     local n = tonumber(value)
@@ -101,19 +87,12 @@ local function resetVoltageTracking()
     voltageStabilised = false
 end
 
-local function startStabilizeDelay(now)
-    local delay = smartfuelprefs.getStabilizeDelaySeconds()
-    stabilizeNotBefore = (now or os_clock()) + delay
-    return delay
-end
-
 local function resetState()
     batteryConfigCache = nil
     fuelStartingPercent = nil
     fuelStartingConsumption = nil
     stabilizeNotBefore = nil
     lastSensorMode = nil
-    lastLocalFuelStatus = nil
     telemetry = nil
     currentMode = rfsuite.flightmode.current or "preflight"
     lastMode = currentMode
@@ -169,8 +148,7 @@ local function smartFuelCalc()
         fuelStartingPercent = nil
         fuelStartingConsumption = nil
         resetVoltageTracking()
-        local delay = startStabilizeDelay()
-        logSmartFuelStatus("battery config changed", "delay=" .. tostring(delay))
+        stabilizeNotBefore = os_clock() + smartfuelprefs.getStabilizeDelaySeconds()
     end
 
     local sensorMode = smartfuelprefs.getSource()
@@ -179,8 +157,7 @@ local function smartFuelCalc()
         fuelStartingConsumption = nil
         resetVoltageTracking()
         lastSensorMode = sensorMode
-        local delay = startStabilizeDelay()
-        logSmartFuelStatus("local source changed", "source=" .. tostring(sensorMode) .. " delay=" .. tostring(delay))
+        stabilizeNotBefore = os_clock() + smartfuelprefs.getStabilizeDelaySeconds()
         return nil
     end
 
@@ -189,7 +166,6 @@ local function smartFuelCalc()
     if not voltage or voltage < 2 then
         resetVoltageTracking()
         stabilizeNotBefore = nil
-        logSmartFuelStatus("waiting for voltage")
         return nil
     end
 
@@ -204,10 +180,9 @@ local function smartFuelCalc()
 
         resetVoltageTracking()
 
-        startStabilizeDelay(now)
+        stabilizeNotBefore = now + smartfuelprefs.getStabilizeDelaySeconds()
 
         lastMode = currentMode
-        logSmartFuelStatus("flight mode reset")
         return nil
     end
 
@@ -215,20 +190,17 @@ local function smartFuelCalc()
 
     voltageThreshold = smartfuelprefs.getStableWindowVolts()
 
-    if stabilizeNotBefore and now < stabilizeNotBefore then
-        logSmartFuelStatus("stabilizing")
-        return nil
-    end
+    if stabilizeNotBefore and now < stabilizeNotBefore then return nil end
 
     table_insert(lastVoltages, voltage)
     if #lastVoltages > maxVoltageSamples then table_remove(lastVoltages, 1) end
 
     if not voltageStabilised then
         if isVoltageStable() then
-            logSmartFuelStatus("voltage stabilized", "voltage=" .. tostring(voltage))
+            rfsuite.utils.log("Voltage stabilized at: " .. voltage, "info")
             voltageStabilised = true
         else
-            logSmartFuelStatus("waiting for stable voltage", "samples=" .. tostring(#lastVoltages))
+            rfsuite.utils.log("Waiting for voltage to stabilize...", "info")
             return nil
         end
     end
@@ -243,8 +215,7 @@ local function smartFuelCalc()
             fuelStartingPercent = nil
             fuelStartingConsumption = nil
             resetVoltageTracking()
-            startStabilizeDelay()
-            logSmartFuelStatus("voltage increased reset")
+            stabilizeNotBefore = os_clock() + smartfuelprefs.getStabilizeDelaySeconds()
             return nil
         end
     end
@@ -260,7 +231,6 @@ local function smartFuelCalc()
     if packCapacity < 10 or cellCount == 0 or maxCellV <= minCellV or fullCellV <= 0 then
         fuelStartingPercent = nil
         fuelStartingConsumption = nil
-        logSmartFuelStatus("invalid battery config", table.concat({tostring(packCapacity), tostring(cellCount), tostring(maxCellV), tostring(minCellV), tostring(fullCellV)}, "/"))
         return nil
     end
 
@@ -284,15 +254,13 @@ local function smartFuelCalc()
         local used = consumption - fuelStartingConsumption
         local percentUsed = used / usableCapacity * 100
         local remaining = math_max(0, 100 - percentUsed)
-        logSmartFuelStatus("ready", "consumption")
         return math_floor(math_min(100, remaining) + 0.5)
     else
 
         if not voltageStabilised or (stabilizeNotBefore and os_clock() < stabilizeNotBefore) then
-            logSmartFuelStatus("waiting for fallback fuel")
+            print("Voltage not stabilised or pre-stabilisation delay active, returning nil")
             return nil
         end
-        logSmartFuelStatus("ready", "voltage estimate")
         return fuelStartingPercent
     end
 end

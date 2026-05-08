@@ -24,6 +24,7 @@ local voltageThreshold = 0.15
 local telemetry
 local currentMode = rfsuite.flightmode.current or "preflight"
 local lastMode = currentMode
+local lastSensorMode
 
 local lastFuelPercent = nil
 local lastFuelTimestamp = nil
@@ -67,6 +68,7 @@ end
 local function resetState()
     batteryConfigCache = nil
     stabilizeNotBefore = nil
+    lastSensorMode = nil
     lastFuelPercent = nil
     lastFuelTimestamp = nil
     virtualConsumption = nil
@@ -198,6 +200,18 @@ local function smartFuelCalc()
 
     if not rfsuite.session.isConnected or not rfsuite.session.batteryConfig then
         resetState()
+        return nil
+    end
+
+    local sensorMode = smartfuelprefs.getSource()
+    if lastSensorMode ~= sensorMode then
+        lastFuelPercent = nil
+        lastFuelTimestamp = nil
+        virtualConsumption = nil
+        lastFilteredVoltage = nil
+        resetVoltageTracking()
+        lastSensorMode = sensorMode
+        stabilizeNotBefore = os_clock() + smartfuelprefs.getStabilizeDelaySeconds()
         return nil
     end
 

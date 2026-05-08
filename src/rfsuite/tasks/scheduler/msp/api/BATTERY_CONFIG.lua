@@ -23,7 +23,7 @@ local TBL_BATTERY_SOURCE = {
 }
 
 local TBL_SMARTFUEL_SOURCE = {
-    "OFF (LOCAL)",
+    "OFF",
     "CURRENT",
     "VOLTAGE"
 }
