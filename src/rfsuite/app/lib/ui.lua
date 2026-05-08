@@ -1145,6 +1145,10 @@ function ui.cleanupCurrentPage()
         ), "debug")
     end
 
+    -- Snapshot apidata before calling close() — some pages nil it inside close() which
+    -- would cause the cleanup block below to be silently skipped.
+    local _savedApidata = app.Page and app.Page.apidata
+
     -- Let the current page release resources.
     if app.Page then
         local hook = app.Page.close or app.Page.onClose or app.Page.destroy
@@ -1156,7 +1160,8 @@ function ui.cleanupCurrentPage()
         end
     end
 
-    if app.Page and app.Page.apidata then
+    if app.Page and _savedApidata then
+        app.Page.apidata = app.Page.apidata or _savedApidata
         -- Drop cached MSP API data for just this page's APIs.
         if tasks and tasks.msp and tasks.msp.api and tasks.msp.api.apidata and app.Page.apidata.api then
             local apidata = tasks.msp.api.apidata
@@ -1196,6 +1201,13 @@ function ui.cleanupCurrentPage()
         app.Page.apidata = nil
     end
 
+    -- Release Ethos-side form references before wiping Lua refs.
+    -- form.clear() causes Ethos to drop its C++ references to form field callback
+    -- closures synchronously, so the subsequent GC cycle can collect them along
+    -- with any page data they captured.  Without this, those closures survive until
+    -- the *next* navigation's GC run.
+    form.clear()
+
     wipeTable(app.formFields)
     wipeTable(app.formLines)
     wipeTable(app.formNavigationFields)
@@ -1208,6 +1220,7 @@ function ui.cleanupCurrentPage()
     app.fieldHelpTxt = nil
     app._fieldHelpSection = nil
     ui._helpCache = {}
+    ui._helpExistsCache = {}
     if tasks and tasks.msp and tasks.msp.api and tasks.msp.api.clearHelpCache then
         tasks.msp.api.clearHelpCache()
     end
