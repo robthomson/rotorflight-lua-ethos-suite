@@ -326,6 +326,8 @@ function ui.clearRuntimeCaches()
     if app then
         app._mainMenuPressHandlers = nil
         app._mainMenuPressSpecs = nil
+        app._menuContainerPressHandlers = nil
+        app._menuContainerPressSpecs = nil
         app._navButtonContext = nil
         app.headerTitle = nil
         app.headerParentBreadcrumb = nil
@@ -1242,6 +1244,7 @@ function ui.cleanupCurrentPage()
 
     app.Page = nil
 
+    collectgarbage('collect')
     collectgarbage('collect')
 
     local dev = preferences and preferences.developer
@@ -3257,6 +3260,7 @@ function ui.requestPage()
             handled = true
             if not app or not app.Page or not app.Page.apidata then
                 --log("App is closing. Skipping API success handling.", "debug")
+                API = nil
                 return
             end
             --log("[SUCCESS] API: " .. apiKey .. " completed successfully.", "debug")
@@ -3292,6 +3296,7 @@ function ui.requestPage()
             handled = true
             if not app or not app.Page or not app.Page.apidata then
                 --log("App is closing. Skipping API error handling.", "debug")
+                API = nil
                 return
             end
             retryCount = retryCount + 1
@@ -3402,7 +3407,7 @@ function ui.saveSettings(sourcePage)
                 API.setRebuildOnWrite(apiMeta.rebuildOnWrite)
             end
         end
-        API.setErrorHandler(function(self, buf) app.triggers.saveFailed = true end)
+        API.setErrorHandler(function(self, buf) API = nil; app.triggers.saveFailed = true end)
         API.setCompleteHandler(function(self, buf)
             completedRequests = completedRequests + 1
             --log("API " .. apiNAME .. " write complete", "debug")

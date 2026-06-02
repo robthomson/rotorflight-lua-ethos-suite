@@ -19,13 +19,14 @@ function helpers.governorMode(callback)
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
             local governorMode = API.readValue("gov_mode")
-            if governorMode then 
-                utils.log("Governor mode: " .. governorMode, "debug") 
+            if governorMode then
+                utils.log("Governor mode: " .. governorMode, "debug")
             end
             rfsuite.session.governorMode = governorMode
+            API = nil
             if callback then callback(governorMode) end
         end)
-        API.setUUID("e2a1c5b3-7f4a-4c8e-9d2a-3b6f8e2d9a1c")
+        API.setUUID(utils.uuid and utils.uuid() or tostring(os.clock()))
         API.read()
     else
         if callback then callback(rfsuite.session.governorMode) end    
@@ -39,12 +40,13 @@ function helpers.servoCount(callback)
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
         API.setCompleteHandler(function(self, buf)
             rfsuite.session.servoCount = API.readValue("servo_count")
-            if rfsuite.session.servoCount then 
-                utils.log("Servo count: " .. rfsuite.session.servoCount, "debug") 
-            end    
+            if rfsuite.session.servoCount then
+                utils.log("Servo count: " .. rfsuite.session.servoCount, "debug")
+            end
+            API = nil
             if callback then callback(rfsuite.session.servoCount) end
         end)
-        API.setUUID("d7e0db36-ca3c-4e19-9a64-40e76c78329c")
+        API.setUUID(utils.uuid and utils.uuid() or tostring(os.clock()))
         API.read()
     else
         if callback then callback(rfsuite.session.servoCount) end    
@@ -64,9 +66,10 @@ function helpers.servoOverride(callback)
                 end
             end
             if rfsuite.session.servoOverride == nil then rfsuite.session.servoOverride = false end
+            API = nil
             if callback then callback(rfsuite.session.servoOverride) end
         end)
-        API.setUUID("b9617ec3-5e01-468e-a7d5-ec7460d277ef")
+        API.setUUID(utils.uuid and utils.uuid() or tostring(os.clock()))
         API.read()
     else
         if callback then callback(rfsuite.session.servoOverride) end    
@@ -140,9 +143,10 @@ function helpers.mixerConfig(callback)
                 utils.log("Tail mode: " .. rfsuite.session.tailMode, "debug")
                 utils.log("Swash mode: " .. rfsuite.session.swashMode, "debug")
             end
-            if callback then callback(rfsuite.session.tailMode,rfsuite.session.swashMode) end
+            API = nil
+            if callback then callback(rfsuite.session.tailMode, rfsuite.session.swashMode) end
         end)
-        API.setUUID("fbccd634-c9b7-4b48-8c02-08ef560dc515")
+        API.setUUID(utils.uuid and utils.uuid() or tostring(os.clock()))
         API.read()
     else
         if callback then callback(rfsuite.session.tailMode,rfsuite.session.swashMode) end    

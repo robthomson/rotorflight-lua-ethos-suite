@@ -58,7 +58,7 @@ FIELD_SPEC[#FIELD_SPEC + 1] = {"drive_freq", "U8", 10, 24, 16, "KHz"}
 FIELD_SPEC[#FIELD_SPEC + 1] = {"motor_erpm_max", "U24", 0, 1000000, nil, nil, nil, nil, 100, nil, nil, nil, nil, "big"}
 
 if rfsuite.utils.apiVersionCompare(">=", {12, 0, 8}) then
-    FIELD_SPEC[#FIELD_SPEC + 1] = {"throttle_protocol", "U8", 0, 0, nil, nil, nil, nil, nil, nil, {"PWM"}, -1}
+    FIELD_SPEC[#FIELD_SPEC + 1] = {"throttle_protocol", "U8", 0, 2, nil, nil, nil, nil, nil, nil, {"PWM", "DShot", "Serial"}, -1}
     FIELD_SPEC[#FIELD_SPEC + 1] = {"telemetry_protocol", "U8", 0, 0, nil, nil, nil, nil, nil, nil, {"FLYROTOR"}, -1}
     FIELD_SPEC[#FIELD_SPEC + 1] = {"led_color_index", "U8", 0, #tblLed - 1, nil, nil, nil, nil, nil, nil, tblLed, -1}
     FIELD_SPEC[#FIELD_SPEC + 1] = {"led_color_rgb", "U24"}
@@ -97,7 +97,7 @@ local SIM_RESPONSE = core.simResponse({
     35, -- gov_i
     0, -- active_freewheel
     16, -- drive_freq
-    2, 23, 40, -- motor_erpm_max
+    1, 255, 184, -- motor_erpm_max
     0, -- throttle_protocol
     0, -- telemetry_protocol
     3, -- led_color_index
