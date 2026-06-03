@@ -15,10 +15,36 @@ local lastTrackTime = 0
 
 local os_clock = os.clock
 local math_huge = math.huge
+local math_floor = math.floor
+local math_abs = math.abs
 
-local inflightStartTime = nil
-local rpmStatDelay = 15
-local rpmReset = false
+local rpmStatsReady = false
+
+local function isGovernorAtHeadspeed(value)
+    return type(value) == "number" and math_floor(value) == 4
+end
+
+local function roundSigned(value)
+    if value >= 0 then return math_floor(value + 0.5) end
+    return -math_floor(-value + 0.5)
+end
+
+local function updateHeadspeedVariance(statsTable, rpm)
+    local session = rfsuite.session
+    if not session then return end
+
+    local rpmStats = statsTable and statsTable.rpm
+    local avg = rpmStats and rpmStats.avg
+    if type(rpm) ~= "number" or type(avg) ~= "number" or avg <= 0 then
+        session.headspeedVariancePct = nil
+        return
+    end
+
+    local variancePct = roundSigned((math_abs(rpm - avg) / avg) * 100)
+    if session.headspeedVariancePct ~= variancePct then
+        session.headspeedVariancePct = variancePct
+    end
+end
 
 local function buildFilteredList()
     filteredSensors = {}
@@ -44,8 +70,10 @@ function stats.wakeup()
     if not telemetry then return end
 
     if rfsuite.flightmode.current ~= "inflight" then
-        inflightStartTime = nil
-        rpmReset = false
+        if rfsuite.session then
+            rfsuite.session.headspeedVariancePct = nil
+        end
+        rpmStatsReady = false
         return
     end
 
@@ -65,20 +93,22 @@ function stats.wakeup()
         telemetry.sensorStats = statsTable
     end
 
-    if not inflightStartTime then
-        inflightStartTime = now
-        rpmReset = false
-    end
-
-    if not rpmReset and (now - inflightStartTime >= rpmStatDelay) then
+    local governorValue = telemetry.getSensor("governor")
+    if not rpmStatsReady and isGovernorAtHeadspeed(governorValue) then
         if filteredSensors["rpm"] then statsTable["rpm"] = nil end
-        rpmReset = true
+        rpmStatsReady = true
     end
 
-    for sensorKey, _ in pairs(filteredSensors) do
-        local val = telemetry.getSensor(sensorKey)
+    if not rpmStatsReady and rfsuite.session then
+        rfsuite.session.headspeedVariancePct = nil
+    end
 
-        if val and type(val) == "number" then
+    local rpmValue = nil
+    for sensorKey, _ in pairs(filteredSensors) do
+        local val = sensorKey == "governor" and governorValue or telemetry.getSensor(sensorKey)
+        if sensorKey == "rpm" then rpmValue = val end
+
+        if val and type(val) == "number" and (sensorKey ~= "rpm" or rpmStatsReady) then
             local entry = statsTable[sensorKey]
             if not entry then
                 entry = {min = math_huge, max = -math_huge, sum = 0, count = 0, avg = 0}
@@ -92,16 +122,22 @@ function stats.wakeup()
             entry.avg = entry.sum / entry.count
         end
     end
+
+    if rpmStatsReady then
+        updateHeadspeedVariance(statsTable, rpmValue)
+    end
 end
 
 function stats.reset()
     local telemetry = rfsuite.tasks.telemetry
     if telemetry then telemetry.sensorStats = {} end
+    if rfsuite.session then
+        rfsuite.session.headspeedVariancePct = nil
+    end
     fullSensorTable = nil
     filteredSensors = nil
     lastTrackTime = 0
-    inflightStartTime = nil
-    rpmReset = false
+    rpmStatsReady = false
 end
 
 return stats
