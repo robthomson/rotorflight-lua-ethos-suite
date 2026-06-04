@@ -48,6 +48,19 @@ local mspLastReq    = 0              -- Command ID we last sent
 local mspTxBuf      = {}             -- Outgoing payload buffer
 local mspTxIdx      = 1              -- Write pointer into TX buffer
 local mspTxCRC      = 0              -- Running CRC for V1
+local mspTxFrameBuf = {}             -- Reused protocol-sized TX frame scratch buffer
+
+local function clearArray(t)
+    for i = #t, 1, -1 do
+        t[i] = nil
+    end
+end
+
+local function trimArray(t, size)
+    for i = #t, size + 1, -1 do
+        t[i] = nil
+    end
+end
 
 -- Set protocol: only 1 or 2 are valid
 local function setProtocolVersion(v)
@@ -104,7 +117,7 @@ end
 
 -- Reset TX buffer state
 local function mspClearTxBuf()
-    mspTxBuf = {}
+    clearArray(mspTxBuf)
     mspTxIdx = 1
     mspTxCRC = 0
 end
@@ -113,7 +126,7 @@ end
 local function mspProcessTxQ()
     if #mspTxBuf == 0 then return false end
 
-    local payload = {}
+    local payload = mspTxFrameBuf
     payload[1] = _mkStatusByte(mspTxIdx == 1) -- Mark start of frame
     mspSeq = (mspSeq + 1) & 0x0F
 
@@ -132,11 +145,13 @@ local function mspProcessTxQ()
         if i <= limit then
             payload[i] = mspTxCRC
             for j = i + 1, limit do payload[j] = 0 end
-            mspTxBuf, mspTxIdx, mspTxCRC = {}, 1, 0
+            trimArray(payload, limit)
+            mspClearTxBuf()
             plog("TX", mspLastReq, payload, "ST=" .. tostring(payload[1] or 0) .. " TXIDX=" .. tostring(mspTxIdx) .. " TXBUF=" .. tostring(#mspTxBuf))
             proto().mspSend(payload)
             return false
         else
+            trimArray(payload, limit)
             plog("TX", mspLastReq, payload, "ST=" .. tostring(payload[1] or 0) .. " TXIDX=" .. tostring(mspTxIdx) .. " TXBUF=" .. tostring(#mspTxBuf))
             proto().mspSend(payload)
             return true
@@ -144,10 +159,11 @@ local function mspProcessTxQ()
     else
         -- V2 pads unused bytes but CRC is handled differently
         for j = i, limit do payload[j] = payload[j] or 0 end
-            plog("TX", mspLastReq, payload, "ST=" .. tostring(payload[1] or 0) .. " TXIDX=" .. tostring(mspTxIdx) .. " TXBUF=" .. tostring(#mspTxBuf))
-            proto().mspSend(payload)
+        trimArray(payload, limit)
+        plog("TX", mspLastReq, payload, "ST=" .. tostring(payload[1] or 0) .. " TXIDX=" .. tostring(mspTxIdx) .. " TXBUF=" .. tostring(#mspTxBuf))
+        proto().mspSend(payload)
         if mspTxIdx > #mspTxBuf then
-            mspTxBuf, mspTxIdx, mspTxCRC = {}, 1, 0
+            mspClearTxBuf()
             return false
         end
         return true
@@ -164,6 +180,7 @@ local function mspSendRequest(cmd, payload)
         mspTxBuf[1] = #payload
         mspTxBuf[2] = cmd & 0xFF
         for i = 1, #payload do mspTxBuf[i + 2] = payload[i] & 0xFF end
+        trimArray(mspTxBuf, #payload + 2)
     else
         -- V2: flags=0, CMD16, LEN16
         local len = #payload
@@ -171,8 +188,13 @@ local function mspSendRequest(cmd, payload)
         local cmd2 = math_floor(cmd / 256) % 256
         local len1 = len % 256
         local len2 = math_floor(len / 256) % 256
-        mspTxBuf = {0, cmd1, cmd2, len1, len2}
+        mspTxBuf[1] = 0
+        mspTxBuf[2] = cmd1
+        mspTxBuf[3] = cmd2
+        mspTxBuf[4] = len1
+        mspTxBuf[5] = len2
         for i = 1, len do mspTxBuf[#mspTxBuf + 1] = payload[i] % 256 end
+        trimArray(mspTxBuf, len + 5)
     end
 
     mspLastReq = cmd
@@ -193,7 +215,7 @@ local function _receivedReply(payload)
 
     if start then
         -- Start of new frame
-        mspRxBuf = {}
+        clearArray(mspRxBuf)
         mspRxError = (status & 0x80) ~= 0
 
         if _mspVersion == 2 then
@@ -221,7 +243,7 @@ local function _receivedReply(payload)
         -- Continuation frame: ensure sequencing is correct
         if (not mspStarted) or (((mspRemoteSeq + 1) & 0x0F) ~= seq) then
             mspStarted = false
-            mspRxBuf = {}
+            clearArray(mspRxBuf)
             mspRxSize = 0
             mspRxCRC = 0
             mspRemoteSeq = 0

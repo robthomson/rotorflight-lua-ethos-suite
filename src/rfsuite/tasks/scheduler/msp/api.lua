@@ -31,12 +31,39 @@ api._helpDataCache = {}
 api._deltaCacheDefault = true
 api._deltaCacheByApi = {}
 api._ported = {}
-api.apidata = {}
 api._core = nil
 
 local defaultApiPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api/"
 local defaultApiHelpPath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/apihelp/"
 local defaultCorePath = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/api/core.lua"
+
+local function wipeTable(t)
+    if type(t) ~= "table" then return end
+    for k in pairs(t) do
+        t[k] = nil
+    end
+end
+
+local function ensureApidata()
+    local d = api.apidata
+    if type(d) ~= "table" then
+        d = {}
+        api.apidata = d
+    end
+
+    d.values = d.values or {}
+    d.structure = d.structure or {}
+    d.receivedBytes = d.receivedBytes or {}
+    d.receivedBytesCount = d.receivedBytesCount or {}
+    d.positionmap = d.positionmap or {}
+    d.other = d.other or {}
+    d._lastReadMode = d._lastReadMode or {}
+    d._lastWriteMode = d._lastWriteMode or {}
+
+    return d
+end
+
+api.apidata = ensureApidata()
 
 local function logApiIo(apiName, op, source)
     if not (utils and utils.log) then return end
@@ -387,7 +414,7 @@ end
 function api.clearEntry(apiName)
     if type(apiName) ~= "string" or apiName == "" then return false end
 
-    local d = api.apidata
+    local d = ensureApidata()
     if type(d) == "table" then
         if d.values then d.values[apiName] = nil end
         if d.structure then d.structure[apiName] = nil end
@@ -403,28 +430,16 @@ function api.clearEntry(apiName)
 end
 
 function api.resetApidata()
-    local d = api.apidata
+    local d = ensureApidata()
 
-    if d.values then
-        for k in pairs(d.values) do d.values[k] = nil end
-    end
-    if d.structure then
-        for k in pairs(d.structure) do d.structure[k] = nil end
-    end
-    if d.receivedBytesCount then
-        for k in pairs(d.receivedBytesCount) do d.receivedBytesCount[k] = nil end
-    end
-    if d.receivedBytes then
-        for k in pairs(d.receivedBytes) do d.receivedBytes[k] = nil end
-    end
-    if d.positionmap then
-        for k in pairs(d.positionmap) do d.positionmap[k] = nil end
-    end
-    if d.other then
-        for k in pairs(d.other) do d.other[k] = nil end
-    end
-
-    api.apidata = {}
+    wipeTable(d.values)
+    wipeTable(d.structure)
+    wipeTable(d.receivedBytesCount)
+    wipeTable(d.receivedBytes)
+    wipeTable(d.positionmap)
+    wipeTable(d.other)
+    wipeTable(d._lastReadMode)
+    wipeTable(d._lastWriteMode)
 end
 
 function api.getFieldHelp(apiName, fieldName)
