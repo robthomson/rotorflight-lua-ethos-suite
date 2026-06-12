@@ -11,12 +11,13 @@ local system = system
 local utils = rfsuite.utils
 local helpers = {}
 
-function helpers.governorMode(callback)
+function helpers.governorMode(callback, owner)
     
     if (rfsuite.session.governorMode == nil ) then
         local msp = rfsuite.tasks.msp
         local API = msp and msp.api.load("GOVERNOR_CONFIG")
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
+        if API and owner and API.setOwner then API.setOwner(owner) end
         API.setCompleteHandler(function(self, buf)
             local governorMode = API.readValue("gov_mode")
             if governorMode then
@@ -33,11 +34,12 @@ function helpers.governorMode(callback)
     end
 end
 
-function helpers.servoCount(callback)
+function helpers.servoCount(callback, owner)
     if (rfsuite.session.servoCount == nil) then
         local msp = rfsuite.tasks.msp
         local API = msp and msp.api.load("STATUS")
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
+        if API and owner and API.setOwner then API.setOwner(owner) end
         API.setCompleteHandler(function(self, buf)
             rfsuite.session.servoCount = API.readValue("servo_count")
             if rfsuite.session.servoCount then
@@ -53,11 +55,12 @@ function helpers.servoCount(callback)
     end
 end
 
-function helpers.servoOverride(callback)
+function helpers.servoOverride(callback, owner)
     if (rfsuite.session.servoOverride == nil) then
         local msp = rfsuite.tasks.msp
         local API = msp and msp.api.load("SERVO_OVERRIDE")
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
+        if API and owner and API.setOwner then API.setOwner(owner) end
         API.setCompleteHandler(function(self, buf)
             for i, v in pairs(API.data().parsed) do
                 if v == 0 then
@@ -77,7 +80,7 @@ function helpers.servoOverride(callback)
 end
 
 
-function helpers.servoBusEnabled(callback)
+function helpers.servoBusEnabled(callback, owner)
 
     local FBUS_FUNCTIONMASK = 524288
     local SBUS_FUNCTIONMASK = 262144
@@ -114,7 +117,8 @@ function helpers.servoBusEnabled(callback)
                 rfsuite.session.servoBusEnabled  = processSerialConfig(data)
                 if callback then callback(rfsuite.session.servoBusEnabled) end
             end,
-            simulatorResponse = {20 , 1  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 0  , 0  , 0  , 8  , 0  , 5  , 4  , 0  , 5  , 1  , 0  , 4  , 0  , 0  , 5  , 4  , 0  , 5  , 2  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 3  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 4  , 64 , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 5  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  }
+            simulatorResponse = {20 , 1  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 0  , 0  , 0  , 8  , 0  , 5  , 4  , 0  , 5  , 1  , 0  , 4  , 0  , 0  , 5  , 4  , 0  , 5  , 2  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 3  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 4  , 64 , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 5  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  },
+            _busOwner = owner
         }
         rfsuite.tasks.msp.mspQueue:add(message)
     else
@@ -122,11 +126,12 @@ function helpers.servoBusEnabled(callback)
     end
 end
 
-function helpers.mixerConfig(callback)
+function helpers.mixerConfig(callback, owner)
     if (rfsuite.session.tailMode == nil or rfsuite.session.swashMode == nil) then
         local msp = rfsuite.tasks.msp
         local API = msp and msp.api.load("MIXER_CONFIG")
         if API and API.enableDeltaCache then API.enableDeltaCache(false) end
+        if API and owner and API.setOwner then API.setOwner(owner) end
         API.setCompleteHandler(function(self, buf)
             rfsuite.session.tailMode = API.readValue("tail_rotor_mode")
             rfsuite.session.swashMode = API.readValue("swash_type")
@@ -153,16 +158,16 @@ function helpers.mixerConfig(callback)
     end
 end
 
-function helpers.tailMode(callback)
+function helpers.tailMode(callback, owner)
     helpers.mixerConfig(function(tailMode, swashMode)
         if callback then callback(tailMode) end
-    end)
+    end, owner)
 end
 
-function helpers.swashMode(callback)
+function helpers.swashMode(callback, owner)
     helpers.mixerConfig(function(tailMode, swashMode)
         if callback then callback(swashMode) end
-    end)
+    end, owner)
 end
 
 

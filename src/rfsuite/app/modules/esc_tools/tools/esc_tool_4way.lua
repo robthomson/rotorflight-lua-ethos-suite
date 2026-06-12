@@ -488,7 +488,7 @@ local function ensureTailMode(callback)
             waitingTailMode = false
             pendingTailModeResolve = true
             if callback then callback(tailMode) end
-        end)
+        end, rfsuite.app and rfsuite.app.lastScript)
         return
     end
     if callback then callback(rfsuite.session and rfsuite.session.tailMode or nil) end

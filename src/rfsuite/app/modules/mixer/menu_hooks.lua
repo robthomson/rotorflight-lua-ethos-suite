@@ -105,7 +105,7 @@ return {
                 rfsuite.tasks.msp.helpers.mixerConfig(function(tailMode, swashMode)
                     rfsuite.utils.log("Received tail mode: " .. tostring(tailMode), "info")
                     rfsuite.utils.log("Received swash mode: " .. tostring(swashMode), "info")
-                end)
+                end, rfsuite.app and rfsuite.app.lastScript)
             end
             return true
         end
