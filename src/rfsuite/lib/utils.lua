@@ -164,8 +164,14 @@ function utils.queueEepromWrite(opts)
     local completeHandler = opts.completeHandler or opts.processReply
     local errorHandler = opts.errorHandler
     local uuid = opts.uuid
+    local owner = opts.owner
+    if owner == nil then
+        local app = rfsuite.app
+        owner = app and app.lastScript
+    end
 
     if uuid and api.setUUID then api.setUUID(uuid) end
+    if owner and api.setOwner then api.setOwner(owner) end
     if type(completeHandler) == "function" then api.setCompleteHandler(completeHandler) end
     if type(errorHandler) == "function" then api.setErrorHandler(errorHandler) end
 
