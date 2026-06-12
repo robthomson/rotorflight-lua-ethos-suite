@@ -139,7 +139,8 @@ return core.createCustomAPI({
                 end,
                 simulatorResponse = {},
                 uuid = baseUuid,
-                timeout = timeout
+                timeout = timeout,
+                _busOwner = state.owner
             })
         end
 
@@ -174,7 +175,8 @@ return core.createCustomAPI({
                 end,
                 simulatorResponse = {},
                 uuid = tostring(baseUuid) .. "-" .. tostring(item.index + 1),
-                timeout = timeout
+                timeout = timeout,
+                _busOwner = state.owner
             }
 
             local ok, reason = queue:add(message)
