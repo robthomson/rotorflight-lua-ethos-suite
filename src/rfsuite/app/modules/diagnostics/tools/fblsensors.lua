@@ -323,7 +323,7 @@ local function queueRead(command, apiname, parser, simulatorResponse)
     state.pending = apiname
     state.pendingAt = osClock()
 
-    return tasks.msp.mspQueue:add({
+    return tasks.msp.mspQueue:addPage({
         command = command,
         apiname = apiname,
         uuid = "fblsensors." .. apiname,

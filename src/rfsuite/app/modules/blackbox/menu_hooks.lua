@@ -53,7 +53,7 @@ end
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:add(message)
+    return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
 local function onPrereqDone()
@@ -87,7 +87,7 @@ local function requestBlackboxPrereqs()
     }
     blackboxFocused = false
 
-    local FAPI = rfsuite.tasks.msp.api.load("FEATURE_CONFIG")
+    local FAPI = rfsuite.tasks.msp.api.loadPage("FEATURE_CONFIG")
     FAPI.setUUID("blackbox-menu-feature")
     FAPI.setCompleteHandler(function()
         local d = FAPI.data()
@@ -102,7 +102,7 @@ local function requestBlackboxPrereqs()
     end)
     FAPI.read()
 
-    local BAPI = rfsuite.tasks.msp.api.load("BLACKBOX_CONFIG")
+    local BAPI = rfsuite.tasks.msp.api.loadPage("BLACKBOX_CONFIG")
     BAPI.setUUID("blackbox-menu-config")
     BAPI.setCompleteHandler(function()
         local d = BAPI.data()

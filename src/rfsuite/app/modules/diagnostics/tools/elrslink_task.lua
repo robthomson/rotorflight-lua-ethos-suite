@@ -622,7 +622,7 @@ local function syncElrsToRotorflight(fcConfig, moduleRate, moduleRateText, modul
 
     local writeBuffer = copyNumericBuffer(sourceBuffer)
     local api = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.api and rfsuite.tasks.msp.api.load
-        and rfsuite.tasks.msp.api.load(TELEMETRY_CONFIG_API_NAME)
+        and rfsuite.tasks.msp.api.loadPage(TELEMETRY_CONFIG_API_NAME)
 
     if not writeBuffer or not api then
         rfsuite.utils.log("ELRS sync could not open the Rotorflight telemetry configuration for writing", "info")

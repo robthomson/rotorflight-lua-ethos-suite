@@ -35,7 +35,7 @@ end
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:add(message)
+    return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
 local function servoCenterFocusAllOn(self)

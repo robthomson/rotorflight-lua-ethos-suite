@@ -3227,7 +3227,7 @@ function ui.requestPage()
             enableDeltaCache = nil
         end
 
-        local API = tasks.msp.api.load(apiKey, {loadHelp = true})
+        local API = tasks.msp.api.loadPage(apiKey, {loadHelp = true})
         if API and API.setOwner and app.lastScript then
             API.setOwner(app.lastScript)
         end
@@ -3397,7 +3397,7 @@ function ui.saveSettings(sourcePage)
         local payloadData = values[apiNAME]
         local payloadStructure = tasks.msp.api.apidata.structure[apiNAME]
 
-        local API = tasks.msp.api.load(apiNAME)
+        local API = tasks.msp.api.loadPage(apiNAME)
         if API and API.setOwner and app.lastScript then
             API.setOwner(app.lastScript)
         end
@@ -3542,7 +3542,7 @@ end
 
 function ui.rebootFc(sourcePage)
     local rebootPage = sourcePage or app.Page
-    local rebootAPI = tasks and tasks.msp and tasks.msp.api and tasks.msp.api.load and tasks.msp.api.load("REBOOT")
+    local rebootAPI = tasks and tasks.msp and tasks.msp.api and tasks.msp.api.loadPage and tasks.msp.api.loadPage("REBOOT")
     if not rebootAPI then
         app.pageState = app.pageStatus.display
         app.triggers.closeSaveFake = true

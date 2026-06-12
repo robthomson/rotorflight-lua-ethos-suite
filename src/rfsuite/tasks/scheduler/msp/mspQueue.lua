@@ -730,6 +730,17 @@ function MspQueueController:add(message)
     return true, "queued", toQueue._qid, pending
 end
 
+function MspQueueController:addPage(message)
+    if type(message) == "table" then
+        local pageScript = rfsuite.app and rfsuite.app.lastScript
+        if pageScript then
+            message._pageScript = message._pageScript or pageScript
+            message._busOwner = message._busOwner or pageScript
+        end
+    end
+    return self:add(message)
+end
+
 -- Estimate byte cost of pending messages
 function MspQueueController:pendingByteCost()
     local total = 0

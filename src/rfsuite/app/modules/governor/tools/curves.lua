@@ -36,7 +36,7 @@ local function saveData()
         return
     end
 
-    local API = tasks.msp.api.load("GOVERNOR_CONFIG")
+    local API = tasks.msp.api.loadPage("GOVERNOR_CONFIG")
     if not API then
         rfutils.log("Save failed: GOVERNOR_CONFIG API unavailable", "error")
         app.triggers.closeProgressLoader = true
@@ -101,7 +101,7 @@ local function loadData()
             return dst
         end
 
-        local API = tasks.msp.api.load("GOVERNOR_CONFIG")
+        local API = tasks.msp.api.loadPage("GOVERNOR_CONFIG")
         API.setCompleteHandler(function(self, buf)
 
             -- store form data

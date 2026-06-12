@@ -32,7 +32,7 @@ local MSP125_READ_BASE_INDEX = 8  -- Base index expected by MSP 125 read-index n
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:add(message)
+    return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
 local function uiIndexToReadIndex(ui0)

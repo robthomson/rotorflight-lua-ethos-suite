@@ -215,7 +215,7 @@ local function requestData(forceApiRead)
 
     state.pendingReads = 2
 
-    local FAPI = tasks.msp.api.load("FEATURE_CONFIG")
+    local FAPI = tasks.msp.api.loadPage("FEATURE_CONFIG")
     FAPI.setUUID("blackbox-logging-feature")
     FAPI.setCompleteHandler(function()
         local d = FAPI.data()
@@ -226,7 +226,7 @@ local function requestData(forceApiRead)
     FAPI.setErrorHandler(function() onReadDone() end)
     FAPI.read()
 
-    local BAPI = tasks.msp.api.load("BLACKBOX_CONFIG")
+    local BAPI = tasks.msp.api.loadPage("BLACKBOX_CONFIG")
     BAPI.setUUID("blackbox-logging-config")
     BAPI.setCompleteHandler(function()
         local d = BAPI.data()
@@ -259,7 +259,7 @@ local function performSave()
     state.saving = true
     app.ui.progressDisplaySave("@i18n(app.modules.blackbox.saving)@")
 
-    local API = tasks.msp.api.load("BLACKBOX_CONFIG")
+    local API = tasks.msp.api.loadPage("BLACKBOX_CONFIG")
     API.setUUID("blackbox-logging-write")
     API.setErrorHandler(function()
         state.saving = false

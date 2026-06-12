@@ -340,12 +340,12 @@ local function servoCenterFocusAllOn(self)
     if rfsuite.utils.apiVersionCompare(">=", {12, 0, 9}) then
             local message = {command = 196, payload = {}}
             rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 0)
-            rfsuite.tasks.msp.mspQueue:add(message)
+            rfsuite.tasks.msp.mspQueue:addPage(message)
     else
         for i = 0, #servoTable do
             local message = {command = 193, payload = {i}}
             rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 0)
-            rfsuite.tasks.msp.mspQueue:add(message)
+            rfsuite.tasks.msp.mspQueue:addPage(message)
         end
     end    
 
@@ -359,12 +359,12 @@ local function servoCenterFocusAllOff(self)
     if rfsuite.utils.apiVersionCompare(">=", {12, 0, 9}) then
             local message = {command = 196, payload = {}}
             rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 2001)
-            rfsuite.tasks.msp.mspQueue:add(message)
+            rfsuite.tasks.msp.mspQueue:addPage(message)
     else
         for i = 0, #servoTable do
             local message = {command = 193, payload = {i}}
             rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 2001)
-            rfsuite.tasks.msp.mspQueue:add(message)
+            rfsuite.tasks.msp.mspQueue:addPage(message)
         end
     end    
     rfsuite.app.triggers.isReady = true

@@ -173,7 +173,7 @@ local function requestData(forceApiRead)
 
     state.pendingReads = 1
 
-    local API = tasks.msp.api.load("BEEPER_CONFIG")
+    local API = tasks.msp.api.loadPage("BEEPER_CONFIG")
     API.setUUID("beepers-config-main")
     API.setCompleteHandler(function()
         local d = API.data()
@@ -201,7 +201,7 @@ local function performSave()
     state.saving = true
     app.ui.progressDisplaySave("@i18n(app.modules.beepers.saving)@")
 
-    local API = tasks.msp.api.load("BEEPER_CONFIG")
+    local API = tasks.msp.api.loadPage("BEEPER_CONFIG")
     API.setUUID("beepers-config-write")
     API.setErrorHandler(function()
         state.saving = false

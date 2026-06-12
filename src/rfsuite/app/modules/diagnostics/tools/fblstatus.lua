@@ -31,7 +31,7 @@ local displayPos = {x = x - buttonW - buttonWs - 5 - buttonWs, y = app.radio.lin
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return tasks.msp.mspQueue:add(message)
+    return tasks.msp.mspQueue:addPage(message)
 end
 
 local function setFieldValue(idx, value)

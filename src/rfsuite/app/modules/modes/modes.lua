@@ -37,7 +37,7 @@ local state = {
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:add(message)
+    return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
 local function clamp(value, minValue, maxValue)
@@ -422,7 +422,7 @@ local function setLoadError(reason)
 end
 
 local function readModeRangesExtra()
-    local API = rfsuite.tasks.msp.api.load("MODE_RANGES_EXTRA")
+    local API = rfsuite.tasks.msp.api.loadPage("MODE_RANGES_EXTRA")
     if not API then
         setLoadError("MODE_RANGES_EXTRA API unavailable")
         return
@@ -447,7 +447,7 @@ local function readModeRangesExtra()
 end
 
 local function readModeRanges()
-    local API = rfsuite.tasks.msp.api.load("MODE_RANGES")
+    local API = rfsuite.tasks.msp.api.loadPage("MODE_RANGES")
     if not API then
         setLoadError("MODE_RANGES API unavailable")
         return
@@ -466,7 +466,7 @@ local function readModeRanges()
 end
 
 local function readBoxNames()
-    local API = rfsuite.tasks.msp.api.load("BOXNAMES")
+    local API = rfsuite.tasks.msp.api.loadPage("BOXNAMES")
     if not API then
         setLoadError("BOXNAMES API unavailable")
         return
@@ -485,7 +485,7 @@ local function readBoxNames()
 end
 
 local function readBoxIds()
-    local API = rfsuite.tasks.msp.api.load("BOXIDS")
+    local API = rfsuite.tasks.msp.api.loadPage("BOXIDS")
     if not API then
         setLoadError("BOXIDS API unavailable")
         return

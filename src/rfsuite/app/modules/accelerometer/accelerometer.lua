@@ -45,7 +45,7 @@ local function onToolMenu(self)
 end
 
 local function applySettings()
-    local EAPI = rfsuite.tasks.msp.api.load("EEPROM_WRITE")
+    local EAPI = rfsuite.tasks.msp.api.loadPage("EEPROM_WRITE")
     EAPI.setUUID("accel-eeprom")
     EAPI.setCompleteHandler(function(self)
         rfsuite.utils.log("Writing to EEPROM", "info")
@@ -70,7 +70,7 @@ local function wakeup()
             simulatorResponse = {},
             uuid = "accelerometer-calibration"
         }
-        local ok = rfsuite.tasks.msp.mspQueue:add(message)
+        local ok = rfsuite.tasks.msp.mspQueue:addPage(message)
         if ok then
             calibrateQueued = true
         end

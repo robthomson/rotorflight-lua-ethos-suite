@@ -159,7 +159,7 @@ end
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:add(message)
+    return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
 local function clamp(value, minValue, maxValue)
@@ -676,7 +676,7 @@ local function readAdjustmentFunctions(onComplete, onError)
         return
     end
 
-    local API = rfsuite.tasks.msp.api.load("GET_ADJUSTMENT_FUNCTION_IDS")
+    local API = rfsuite.tasks.msp.api.loadPage("GET_ADJUSTMENT_FUNCTION_IDS")
     if not API then
         state.supportsAdjustmentFunctions = false
         if onError then onError("GET_ADJUSTMENT_FUNCTION_IDS API unavailable") end
@@ -715,7 +715,7 @@ local function applyAdjustmentFunctions(functions)
 end
 
 local function readAdjustmentRangesBulk(onComplete, onError)
-    local API = rfsuite.tasks.msp.api.load("ADJUSTMENT_RANGES")
+    local API = rfsuite.tasks.msp.api.loadPage("ADJUSTMENT_RANGES")
     if not API then
         if onError then onError("ADJUSTMENT_RANGES API unavailable") end
         return

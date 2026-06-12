@@ -74,7 +74,7 @@ local LAYOUT = {
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:add(message)
+    return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
 local function formDigest()
@@ -368,7 +368,7 @@ local function loadNext(i)
     return
   end
 
-  local API = rfsuite.tasks.msp.api.load(IDX)
+  local API = rfsuite.tasks.msp.api.loadPage(IDX)
   API.setCompleteHandler(function(self, buf)
         APIDATA[IDX] = {}
 
@@ -469,7 +469,7 @@ local function writeNext(i, commitToEeprom)
     local apikey = sequence[i]
     if not apikey then
         if commitToEeprom then
-            local EAPI = rfsuite.tasks.msp.api.load("EEPROM_WRITE")
+            local EAPI = rfsuite.tasks.msp.api.loadPage("EEPROM_WRITE")
             EAPI.setUUID("swashgeo-eeprom")
             EAPI.setCompleteHandler(function(self)
                 rfsuite.utils.log("Writing to EEPROM", "info")
@@ -501,7 +501,7 @@ local function writeNext(i, commitToEeprom)
         return
     end
 
-    local API = rfsuite.tasks.msp.api.load(apikey)
+    local API = rfsuite.tasks.msp.api.loadPage(apikey)
     API.setRebuildOnWrite(true)
 
     API.setCompleteHandler(function(self, buf)

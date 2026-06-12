@@ -166,7 +166,7 @@ local function requestAttitude()
     local sim = system.getVersion().simulation
     local simResponse = sim and buildSimulatedAttitudeResponse(now) or {}
 
-    return tasks.msp.mspQueue:add({
+    return tasks.msp.mspQueue:addPage({
         command = MSP_ATTITUDE,
         uuid = "alignment.attitude",
         processReply = function(_, buf)
@@ -204,8 +204,8 @@ end
 local function readData()
     state.dataLoaded = false
 
-    local boardAPI = tasks.msp.api.load("BOARD_ALIGNMENT_CONFIG")
-    local sensorAPI = tasks.msp.api.load("SENSOR_ALIGNMENT")
+    local boardAPI = tasks.msp.api.loadPage("BOARD_ALIGNMENT_CONFIG")
+    local sensorAPI = tasks.msp.api.loadPage("SENSOR_ALIGNMENT")
     if not boardAPI or not sensorAPI then
         rfsuite.utils.log("Alignment read failed: API unavailable", "error")
         return
@@ -248,9 +248,9 @@ local function writeData()
     app.ui.progressDisplay("@i18n(app.msg_saving_settings)@", "@i18n(app.msg_saving_to_fbl)@")
     clearMspQueue()
 
-    local boardAPI = tasks.msp.api.load("BOARD_ALIGNMENT_CONFIG")
-    local sensorAPI = tasks.msp.api.load("SENSOR_ALIGNMENT")
-    local eepromAPI = tasks.msp.api.load("EEPROM_WRITE")
+    local boardAPI = tasks.msp.api.loadPage("BOARD_ALIGNMENT_CONFIG")
+    local sensorAPI = tasks.msp.api.loadPage("SENSOR_ALIGNMENT")
+    local eepromAPI = tasks.msp.api.loadPage("EEPROM_WRITE")
 
     if not boardAPI or not sensorAPI or not eepromAPI then
         state.saving = false
@@ -300,7 +300,7 @@ local function writeData()
 end
 
 requestRebootAfterSave = function()
-    local rebootAPI = tasks and tasks.msp and tasks.msp.api and tasks.msp.api.load and tasks.msp.api.load("REBOOT")
+    local rebootAPI = tasks and tasks.msp and tasks.msp.api and tasks.msp.api.loadPage and tasks.msp.api.loadPage("REBOOT")
     if not rebootAPI then
         if app and app.utils and app.utils.invalidatePages then app.utils.invalidatePages() end
         return
