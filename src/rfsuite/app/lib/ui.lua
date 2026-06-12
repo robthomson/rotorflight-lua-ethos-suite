@@ -1208,11 +1208,15 @@ function ui.cleanupCurrentPage()
         app.Page.apidata = nil
     end
 
-    -- Remove queued (not in-flight) MSP messages that belong to this page.
-    -- The in-flight currentMessage runs to completion; its callbacks guard against
-    -- a nil app.Page so stale execution is harmless.
+    -- Remove queued MSP messages and bus handlers that belong to this page.
+    -- If a page-owned message is already in flight, the queue can still complete it
+    -- without retaining or calling the page closure.
     if app.lastScript and tasks and tasks.msp and tasks.msp.mspQueue then
         local scriptToFlush = app.lastScript
+        local bus = tasks.msp.bus
+        if bus and bus.releaseOwner then
+            bus.releaseOwner(scriptToFlush)
+        end
         tasks.msp.mspQueue:removeQueuedBy(function(msg)
             return msg._pageScript == scriptToFlush
         end)

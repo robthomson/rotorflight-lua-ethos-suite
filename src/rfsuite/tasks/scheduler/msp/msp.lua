@@ -25,6 +25,9 @@ local telemetryTypeChanged = false -- Set when switching CRSF/S.Port/etc.
 
 local mspQueue
 
+local busEnv = setmetatable({}, {__index = _G})
+msp.bus = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/message_bus.lua", "t", busEnv))()
+
 -- Protocol parameters for current telemetry type
 msp.protocol = protocol.getProtocol()
 
@@ -208,6 +211,7 @@ end
 -- Reset MSP state and transport
 function msp.reset()
     mspQueue:clear()
+    if msp.bus and msp.bus.reset then msp.bus.reset() end
     msp.activeProtocol = nil
     msp.onConnectChecksInit = true
     delayStartTime = nil
