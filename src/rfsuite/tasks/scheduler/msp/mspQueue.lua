@@ -707,7 +707,7 @@ function MspQueueController:add(message)
     if pageScript then toQueue._pageScript = pageScript end
     local bus = getBus()
     if bus and bus.register then
-        local owner = toQueue._busOwner or toQueue.owner or pageScript
+        local owner = toQueue._busOwner or toQueue.owner
         if type(toQueue.processReply) == "function" then
             toQueue._processReplyHandler = bus.register(toQueue.processReply, owner)
             toQueue.processReply = nil

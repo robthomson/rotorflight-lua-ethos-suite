@@ -438,7 +438,8 @@ function core.createReadOnlyAPI(spec)
     local state = {
         mspData = nil,
         timeout = nil,
-        uuid = nil
+        uuid = nil,
+        owner = nil
     }
     local onError
 
@@ -513,6 +514,7 @@ function core.createReadOnlyAPI(spec)
             simulatorResponse = spec.simulatorResponseRead,
             timeout = state.timeout,
             uuid = state.uuid,
+            _busOwner = state.owner,
             retryOnErrorReply = (spec.readRetryOnErrorReply == true),
             retryBackoff = spec.readRetryBackoff,
             completeOnErrorReplyAttempt = spec.readCompleteOnErrorReplyAttempt
@@ -563,6 +565,10 @@ function core.createReadOnlyAPI(spec)
         state.timeout = timeout
     end
 
+    local function setOwner(owner)
+        state.owner = owner
+    end
+
     local function setValue()
     end
 
@@ -585,6 +591,7 @@ function core.createReadOnlyAPI(spec)
         setErrorHandler = setErrorHandler,
         setUUID = setUUID,
         setTimeout = setTimeout,
+        setOwner = setOwner,
         setRebuildOnWrite = setRebuildOnWrite,
         __rfReadStructure = {},
         __rfWriteStructure = {}
@@ -639,6 +646,7 @@ function core.createConfigAPI(spec)
         payloadData = {},
         timeout = nil,
         uuid = nil,
+        owner = nil,
         rebuildOnWrite = (spec.initialRebuildOnWrite == true)
     }
 
@@ -731,6 +739,7 @@ function core.createConfigAPI(spec)
             simulatorResponse = spec.simulatorResponseRead,
             timeout = state.timeout,
             uuid = state.uuid,
+            _busOwner = state.owner,
             retryOnErrorReply = (spec.readRetryOnErrorReply == true),
             retryBackoff = spec.readRetryBackoff,
             completeOnErrorReplyAttempt = spec.readCompleteOnErrorReplyAttempt
@@ -784,7 +793,8 @@ function core.createConfigAPI(spec)
             errorHandler = dispatchError,
             simulatorResponse = spec.simulatorResponseWrite or EMPTY_SIM_RESPONSE,
             timeout = state.timeout,
-            uuid = resolveWriteUUID(spec, state)
+            uuid = resolveWriteUUID(spec, state),
+            _busOwner = state.owner
         }
 
         local writeUuidResolver = spec.resolveWriteUUID
@@ -837,6 +847,10 @@ function core.createConfigAPI(spec)
         state.timeout = timeout
     end
 
+    local function setOwner(owner)
+        state.owner = owner
+    end
+
     local function setRebuildOnWrite(rebuild)
         state.rebuildOnWrite = (rebuild == true)
     end
@@ -854,6 +868,7 @@ function core.createConfigAPI(spec)
         setErrorHandler = setErrorHandler,
         setUUID = setUUID,
         setTimeout = setTimeout,
+        setOwner = setOwner,
         setRebuildOnWrite = setRebuildOnWrite,
         __rfReadStructure = readStructure,
         __rfWriteStructure = writeStructure
@@ -894,6 +909,7 @@ function core.createCustomAPI(spec)
         payloadData = {},
         uuid = nil,
         timeout = nil,
+        owner = nil,
         rebuildOnWrite = (spec.initialRebuildOnWrite == true)
     }
 
@@ -991,6 +1007,7 @@ function core.createCustomAPI(spec)
             simulatorResponse = resolveSimulatorResponse(spec.simulatorResponseRead or EMPTY_SIM_RESPONSE, state, "read", ...),
             uuid = state.uuid,
             timeout = state.timeout,
+            _busOwner = state.owner,
             retryOnErrorReply = (spec.readRetryOnErrorReply == true),
             retryBackoff = spec.readRetryBackoff,
             completeOnErrorReplyAttempt = spec.readCompleteOnErrorReplyAttempt
@@ -1061,7 +1078,8 @@ function core.createCustomAPI(spec)
             errorHandler = dispatchError,
             simulatorResponse = resolveSimulatorResponse(spec.simulatorResponseWrite or EMPTY_SIM_RESPONSE, state, "write", suppliedPayload, ...),
             uuid = resolveWriteUUID(spec, state),
-            timeout = state.timeout
+            timeout = state.timeout,
+            _busOwner = state.owner
         }
 
         local writeUuidResolver = spec.resolveWriteUUID
@@ -1131,6 +1149,10 @@ function core.createCustomAPI(spec)
         state.timeout = timeout
     end
 
+    local function setOwner(owner)
+        state.owner = owner
+    end
+
     local function setRebuildOnWrite(rebuild)
         state.rebuildOnWrite = (rebuild == true)
     end
@@ -1148,6 +1170,7 @@ function core.createCustomAPI(spec)
         setErrorHandler = setErrorHandler,
         setUUID = setUUID,
         setTimeout = setTimeout,
+        setOwner = setOwner,
         setRebuildOnWrite = setRebuildOnWrite,
         __rfReadStructure = readStructure,
         __rfWriteStructure = writeStructure
@@ -1192,6 +1215,7 @@ function core.createWriteOnlyAPI(spec)
         payloadData = {},
         timeout = nil,
         uuid = nil,
+        owner = nil,
         rebuildOnWrite = (spec.initialRebuildOnWrite == true)
     }
 
@@ -1259,7 +1283,8 @@ function core.createWriteOnlyAPI(spec)
             errorHandler = dispatchError,
             simulatorResponse = spec.simulatorResponseWrite or EMPTY_SIM_RESPONSE,
             timeout = state.timeout,
-            uuid = resolveWriteUUID(spec, state)
+            uuid = resolveWriteUUID(spec, state),
+            _busOwner = state.owner
         }
 
         local writeUuidResolver = spec.resolveWriteUUID
@@ -1308,6 +1333,10 @@ function core.createWriteOnlyAPI(spec)
         state.timeout = timeout
     end
 
+    local function setOwner(owner)
+        state.owner = owner
+    end
+
     local function setRebuildOnWrite(rebuild)
         state.rebuildOnWrite = (rebuild == true)
     end
@@ -1325,6 +1354,7 @@ function core.createWriteOnlyAPI(spec)
         setErrorHandler = setErrorHandler,
         setUUID = setUUID,
         setTimeout = setTimeout,
+        setOwner = setOwner,
         setRebuildOnWrite = setRebuildOnWrite,
         __rfReadStructure = {},
         __rfWriteStructure = {}

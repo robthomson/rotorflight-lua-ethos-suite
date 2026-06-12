@@ -3228,6 +3228,9 @@ function ui.requestPage()
         end
 
         local API = tasks.msp.api.load(apiKey, {loadHelp = true})
+        if API and API.setOwner and app.lastScript then
+            API.setOwner(app.lastScript)
+        end
         if API and API.enableDeltaCache and enableDeltaCache ~= nil then
             API.enableDeltaCache(enableDeltaCache)
         end
@@ -3395,6 +3398,9 @@ function ui.saveSettings(sourcePage)
         local payloadStructure = tasks.msp.api.apidata.structure[apiNAME]
 
         local API = tasks.msp.api.load(apiNAME)
+        if API and API.setOwner and app.lastScript then
+            API.setOwner(app.lastScript)
+        end
         if API and API.enableDeltaCache then
             local enableDeltaCache = nil
             if apiMeta and apiMeta.enableDeltaCache ~= nil then
