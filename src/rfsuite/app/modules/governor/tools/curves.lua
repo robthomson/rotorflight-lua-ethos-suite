@@ -60,18 +60,18 @@ local function saveData()
     end
 
     API.setCompleteHandler(function()
-        local ok, reason = rfutils.queueEepromWrite({
-            uuid = "governor.curves.eeprom",
-            processReply = function()
-                if app and app.ui and app.ui.setPageDirty then
-                    app.ui.setPageDirty(false)
-                end
-                app.triggers.closeProgressLoader = true
-            end,
-            errorHandler = function()
-                app.triggers.closeProgressLoader = true
+        local EAPI = tasks.msp.api.loadPage("EEPROM_WRITE")
+        EAPI.setUUID("governor.curves.eeprom")
+        EAPI.setCompleteHandler(function()
+            if app and app.ui and app.ui.setPageDirty then
+                app.ui.setPageDirty(false)
             end
-        })
+            app.triggers.closeProgressLoader = true
+        end)
+        EAPI.setErrorHandler(function()
+            app.triggers.closeProgressLoader = true
+        end)
+        local ok, reason = EAPI.write()
         if not ok then
             rfutils.log("Governor curves EEPROM enqueue rejected: " .. tostring(reason), "info")
             app.triggers.closeProgressLoader = true
