@@ -16,7 +16,6 @@ local navHandlers = pageRuntime.createMenuHandlers({
     progressSpeed = rfsuite.app.loaderSpeed.FAST
 })
 
-local sin = math.sin
 local cos = math.cos
 local rad = math.rad
 local floor = math.floor
@@ -28,13 +27,14 @@ local t_sort = table.sort
 local formFields = app.formFields
 local radio = app.radio
 
-local MSP_ATTITUDE = 108
 local BASE_VIEW_PITCH_R = rad(-90)
 local BASE_VIEW_YAW_R = rad(90)
 local CAMERA_DIST = 7.0
 local CAMERA_NEAR_EPS = 0.25
 local SHOW_BACKGROUND_GRID = false
 local HIGH_DETAIL_MODEL = false
+local attitudeAPI
+local lastAttitudeData
 
 local state = {
     pageIdx = nil,
@@ -114,15 +114,7 @@ local function recenterYawView()
     lcd.invalidate()
 end
 
-local function parseAttitude(buf)
-    local m = tasks and tasks.msp and tasks.msp.mspHelper
-    if not m then return false end
-
-    local rollRaw = m.readS16(buf)
-    local pitchRaw = m.readS16(buf)
-    local yawRaw = m.readS16(buf)
-    if rollRaw == nil or pitchRaw == nil or yawRaw == nil then return false end
-
+local function applyAttitude(rollRaw, pitchRaw, yawRaw)
     -- MSP_ATTITUDE provides roll/pitch in 0.1 deg and heading/yaw in deg.
     state.live.roll = (tonumber(rollRaw) or 0) / 10.0
     state.live.pitch = (tonumber(pitchRaw) or 0) / 10.0
@@ -134,50 +126,38 @@ local function parseAttitude(buf)
     return true
 end
 
-local function buildSimulatedAttitudeResponse(now)
-    local m = tasks and tasks.msp and tasks.msp.mspHelper
-    if not m then return {} end
+local function ensureAttitudeApi()
+    if attitudeAPI then return attitudeAPI end
+    attitudeAPI = tasks.msp.api.loadPage("ATTITUDE")
+    if not attitudeAPI then return nil end
+    attitudeAPI.setUUID("alignment.attitude")
+    return attitudeAPI
+end
 
-    local t0 = state.simStartAt or 0
-    local t = max(0, (now or os.clock()) - t0)
+local function syncAttitude()
+    local api = attitudeAPI
+    local data = api and api.data()
+    if data == nil or data == lastAttitudeData then return end
+    lastAttitudeData = data
 
-    local rollDeg = 25.0 * sin(t * 1.25)
-    local pitchDeg = 18.0 * sin((t * 0.90) + 0.9)
-    local yawDeg = 90.0 * sin((t * 0.42) + 0.2)
-
-    local rollRaw = floor((rollDeg * 10.0) + 0.5)
-    local pitchRaw = floor((pitchDeg * 10.0) + 0.5)
-    local yawRaw = floor(yawDeg + 0.5)
-
-    local buf = {}
-    m.writeS16(buf, rollRaw)
-    m.writeS16(buf, pitchRaw)
-    m.writeS16(buf, yawRaw)
-    return buf
+    local parsed = data.parsed
+    if parsed then
+        applyAttitude(parsed.roll, parsed.pitch, parsed.yaw)
+    end
+    state.pendingAttitude = false
 end
 
 local function requestAttitude()
     if state.pendingAttitude then return false end
-    if not (tasks and tasks.msp and tasks.msp.mspQueue) then return false end
+    local api = ensureAttitudeApi()
+    if not api then return false end
 
     local now = os.clock()
     state.pendingAttitude = true
     state.pendingAt = now
-    local sim = system.getVersion().simulation
-    local simResponse = sim and buildSimulatedAttitudeResponse(now) or {}
-
-    return tasks.msp.mspQueue:addPage({
-        command = MSP_ATTITUDE,
-        uuid = "alignment.attitude",
-        processReply = function(_, buf)
-            parseAttitude(buf)
-            state.pendingAttitude = false
-        end,
-        errorHandler = function()
-            state.pendingAttitude = false
-        end,
-        simulatorResponse = simResponse
-    })
+    local ok = api.read(now, state.simStartAt)
+    if not ok then state.pendingAttitude = false end
+    return ok
 end
 
 local function clearMspQueue()
@@ -915,6 +895,8 @@ local function wakeup()
         end
         return
     end
+
+    syncAttitude()
 
     if state.pendingAttitude and (now - state.pendingAt) > state.pendingTimeout then
         state.pendingAttitude = false

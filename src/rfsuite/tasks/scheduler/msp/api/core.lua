@@ -569,7 +569,7 @@ function core.createReadOnlyAPI(spec)
             minBytes = minBytes,
             processReply = processReply,
             errorHandler = onError,
-            simulatorResponse = spec.simulatorResponseRead,
+            simulatorResponse = resolveSimulatorResponse(spec.simulatorResponseRead, state, "read", ...),
             timeout = state.timeout,
             uuid = state.uuid,
             _busOwner = state.owner,
