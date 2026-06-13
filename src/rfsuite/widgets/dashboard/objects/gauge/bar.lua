@@ -21,7 +21,9 @@ Value/source
     value                   : any       -- (Optional) Static value to display if no telemetry
     hidevalue               : bool      -- (Optional) If true, do not display the value text (default: false; value is shown)
     source                  : string    -- (Optional) Telemetry sensor source name
+    stattype                : string    -- (Optional) For postflight/stat bars, use "min", "max", or "avg" from telemetry stats
     transform               : string|function|number -- (Optional) Value transformation
+    gaugevalue              : string    -- (Optional) "display" uses transformed display value for the fill percentage
     decimals                : number    -- (Optional) Number of decimal places for display
     thresholds              : table     -- (Optional) List of threshold tables: {value=..., fillcolor=..., textcolor=...}
     novalue                 : string    -- (Optional) Text shown if value missing (default: "-")
@@ -254,6 +256,54 @@ local function compileTransform(t, decimals)
     end
 end
 
+local function getStatsValue(telemetry, source, statType)
+    if source == nil then return nil end
+    local stats = telemetry and telemetry.sensorStats and telemetry.sensorStats[source]
+    if stats and stats[statType] ~= nil then return stats[statType] end
+    return nil
+end
+
+local function getSensorUnit(telemetry, source)
+    if source == nil then return nil end
+    local sensorDef = telemetry and telemetry.sensorTable and telemetry.sensorTable[source]
+    return sensorDef and sensorDef.unit_string or nil
+end
+
+local function getAliasStatsValue(telemetry, statType, sourceA, sourceB, sourceC, sourceD)
+    local value = getStatsValue(telemetry, sourceA, statType)
+    if value ~= nil then return value, getSensorUnit(telemetry, sourceA) end
+    value = getStatsValue(telemetry, sourceB, statType)
+    if value ~= nil then return value, getSensorUnit(telemetry, sourceB) end
+    value = getStatsValue(telemetry, sourceC, statType)
+    if value ~= nil then return value, getSensorUnit(telemetry, sourceC) end
+    value = getStatsValue(telemetry, sourceD, statType)
+    if value ~= nil then return value, getSensorUnit(telemetry, sourceD) end
+    return nil, nil
+end
+
+local function readLiveSensor(telemetry, source)
+    if not (telemetry and telemetry.getSensor) then return nil, nil end
+
+    local value, _, unit = telemetry.getSensor(source)
+    if value ~= nil then return value, unit end
+
+    if source == "cellvoltage" then
+        value, _, unit = telemetry.getSensor("cell_voltage")
+        if value ~= nil then return value, unit end
+        value, _, unit = telemetry.getSensor("vcell")
+        if value ~= nil then return value, unit end
+        value, _, unit = telemetry.getSensor("voltage_cell")
+        if value ~= nil then return value, unit end
+    elseif source == "rpm" then
+        value, _, unit = telemetry.getSensor("headspeed")
+        if value ~= nil then return value, unit end
+        value, _, unit = telemetry.getSensor("erpm")
+        if value ~= nil then return value, unit end
+    end
+
+    return nil, nil
+end
+
 function render.wakeup(box)
 
     local telemetry = rfsuite.tasks.telemetry
@@ -324,8 +374,11 @@ function render.wakeup(box)
         cfg.accentcolor = resolveThemeColor("accentcolor", getParam(box, "accentcolor"))
         cfg.manualUnit = getParam(box, "unit")
         cfg.source = getParam(box, "source")
+        cfg.stattype = getParam(box, "stattype")
+        cfg.gaugevalue = getParam(box, "gaugevalue") -- Optional: "display" uses transformed value for bar fill percentage
         cfg.hidevalue = getParam(box, "hidevalue")
         cfg.decimals = getParam(box, "decimals")
+        if cfg.decimals then cfg.displayFormat = "%." .. cfg.decimals .. "f" end
         cfg.transform = getParam(box, "transform")
         cfg.transformFn = compileTransform(cfg.transform, cfg.decimals)
 
@@ -344,8 +397,50 @@ function render.wakeup(box)
         local src = cfg._txBattSrc or system.getSource({category = CATEGORY_SYSTEM, member = MAIN_VOLTAGE})
         value = src and src.value and src:value() or nil
         dynamicUnit = "V"
+
+    elseif source == "watts" and telemetry then
+        dynamicUnit = "W"
+
+        local statType = cfg.stattype or "current"
+        local vStat = getStatsValue(telemetry, "voltage", statType)
+        local iStat = getStatsValue(telemetry, "current", statType)
+
+        if statType == "min" or statType == "max" or statType == "avg" then
+            if vStat ~= nil and iStat ~= nil then value = vStat * iStat end
+        end
+
+        -- Fallback to live watts if stats are unavailable.
+        if value == nil then
+            local volts = readLiveSensor(telemetry, "voltage")
+            local amps = readLiveSensor(telemetry, "current")
+            if volts ~= nil and amps ~= nil then value = volts * amps end
+        end
+
     elseif telemetry and source then
-        value, _, dynamicUnit = telemetry.getSensor(source)
+        if cfg.stattype then
+            value = getStatsValue(telemetry, source, cfg.stattype)
+
+            -- Some telemetry tables use rpm aliases. Keep source="rpm" compatible.
+            if value == nil and source == "rpm" then
+                value, dynamicUnit = getAliasStatsValue(telemetry, cfg.stattype, "headspeed", "erpm")
+            end
+
+            -- Direct per-cell voltage aliases. This uses telemetry values/stats directly,
+            -- not pack voltage divided by detected cell count.
+            if value == nil and source == "cellvoltage" then
+                value, dynamicUnit = getAliasStatsValue(telemetry, cfg.stattype, "cellvoltage", "cell_voltage", "vcell", "voltage_cell")
+            end
+
+            dynamicUnit = dynamicUnit or getSensorUnit(telemetry, source)
+
+            -- If the requested stat is not ready yet, fall back to the live sensor so
+            -- the bar still populates instead of showing loading dots forever.
+            if value == nil then
+                value, dynamicUnit = readLiveSensor(telemetry, source)
+            end
+        else
+            value, dynamicUnit = readLiveSensor(telemetry, source)
+        end
     else
         value = getParam(box, "value")
     end
@@ -374,6 +469,23 @@ function render.wakeup(box)
 
     if cfg.hidevalue == true then displayValue = nil end
 
+    if value ~= nil then
+        c._lastValidValue = value
+        c._lastValidDisplayValue = displayValue
+        c._lastValidUnit = unit
+    else
+        if c._lastValidValue ~= nil then
+            value = c._lastValidValue
+            displayValue = c._lastValidDisplayValue
+            unit = c._lastValidUnit
+        else
+            if c._dotCount == nil then c._dotCount = 0 end
+            c._dotCount = (c._dotCount + 1) % 4
+            displayValue = LOADING_DOTS[c._dotCount + 1]
+            unit = nil
+        end
+    end
+
     local vmin, vmax
     if source == "txbatt" then
         vmin = getParam(box, "min") or 7.2
@@ -384,16 +496,14 @@ function render.wakeup(box)
     end
 
     local percent = 0
-    if value and vmax ~= vmin then
-        percent = (value - vmin) / (vmax - vmin)
-        percent = max(0, min(1, percent))
+    local gaugeCalcValue = value
+    if cfg.gaugevalue == "display" and type(displayValue) == "number" then
+        gaugeCalcValue = displayValue
     end
 
-    if value == nil then
-        if c._dotCount == nil then c._dotCount = 0 end
-        c._dotCount = (c._dotCount + 1) % 4
-        displayValue = LOADING_DOTS[c._dotCount + 1]
-        unit = nil
+    if gaugeCalcValue and vmax ~= vmin then
+        percent = (gaugeCalcValue - vmin) / (vmax - vmin)
+        percent = max(0, min(1, percent))
     end
 
     local battadv = cfg.battadv
@@ -431,7 +541,11 @@ function render.wakeup(box)
     box._currentDisplayValue = value
 
     c.value = value
-    c.displayValue = displayValue
+    if cfg.displayFormat and type(displayValue) == "number" then
+        c.displayValue = format(cfg.displayFormat, displayValue)
+    else
+        c.displayValue = displayValue
+    end
     c.unit = unit
     c.min = vmin
     c.max = vmax
@@ -441,8 +555,11 @@ function render.wakeup(box)
     c.consumed = consumed
     c.perCellVoltage = perCellVoltage
     c.battadv = battadv
-    c.textcolor = resolveThresholdColor(value, box, "textcolor", "textcolor")
-    c.fillcolor = resolveThresholdColor(value, box, "fillcolor", "fillcolor")
+    local thresholdValue = displayValue
+    if type(thresholdValue) ~= "number" then thresholdValue = value end
+
+    c.textcolor = resolveThresholdColor(thresholdValue, box, "textcolor", "textcolor")
+    c.fillcolor = resolveThresholdColor(thresholdValue, box, "fillcolor", "fillcolor")
     c.fillbgcolor = cfg.fillbgcolor
     c.bgcolor = cfg.bgcolor
     c.titlecolor = cfg.titlecolor
@@ -506,10 +623,7 @@ function render.paint(x, y, w, h, box)
     x, y = utils.applyOffset(x, y, box)
     local c = box._cache or {}
 
-    if c.bgcolor then
-        lcd.color(c.bgcolor)
-        lcd.drawFilledRectangle(x, y, w, h)
-    end
+    x, y, w, h = utils.drawBoxBackground(x, y, w, h, c.bgcolor)
 
     local g = box._geom
     local needGeo = (not g) or g.w ~= w or g.h ~= h or g.title ~= c.title or g.titlefont ~= c.titlefont or g.titlespacing ~= (c.titlespacing or 0) or g.titlepaddingtop ~= (c.titlepaddingtop or 0) or g.titlepaddingbottom ~= (c.titlepaddingbottom or 0) or g.titlepos ~= c.titlepos or g.gpad_left ~= (c.gpad_left or 0) or g.gpad_right ~= (c.gpad_right or 0) or g.gpad_top ~= (c.gpad_top or 0) or g.gpad_bottom ~= (c.gpad_bottom or 0)
