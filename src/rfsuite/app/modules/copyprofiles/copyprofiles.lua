@@ -19,6 +19,24 @@ local function queueDirect(message, uuid)
     return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
+local function queueCloseProgress(message, uuid)
+    local msp = rfsuite.tasks and rfsuite.tasks.msp
+    local bus = msp and msp.bus
+    local actions = msp and msp.genericActions
+    local contextId = bus and bus.createContext and bus.createContext({}, rfsuite.app and rfsuite.app.lastScript)
+    if contextId and actions and actions.actions then
+        message._busContext = contextId
+        message._releaseBusContext = true
+        message._replyAction = actions.actions.appCloseProgress
+    end
+
+    local ok, reason = queueDirect(message, uuid)
+    if not ok and contextId and bus and bus.releaseContext then
+        bus.releaseContext(contextId)
+    end
+    return ok, reason
+end
+
 local function onSaveMenu()
 
     if rfsuite.preferences.general.save_confirm == false or rfsuite.preferences.general.save_confirm == "false" then
@@ -138,8 +156,8 @@ local function wakeup()
             return
         end
 
-        local message = {command = 183, payload = payload, processReply = function(self, buf) rfsuite.app.triggers.closeProgressLoader = true end, simulatorResponse = {}}
-        local ok, reason = queueDirect(message, string.format("copyprofiles.%d.%d.%d", payload[1], payload[2], payload[3]))
+        local message = {command = 183, payload = payload, simulatorResponse = {}}
+        local ok, reason = queueCloseProgress(message, string.format("copyprofiles.%d.%d.%d", payload[1], payload[2], payload[3]))
         if not ok then
             rfsuite.utils.log("Copy profiles enqueue rejected: " .. tostring(reason), "info")
             rfsuite.app.triggers.closeSaveFake = true

@@ -117,7 +117,7 @@ local function queueApiMessage(message, owner)
     local errorFn = message.errorHandler
     local bus = msp and msp.bus
 
-    if bus and bus.createContext and ensureApiBusActions(bus) then
+    if not message._busContext and (type(replyFn) == "function" or type(errorFn) == "function") and bus and bus.createContext and ensureApiBusActions(bus) then
         local contextId = bus.createContext({
             reply = type(replyFn) == "function" and replyFn or nil,
             error = type(errorFn) == "function" and errorFn or nil
@@ -1274,6 +1274,10 @@ function core.createWriteOnlyAPI(spec)
         timeout = nil,
         uuid = nil,
         owner = nil,
+        replyAction = nil,
+        errorAction = nil,
+        busContext = nil,
+        releaseBusContext = nil,
         rebuildOnWrite = (spec.initialRebuildOnWrite == true)
     }
 
@@ -1333,16 +1337,25 @@ function core.createWriteOnlyAPI(spec)
             end
         end
 
+        local replyHandler = handleWriteReply
+        local writeErrorHandler = dispatchError
+        if state.replyAction then replyHandler = nil end
+        if state.errorAction then writeErrorHandler = nil end
+
         local message = {
             command = spec.writeCmd,
             apiname = spec.name,
             payload = payload,
-            processReply = handleWriteReply,
-            errorHandler = dispatchError,
+            processReply = replyHandler,
+            errorHandler = writeErrorHandler,
             simulatorResponse = spec.simulatorResponseWrite or EMPTY_SIM_RESPONSE,
             timeout = state.timeout,
             uuid = resolveWriteUUID(spec, state),
-            _busOwner = state.owner
+            _busOwner = state.owner,
+            _busContext = state.busContext,
+            _releaseBusContext = state.releaseBusContext,
+            _replyAction = state.replyAction,
+            _errorAction = state.errorAction
         }
 
         local writeUuidResolver = spec.resolveWriteUUID
@@ -1395,6 +1408,13 @@ function core.createWriteOnlyAPI(spec)
         state.owner = owner
     end
 
+    local function setBusActions(replyAction, errorAction, contextId, releaseContext)
+        state.replyAction = replyAction
+        state.errorAction = errorAction
+        state.busContext = contextId
+        state.releaseBusContext = releaseContext == true
+    end
+
     local function setRebuildOnWrite(rebuild)
         state.rebuildOnWrite = (rebuild == true)
     end
@@ -1413,6 +1433,7 @@ function core.createWriteOnlyAPI(spec)
         setUUID = setUUID,
         setTimeout = setTimeout,
         setOwner = setOwner,
+        setBusActions = setBusActions,
         setRebuildOnWrite = setRebuildOnWrite,
         __rfReadStructure = {},
         __rfWriteStructure = {}
