@@ -268,22 +268,22 @@ local function performSave()
         updateSaveEnabled()
     end)
     API.setCompleteHandler(function()
-        local ok = rfsuite.utils.queueEepromWrite({
-            uuid = "blackbox.logging.eeprom",
-            processReply = function()
-                state.saving = false
-                state.dirty = false
-                syncSessionSnapshot()
-                app.triggers.closeSave = true
-                updateSaveEnabled()
-            end,
-            errorHandler = function()
-                state.saving = false
-                app.triggers.closeSave = true
-                app.triggers.showSaveArmedWarning = true
-                updateSaveEnabled()
-            end
-        })
+        local EAPI = tasks.msp.api.loadPage("EEPROM_WRITE")
+        EAPI.setUUID("blackbox.logging.eeprom")
+        EAPI.setCompleteHandler(function()
+            state.saving = false
+            state.dirty = false
+            syncSessionSnapshot()
+            app.triggers.closeSave = true
+            updateSaveEnabled()
+        end)
+        EAPI.setErrorHandler(function()
+            state.saving = false
+            app.triggers.closeSave = true
+            app.triggers.showSaveArmedWarning = true
+            updateSaveEnabled()
+        end)
+        local ok = EAPI.write()
         if not ok then
             state.saving = false
             app.triggers.closeSave = true
