@@ -157,11 +157,6 @@ local function restorePendingFocus(focusTargets)
     if target and target.focus then target:focus() end
 end
 
-local function queueDirect(message, uuid)
-    if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:addPage(message)
-end
-
 local function clamp(value, minValue, maxValue)
     if value < minValue then return minValue end
     if value > maxValue then return maxValue end
@@ -1591,24 +1586,32 @@ local function queueSetAdjustmentRange(slotIndex, done, failed)
         clamp(adjRange.adjStep, ADJ_STEP_MIN, ADJ_STEP_MAX)
     }
 
-    local message = {
-        command = 53,
-        payload = payload,
-        processReply = function() if done then done() end end,
-        errorHandler = function() if failed then failed("SET_ADJUSTMENT_RANGE failed at slot " .. tostring(slotIndex)) end end,
-        simulatorResponse = {}
-    }
+    local API = rfsuite.tasks.msp.api.loadPage("SET_ADJUSTMENT_RANGE")
+    if not API then
+        if failed then failed("SET_ADJUSTMENT_RANGE API unavailable") end
+        return
+    end
 
-    local ok, reason = queueDirect(message, string.format("adjustments.slot.%d", slotIndex))
+    API.setUUID(string.format("adjustments.slot.%d", slotIndex))
+    API.setCompleteHandler(function() if done then done() end end)
+    API.setErrorHandler(function() if failed then failed("SET_ADJUSTMENT_RANGE failed at slot " .. tostring(slotIndex)) end end)
+
+    local ok, reason = API.write(payload)
     if not ok and failed then failed(reason or "queue_rejected") end
 end
 
 local function queueEepromWrite(done, failed)
-    local ok, reason = rfsuite.utils.queueEepromWrite({
-        uuid = "adjustments.eeprom",
-        processReply = function() if done then done() end end,
-        errorHandler = function() if failed then failed("EEPROM write failed") end end
-    })
+    local API = rfsuite.tasks.msp.api.loadPage("EEPROM_WRITE")
+    if not API then
+        if failed then failed("EEPROM_WRITE API unavailable") end
+        return
+    end
+
+    API.setUUID("adjustments.eeprom")
+    API.setCompleteHandler(function() if done then done() end end)
+    API.setErrorHandler(function() if failed then failed("EEPROM write failed") end end)
+
+    local ok, reason = API.write()
 
     if not ok and failed then
         if reason == "armed_blocked" then
