@@ -1214,8 +1214,26 @@ function ui.cleanupCurrentPage()
     if app.lastScript and tasks and tasks.msp and tasks.msp.mspQueue then
         local scriptToFlush = app.lastScript
         local bus = tasks.msp.bus
+        local dev = preferences and preferences.developer
+        local logBus = dev and (dev.memstats == true or dev.logmspQueue == true)
         if bus and bus.releaseOwner then
-            bus.releaseOwner(scriptToFlush)
+            local beforeHandlers, beforeContexts
+            if logBus and bus.ownerCount then
+                beforeHandlers, beforeContexts = bus.ownerCount(scriptToFlush)
+            end
+            local removed = bus.releaseOwner(scriptToFlush)
+            if logBus and (removed > 0 or (beforeHandlers and beforeHandlers > 0) or (beforeContexts and beforeContexts > 0)) then
+                utils.log(
+                    string.format(
+                        "[msp-bus] page cleanup owner=%s removed=%d handlers=%d contexts=%d",
+                        tostring(scriptToFlush),
+                        removed,
+                        beforeHandlers or 0,
+                        beforeContexts or 0
+                    ),
+                    "debug"
+                )
+            end
         end
         tasks.msp.mspQueue:removeQueuedBy(function(msg)
             return msg._pageScript == scriptToFlush

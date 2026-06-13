@@ -133,6 +133,45 @@ function bus.contextCount()
     return n
 end
 
+function bus.actionCount()
+    local n = 0
+    for _ in pairs(actions) do
+        n = n + 1
+    end
+    return n
+end
+
+function bus.ownerCount(owner)
+    local handlerCount = 0
+    local contextCount = 0
+
+    if owner == nil then
+        return handlerCount, contextCount
+    end
+
+    for _, registeredOwner in pairs(owners) do
+        if registeredOwner == owner then
+            handlerCount = handlerCount + 1
+        end
+    end
+
+    for _, registeredOwner in pairs(contextOwners) do
+        if registeredOwner == owner then
+            contextCount = contextCount + 1
+        end
+    end
+
+    return handlerCount, contextCount
+end
+
+function bus.stats()
+    return {
+        handlers = bus.count(),
+        contexts = bus.contextCount(),
+        actions = bus.actionCount()
+    }
+end
+
 bus.registerAction("legacy.reply", function(context, msg, buf)
     local fn = context and context.reply
     if type(fn) ~= "function" then return false, "missing_reply" end
