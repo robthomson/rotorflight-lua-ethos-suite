@@ -85,42 +85,33 @@ function helpers.servoBusEnabled(callback, owner)
     local FBUS_FUNCTIONMASK = 524288
     local SBUS_FUNCTIONMASK = 262144
 
-    local function processSerialConfig(data) 
-        for i, v in ipairs(data) do 
-            if v.functionMask == FBUS_FUNCTIONMASK then 
-                return  true 
-            end 
-            if v.functionMask == SBUS_FUNCTIONMASK then 
-                return  true 
-            end             
-        end 
+    local function hasServoBusFunction(api)
+        local data = api and api.data and api.data()
+        local parsed = data and data.parsed
+        if not parsed then return false end
+
+        for i = 1, 12 do
+            local functionMask = parsed["port_" .. i .. "_function_mask"]
+            if functionMask == FBUS_FUNCTIONMASK or functionMask == SBUS_FUNCTIONMASK then
+                return true
+            end
+        end
+
         return false
     end
 
     if (rfsuite.session.servoBusEnabled == nil) then
-        local message = {
-            command = 54,
-            processReply = function(self, buf)
-                local data = {}
-
-                buf.offset = 1
-                for i = 1, 6 do
-                    data[i] = {}
-                    data[i].identifier = rfsuite.tasks.msp.mspHelper.readU8(buf)
-                    data[i].functionMask = rfsuite.tasks.msp.mspHelper.readU32(buf)
-                    data[i].msp_baudrateIndex = rfsuite.tasks.msp.mspHelper.readU8(buf)
-                    data[i].gps_baudrateIndex = rfsuite.tasks.msp.mspHelper.readU8(buf)
-                    data[i].telemetry_baudrateIndex = rfsuite.tasks.msp.mspHelper.readU8(buf)
-                    data[i].blackbox_baudrateIndex = rfsuite.tasks.msp.mspHelper.readU8(buf)
-                end
-
-                rfsuite.session.servoBusEnabled  = processSerialConfig(data)
-                if callback then callback(rfsuite.session.servoBusEnabled) end
-            end,
-            simulatorResponse = {20 , 1  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 0  , 0  , 0  , 8  , 0  , 5  , 4  , 0  , 5  , 1  , 0  , 4  , 0  , 0  , 5  , 4  , 0  , 5  , 2  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 3  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 4  , 64 , 0  , 0  , 0  , 5  , 4  , 0  , 5  , 5  , 0  , 0  , 0  , 0  , 5  , 4  , 0  , 5  },
-            _busOwner = owner
-        }
-        rfsuite.tasks.msp.mspQueue:add(message)
+        local msp = rfsuite.tasks.msp
+        local API = msp and msp.api.load("SERIAL_CONFIG")
+        if API and API.enableDeltaCache then API.enableDeltaCache(false) end
+        if API and owner and API.setOwner then API.setOwner(owner) end
+        API.setCompleteHandler(function()
+            rfsuite.session.servoBusEnabled = hasServoBusFunction(API)
+            API = nil
+            if callback then callback(rfsuite.session.servoBusEnabled) end
+        end)
+        API.setUUID(utils.uuid and utils.uuid() or tostring(os.clock()))
+        API.read()
     else
         if callback then callback(rfsuite.session.servoBusEnabled) end
     end
