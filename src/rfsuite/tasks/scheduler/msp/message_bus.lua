@@ -133,4 +133,16 @@ function bus.contextCount()
     return n
 end
 
+bus.registerAction("legacy.reply", function(context, msg, buf)
+    local fn = context and context.reply
+    if type(fn) ~= "function" then return false, "missing_reply" end
+    return fn(msg, buf)
+end)
+
+bus.registerAction("legacy.error", function(context, msg, reason)
+    local fn = context and context.error
+    if type(fn) ~= "function" then return false, "missing_error" end
+    return fn(msg, reason)
+end)
+
 return bus

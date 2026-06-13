@@ -729,14 +729,26 @@ function MspQueueController:add(message)
     local pageScript = rfsuite.app and rfsuite.app.lastScript
     if pageScript then toQueue._pageScript = pageScript end
     local bus = getBus()
-    if bus and bus.register then
+    if bus and bus.createContext then
         local owner = toQueue._busOwner or toQueue.owner
         if type(toQueue.processReply) == "function" then
-            toQueue._processReplyHandler = bus.register(toQueue.processReply, owner)
+            local context = bus.createContext({
+                reply = toQueue.processReply,
+                error = type(toQueue.errorHandler) == "function" and toQueue.errorHandler or nil
+            }, owner)
+            toQueue._busContext = context
+            toQueue._releaseBusContext = true
+            toQueue._replyAction = "legacy.reply"
             toQueue.processReply = nil
         end
         if type(toQueue.errorHandler) == "function" then
-            toQueue._errorHandler = bus.register(toQueue.errorHandler, owner)
+            if not toQueue._busContext then
+                toQueue._busContext = bus.createContext({
+                    error = toQueue.errorHandler
+                }, owner)
+                toQueue._releaseBusContext = true
+            end
+            toQueue._errorAction = "legacy.error"
             toQueue.errorHandler = nil
         end
     end
