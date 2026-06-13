@@ -27,6 +27,8 @@ local mspQueue
 
 local busEnv = setmetatable({}, {__index = _G})
 msp.bus = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/message_bus.lua", "t", busEnv))()
+msp.servoActions = assert(loadfile("SCRIPTS:/" .. rfsuite.config.baseDir .. "/tasks/scheduler/msp/servo_actions.lua"))()
+msp.servoActions.register(msp.bus)
 
 -- Protocol parameters for current telemetry type
 msp.protocol = protocol.getProtocol()

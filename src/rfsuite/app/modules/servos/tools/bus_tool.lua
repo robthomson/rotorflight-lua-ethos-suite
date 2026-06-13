@@ -29,10 +29,37 @@ local servoCount
 local configs = {}
 local BUS_OUTPUT_COUNT = 18
 local MSP125_READ_BASE_INDEX = 8  -- Base index expected by MSP 125 read-index namespace
+local servoLoadContext
 
 local function queueDirect(message, uuid)
     if message and uuid and message.uuid == nil then message.uuid = uuid end
     return rfsuite.tasks.msp.mspQueue:addPage(message)
+end
+
+local function servoActions()
+    return rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.servoActions
+end
+
+local function createServoLoadContext()
+    local actions = servoActions()
+    local bus = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.bus
+    if not (actions and actions.actions and bus and bus.createContext) then return nil end
+
+    servoLoadContext = {
+        configs = configs,
+        servoTable = servoTable,
+        servoIndex = servoIndex,
+        owner = rfsuite.app and rfsuite.app.lastScript
+    }
+    return bus.createContext(servoLoadContext, servoLoadContext.owner)
+end
+
+local function syncServoLoadState()
+    if servoLoadContext and servoLoadContext.loaded == true then
+        servoCount = servoLoadContext.servoCount or servoCount
+        enableWakeup = servoLoadContext.enableWakeup == true
+        servoLoadContext = nil
+    end
 end
 
 local function uiIndexToReadIndex(ui0)
@@ -229,6 +256,8 @@ end
 
 local function wakeup(self)
 
+    syncServoLoadState()
+
     if enableWakeup == true then
 
         -- go back to main as this tool is compromised 
@@ -287,7 +316,10 @@ local function wakeup(self)
 
 end
 
-local function getServoConfigurationsIndexed(callback, callbackParam)
+local function getServoConfigurationsIndexed()
+    local actions = servoActions()
+    local contextId = createServoLoadContext()
+    if not (actions and actions.actions and contextId) then return false, "bus_missing" end
 
     -- MSP_GET_SERVO_CONFIG (125) reads one servo by read-index namespace (legacy absolute).
     -- This intentionally differs from write-index namespace used by 212/213/193.
@@ -297,56 +329,22 @@ local function getServoConfigurationsIndexed(callback, callbackParam)
         command = 125,
         payload = {absIndex},
         uuid = string.format("servo.cfg.bus.%d", absIndex),
-        processReply = function(self, buf)
-
-            -- Ensure we have a servoCount for any "all servos" operations (override on/off).
-            if not servoCount then
-                servoCount = rfsuite.session.servoCount or (servoTable and #servoTable) or 0
-                rfsuite.session.servoCount = servoCount
-            end
-
-            local config = configs[servoIndex] or {}
-            config.name = servoTable[servoIndex + 1]['title']
-            config.mid = rfsuite.tasks.msp.mspHelper.readU16(buf)
-            config.min = rfsuite.tasks.msp.mspHelper.readS16(buf)
-            config.max = rfsuite.tasks.msp.mspHelper.readS16(buf)
-            config.scaleNeg = rfsuite.tasks.msp.mspHelper.readU16(buf)
-            config.scalePos = rfsuite.tasks.msp.mspHelper.readU16(buf)
-            config.rate = rfsuite.tasks.msp.mspHelper.readU16(buf)
-            config.speed = rfsuite.tasks.msp.mspHelper.readU16(buf)
-            config.flags = rfsuite.tasks.msp.mspHelper.readU16(buf)
-
-            if config.flags == 1 or config.flags == 3 then
-                config.reverse = 1
-            else
-                config.reverse = 0
-            end
-
-            if config.flags == 2 or config.flags == 3 then
-                config.geometry = 1
-            else
-                config.geometry = 0
-            end
-
-            configs[servoIndex] = config
-
-            if callback then callback(callbackParam) end
-        end,
+        _busContext = contextId,
+        _releaseBusContext = true,
+        _replyAction = actions.actions.busIndexReply,
 
         -- 8x U16 fields (16 bytes). Values: mid=1500, min=1000, max=2000, rneg=1000, rpos=1000, rate=100, speed=0, flags=0
-        simulatorResponse = {220, 5, 232, 3, 208, 7, 232, 3, 232, 3, 100, 0, 0, 0, 0, 0}
+        simulatorResponse = actions.simulatorResponses.indexed
     }
 
-    return queueDirect(message)
+    local ok, reason = queueDirect(message)
+    if not ok and rfsuite.tasks.msp.bus and rfsuite.tasks.msp.bus.releaseContext then
+        rfsuite.tasks.msp.bus.releaseContext(contextId)
+        servoLoadContext = nil
+    end
+    return ok, reason
 end
 
-
-local function getServoConfigurationsEnd(callbackParam)
-    rfsuite.app.triggers.isReady = true
-    rfsuite.app.triggers.closeProgressLoader = true
-    enableWakeup = true
-    rfsuite.app.ui.setPageDirty(false)
-end
 
 local function openPage(opts)
 
@@ -547,7 +545,7 @@ local function openPage(opts)
         end
     end    
 
-    getServoConfigurationsIndexed(getServoConfigurationsEnd)
+    getServoConfigurationsIndexed()
 
 end
 
@@ -607,6 +605,7 @@ local function close()
     enableWakeup = false
     form.clear()
     configs = {}
+    servoLoadContext = nil
     servoTable = nil
     collectgarbage("collect")
 end
