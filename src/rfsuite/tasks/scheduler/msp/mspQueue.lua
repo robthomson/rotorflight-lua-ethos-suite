@@ -94,6 +94,7 @@ local function releaseMessageHandlers(msg)
         if msg._processReplyHandler then bus.release(msg._processReplyHandler) end
         if msg._errorHandler then bus.release(msg._errorHandler) end
         if msg._busContext and msg._releaseBusContext then bus.releaseContext(msg._busContext) end
+        if msg._errorBusContext and msg._releaseErrorBusContext then bus.releaseContext(msg._errorBusContext) end
     end
 
     msg._processReplyHandler = nil
@@ -102,6 +103,8 @@ local function releaseMessageHandlers(msg)
     msg._errorAction = nil
     msg._busContext = nil
     msg._releaseBusContext = nil
+    msg._errorBusContext = nil
+    msg._releaseErrorBusContext = nil
     msg.processReply = nil
     msg.errorHandler = nil
 end
@@ -142,7 +145,7 @@ local function dispatchError(msg, reason)
     if action then
         local bus = getBus()
         if bus and bus.dispatchAction then
-            return bus.dispatchAction(action, msg._busContext, msg, reason)
+            return bus.dispatchAction(action, msg._errorBusContext or msg._busContext, msg, reason)
         end
         return false, "bus_missing"
     end
@@ -740,15 +743,28 @@ function MspQueueController:add(message)
             toQueue._releaseBusContext = true
             toQueue._replyAction = "legacy.reply"
             toQueue.processReply = nil
-        end
-        if type(toQueue.errorHandler) == "function" then
-            if not toQueue._busContext then
+            if type(toQueue.errorHandler) == "function" then
+                toQueue._errorAction = "legacy.error"
+                toQueue.errorHandler = nil
+            end
+        elseif type(toQueue.errorHandler) == "function" then
+            if toQueue._busContext and not toQueue._errorAction then
+                -- _busContext was supplied externally (e.g. setBusActions) and
+                -- carries no `error` field of its own; give the error handler
+                -- its own legacy context instead of silently dropping it.
+                toQueue._errorBusContext = bus.createContext({
+                    error = toQueue.errorHandler
+                }, owner)
+                toQueue._releaseErrorBusContext = true
+            elseif not toQueue._busContext then
                 toQueue._busContext = bus.createContext({
                     error = toQueue.errorHandler
                 }, owner)
                 toQueue._releaseBusContext = true
             end
-            toQueue._errorAction = "legacy.error"
+            if not toQueue._errorAction then
+                toQueue._errorAction = "legacy.error"
+            end
             toQueue.errorHandler = nil
         end
     end
