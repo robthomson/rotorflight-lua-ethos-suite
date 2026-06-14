@@ -59,10 +59,7 @@ local function parseRead(buf)
 end
 
 local function queueMessage(message, owner)
-    if core.queueMessage then
-        return core.queueMessage(message, owner)
-    end
-    return rfsuite.tasks.msp.mspQueue:add(message)
+    return core.queueMessage(message, owner)
 end
 
 local function normalizeWriteItems(payloadData, parsed)
