@@ -14,23 +14,23 @@ fields[#fields + 1] = {t = "@i18n(app.modules.copyprofiles.dest_profile)@", valu
 
 local doSave = false
 
-local function queueDirect(message, uuid)
-    if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:addPage(message)
-end
-
-local function queueCloseProgress(message, uuid)
+local function queueCopyProfile(payload, uuid)
     local msp = rfsuite.tasks and rfsuite.tasks.msp
     local bus = msp and msp.bus
     local actions = msp and msp.genericActions
     local contextId = bus and bus.createContext and bus.createContext({}, rfsuite.app and rfsuite.app.lastScript)
-    if contextId and actions and actions.actions then
-        message._busContext = contextId
-        message._releaseBusContext = true
-        message._replyAction = actions.actions.appCloseProgress
+    local API = msp and msp.api and msp.api.loadPage("COPY_PROFILE")
+    if not API then return false, "api_unavailable" end
+
+    API.setUUID(uuid)
+    API.setValue("profile_type", payload[1])
+    API.setValue("dest_profile", payload[2])
+    API.setValue("source_profile", payload[3])
+    if contextId and actions and actions.actions and API.setBusActions then
+        API.setBusActions(actions.actions.appCloseProgress, nil, contextId, true)
     end
 
-    local ok, reason = queueDirect(message, uuid)
+    local ok, reason = API.write()
     if not ok and contextId and bus and bus.releaseContext then
         bus.releaseContext(contextId)
     end
@@ -156,8 +156,7 @@ local function wakeup()
             return
         end
 
-        local message = {command = 183, payload = payload, simulatorResponse = {}}
-        local ok, reason = queueCloseProgress(message, string.format("copyprofiles.%d.%d.%d", payload[1], payload[2], payload[3]))
+        local ok, reason = queueCopyProfile(payload, string.format("copyprofiles.%d.%d.%d", payload[1], payload[2], payload[3]))
         if not ok then
             rfsuite.utils.log("Copy profiles enqueue rejected: " .. tostring(reason), "info")
             rfsuite.app.triggers.closeSaveFake = true
