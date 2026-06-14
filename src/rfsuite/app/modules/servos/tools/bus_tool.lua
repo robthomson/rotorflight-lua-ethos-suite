@@ -36,6 +36,27 @@ local function queueDirect(message, uuid)
     return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
+local function queueApiWrite(apiName, uuid, values)
+    local API = rfsuite.tasks.msp.api.loadPage(apiName)
+    if not API then return false, "api_unavailable" end
+
+    if uuid and API.setUUID then API.setUUID(uuid) end
+    if values then
+        for field, value in pairs(values) do
+            API.setValue(field, value)
+        end
+    end
+
+    return API.write()
+end
+
+local function queueServoOverride(index, value, uuid)
+    return queueApiWrite("SERVO_OVERRIDE", uuid, {
+        servo_id = index,
+        value = value
+    })
+end
+
 local function servoActions()
     return rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.servoActions
 end
@@ -89,40 +110,34 @@ end
 local function servoCenterFocusAllOn(self)
 
     rfsuite.app.audio.playServoOverideEnable = true
-    local message = {command = 196, payload = {}}
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 0)
-    queueDirect(message, "servo.bus.override.all.on")
+    queueApiWrite("SERVO_OVERRIDE_ALL", "servo.bus.override.all.on", {value = 0})
     rfsuite.app.triggers.isReady = true
     rfsuite.app.triggers.closeProgressLoader = true
 end
 
 local function servoCenterFocusAllOff(self)
 
-    local message = {command = 196, payload = {}}
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 2001)
-    queueDirect(message, "servo.bus.override.all.off")
+    queueApiWrite("SERVO_OVERRIDE_ALL", "servo.bus.override.all.off", {value = 2001})
     rfsuite.app.triggers.isReady = true
     rfsuite.app.triggers.closeProgressLoader = true
 end
 
 local function servoCenterFocusOff(self)
-    local message = {command = 193, payload = {currentServoWriteIndex()}}
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 2001)
-    queueDirect(message, string.format("servo.bus.override.%d.off", currentServoWriteIndex()))
+    local writeIndex = currentServoWriteIndex()
+    queueServoOverride(writeIndex, 2001, string.format("servo.bus.override.%d.off", writeIndex))
     rfsuite.app.triggers.isReady = true
     rfsuite.app.triggers.closeProgressLoader = true
 end
 
 local function servoCenterFocusOn(self)
-    local message = {command = 193, payload = {currentServoWriteIndex()}}
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 0)
-    queueDirect(message, string.format("servo.bus.override.%d.on", currentServoWriteIndex()))
+    local writeIndex = currentServoWriteIndex()
+    queueServoOverride(writeIndex, 0, string.format("servo.bus.override.%d.on", writeIndex))
     rfsuite.app.triggers.isReady = true
     rfsuite.app.triggers.closeProgressLoader = true
 end
 
 local function writeEeprom()
-    local ok, reason = rfsuite.utils.queueEepromWrite({uuid = "servo.bustool.eeprom"})
+    local ok, reason = queueApiWrite("EEPROM_WRITE", "servo.bustool.eeprom")
     if not ok then
         rfsuite.utils.log("Servo BUS EEPROM enqueue rejected: " .. tostring(reason), "info")
     end
@@ -135,11 +150,10 @@ local function saveServoCenter(self)
     local writeIndex = currentServoWriteIndex()
     rfsuite.utils.log(string.format("BUS save center: ui=%d read=%d write=%d mid=%d", servoIndex, currentServoReadIndex(), writeIndex, servoCenter), "debug")
 
-    local message = {command = 213, payload = {}}
-    rfsuite.tasks.msp.mspHelper.writeU8(message.payload, writeIndex)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoCenter)
-
-    return queueDirect(message, string.format("servo.bus.%d.center", writeIndex))
+    return queueApiWrite("SET_SERVO_CENTER", string.format("servo.bus.%d.center", writeIndex), {
+        index = writeIndex,
+        mid = servoCenter
+    })
 
 end
 
@@ -167,18 +181,17 @@ local function saveServoSettings(self)
     end
 
     local configWriteIndex = uiIndexToConfigWriteIndex(servoIndex)
-    local message = {command = 212, payload = {}}
-    rfsuite.tasks.msp.mspHelper.writeU8(message.payload, configWriteIndex)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoCenter)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoMin)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoMax)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoScaleNeg)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoScalePos)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoRate)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoSpeed)
-    rfsuite.tasks.msp.mspHelper.writeU16(message.payload, servoFlags)
-
-    local ok, reason = queueDirect(message, string.format("servo.bus.%d.config", configWriteIndex))
+    local ok, reason = queueApiWrite("SET_SERVO_CONFIG", string.format("servo.bus.%d.config", configWriteIndex), {
+        index = configWriteIndex,
+        mid = servoCenter,
+        min = servoMin,
+        max = servoMax,
+        scale_neg = servoScaleNeg,
+        scale_pos = servoScalePos,
+        rate = servoRate,
+        speed = servoSpeed,
+        flags = servoFlags
+    })
     if not ok then return false, reason end
 
     if rfsuite.session.servoOverride == true then
