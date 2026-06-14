@@ -106,14 +106,17 @@ end
 
 local function eraseDataflash()
     ensureApis()
-    summary = {}
-    setFieldValue(1, "")
-    setFieldValue(2, "")
-    setFieldValue(3, "")
-    setFieldValue(4, "")
-    setFieldValue(5, "")
-    setFieldValue(6, "")
-    return eraseAPI.write()
+    local ok, reason = eraseAPI.write()
+    if ok then
+        summary = {}
+        setFieldValue(1, "")
+        setFieldValue(2, "")
+        setFieldValue(3, "")
+        setFieldValue(4, "")
+        setFieldValue(5, "")
+        setFieldValue(6, "")
+    end
+    return ok, reason
 end
 
 local function postLoad(self)

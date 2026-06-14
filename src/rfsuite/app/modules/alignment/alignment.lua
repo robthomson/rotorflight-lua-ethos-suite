@@ -17,6 +17,7 @@ local navHandlers = pageRuntime.createMenuHandlers({
 })
 
 local cos = math.cos
+local sin = math.sin
 local rad = math.rad
 local floor = math.floor
 local sqrt = math.sqrt
@@ -131,6 +132,11 @@ local function ensureAttitudeApi()
     attitudeAPI = tasks.msp.api.loadPage("ATTITUDE")
     if not attitudeAPI then return nil end
     attitudeAPI.setUUID("alignment.attitude")
+    attitudeAPI.setErrorHandler(function()
+        -- Clear the pending flag immediately so a single dropped/errored
+        -- reply doesn't stall live attitude polling until pendingTimeout.
+        state.pendingAttitude = false
+    end)
     return attitudeAPI
 end
 

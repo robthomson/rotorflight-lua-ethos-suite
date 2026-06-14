@@ -195,6 +195,17 @@ local function loadApis()
         if not api then return false end
         if api.enableDeltaCache then api.enableDeltaCache(false) end
         if api.setUUID then api.setUUID("fblsensors." .. name) end
+        if api.setErrorHandler then
+            api.setErrorHandler(function()
+                -- Clear the pending flag immediately so a single dropped/errored
+                -- reply doesn't stall sampling until pendingTimeout.
+                if state.pending == name then
+                    state.pending = nil
+                    state.pendingData = nil
+                    state.lastStateText = "INVALID"
+                end
+            end)
+        end
     end
 
     state.apis = apis
