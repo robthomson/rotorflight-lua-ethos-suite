@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local servoApiHelpers = assert(loadfile("app/modules/servos/tools/servo_api_helpers.lua"))()
 local lcd = lcd
 
 local function loadMask(path)
@@ -26,26 +27,8 @@ local busServoCount = 16    -- how many bus servos we display
 -- Index translation for BUS read/write MSP commands is handled in `bus_tool.lua`.
 -- This page only controls BUS servo list UI and navigation.
 
-local function queueApiWrite(apiName, uuid, values)
-    local API = rfsuite.tasks.msp.api.loadPage(apiName)
-    if not API then return false, "api_unavailable" end
-
-    if uuid and API.setUUID then API.setUUID(uuid) end
-    if values then
-        for field, value in pairs(values) do
-            API.setValue(field, value)
-        end
-    end
-
-    return API.write()
-end
-
-local function queueServoOverride(index, value, uuid)
-    return queueApiWrite("SERVO_OVERRIDE", uuid, {
-        servo_id = index,
-        value = value
-    })
-end
+local queueApiWrite = servoApiHelpers.queueApiWrite
+local queueServoOverride = servoApiHelpers.queueServoOverride
 
 local function writeEeprom()
     local ok, reason = queueApiWrite("EEPROM_WRITE", "servo.bus.eeprom")

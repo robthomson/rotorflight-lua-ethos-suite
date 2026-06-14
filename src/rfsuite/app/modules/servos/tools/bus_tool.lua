@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local servoApiHelpers = assert(loadfile("app/modules/servos/tools/servo_api_helpers.lua"))()
 
 local triggerOverRide = false
 local triggerOverRideAll = false
@@ -30,63 +31,15 @@ local configs = {}
 local BUS_OUTPUT_COUNT = 18
 local MSP125_READ_BASE_INDEX = 8  -- Base index expected by MSP 125 read-index namespace
 
-local function queueApiWrite(apiName, uuid, values)
-    local API = rfsuite.tasks.msp.api.loadPage(apiName)
-    if not API then return false, "api_unavailable" end
-
-    if uuid and API.setUUID then API.setUUID(uuid) end
-    if values then
-        for field, value in pairs(values) do
-            API.setValue(field, value)
-        end
-    end
-
-    return API.write()
-end
-
-local function queueServoOverride(index, value, uuid)
-    return queueApiWrite("SERVO_OVERRIDE", uuid, {
-        servo_id = index,
-        value = value
-    })
-end
-
-local function applyFlags(config)
-    config.reverse = (config.flags == 1 or config.flags == 3) and 1 or 0
-    config.geometry = (config.flags == 2 or config.flags == 3) and 1 or 0
-end
+local queueApiWrite = servoApiHelpers.queueApiWrite
+local queueServoOverride = servoApiHelpers.queueServoOverride
 
 local function applyServoConfig(index, data)
-    if not data then return false end
-
-    local config = configs[index] or {}
-    local row = servoTable and servoTable[index + 1]
-    config.name = row and row.title or config.name
-    config.mid = data.mid
-    config.min = data.min
-    config.max = data.max
-    config.scaleNeg = data.rneg
-    config.scalePos = data.rpos
-    config.rate = data.rate
-    config.speed = data.speed
-    config.flags = data.flags
-    applyFlags(config)
-    configs[index] = config
-    return true
+    return servoApiHelpers.applyServoConfig(configs, servoTable, index, data)
 end
 
 local function completeServoLoad()
-    enableWakeup = true
-
-    local app = rfsuite.app
-    local triggers = app and app.triggers
-    if triggers then
-        triggers.isReady = true
-        triggers.closeProgressLoader = true
-    end
-    if app and app.ui and app.ui.setPageDirty then
-        app.ui.setPageDirty(false)
-    end
+    servoApiHelpers.completeServoLoad(function() enableWakeup = true end)
 end
 
 local function uiIndexToReadIndex(ui0)

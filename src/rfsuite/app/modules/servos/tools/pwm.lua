@@ -5,6 +5,7 @@
 
 local rfsuite = require("rfsuite")
 local pageRuntime = assert(loadfile("app/lib/page_runtime.lua"))()
+local servoApiHelpers = assert(loadfile("app/modules/servos/tools/servo_api_helpers.lua"))()
 local lcd = lcd
 
 local function loadMask(path)
@@ -25,26 +26,8 @@ local onNavMenu
 local pwmServoCount 
 local busServoOffset = 18
 
-local function queueApiWrite(apiName, uuid, values)
-    local API = rfsuite.tasks.msp.api.loadPage(apiName)
-    if not API then return false, "api_unavailable" end
-
-    if uuid and API.setUUID then API.setUUID(uuid) end
-    if values then
-        for field, value in pairs(values) do
-            API.setValue(field, value)
-        end
-    end
-
-    return API.write()
-end
-
-local function queueServoOverride(index, value, uuid)
-    return queueApiWrite("SERVO_OVERRIDE", uuid, {
-        servo_id = index,
-        value = value
-    })
-end
+local queueApiWrite = servoApiHelpers.queueApiWrite
+local queueServoOverride = servoApiHelpers.queueServoOverride
 
 local function writeEeprom()
     local ok, reason = queueApiWrite("EEPROM_WRITE", "servo.pwm.eeprom")
