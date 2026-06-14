@@ -72,9 +72,14 @@ local LAYOUT = {
     }
 
 
-local function queueDirect(message, uuid)
-    if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:addPage(message)
+local function queueMixerOverride(index, value, uuid)
+    local API = rfsuite.tasks.msp.api.loadPage("MIXER_OVERRIDE")
+    if not API then return false, "api_unavailable" end
+
+    API.setUUID(uuid)
+    API.setValue("index", index)
+    API.setValue("value", value)
+    return API.write()
 end
 
 local function formDigest()
@@ -325,9 +330,7 @@ local function mixerOn()
 
     local overrideValue = mixerOverrideOnValue()
     for i = 1, 4 do
-        local message = {command = 191, payload = {i}}
-        rfsuite.tasks.msp.mspHelper.writeU16(message.payload, overrideValue)
-        queueDirect(message, string.format("mixer.override.%d.on", i))
+        queueMixerOverride(i, overrideValue, string.format("mixer.override.%d.on", i))
     end
 
     rfsuite.app.triggers.isReady = true
@@ -339,9 +342,7 @@ local function mixerOff()
     setMixerOverrideAudio(false)
 
     for i = 1, 4 do
-        local message = {command = 191, payload = {i}}
-        rfsuite.tasks.msp.mspHelper.writeU16(message.payload, MIXER_OVERRIDE_OFF)
-        queueDirect(message, string.format("mixer.override.%d.off", i))
+        queueMixerOverride(i, MIXER_OVERRIDE_OFF, string.format("mixer.override.%d.off", i))
     end
 
     rfsuite.app.triggers.isReady = true
