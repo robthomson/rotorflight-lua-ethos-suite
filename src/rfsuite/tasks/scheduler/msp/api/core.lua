@@ -24,6 +24,16 @@ local mspHelper = rfsuite.tasks.msp.mspHelper
 local isSim = (system and system.getVersion and system.getVersion().simulation) == true
 local EMPTY_SIM_RESPONSE = {}
 
+function core.writeS32(v)
+    if v < 0 then v = v + 0x100000000 end
+    return {
+        v % 256,
+        math_floor(v / 256) % 256,
+        math_floor(v / 65536) % 256,
+        math_floor(v / 16777216) % 256
+    }
+end
+
 local TYPE_SIZES = {
     U8 = 1, S8 = 1, U16 = 2, S16 = 2, U24 = 3, S24 = 3, U32 = 4, S32 = 4,
     U40 = 5, S40 = 5, U48 = 6, S48 = 6, U56 = 7, S56 = 7, U64 = 8, S64 = 8,
@@ -87,26 +97,6 @@ local function resolveWriteUUID(spec, state)
     return nil
 end
 
-local function ensureApiBusActions(bus)
-    if not (bus and bus.registerAction) then return false end
-    if bus._apiActionsReady == true then return true end
-
-    bus.registerAction("api.reply", function(context, msg, buf)
-        local fn = context and context.reply
-        if type(fn) ~= "function" then return false, "missing_reply" end
-        return fn(msg, buf)
-    end)
-
-    bus.registerAction("api.error", function(context, msg, reason)
-        local fn = context and context.error
-        if type(fn) ~= "function" then return false, "missing_error" end
-        return fn(msg, reason)
-    end)
-
-    bus._apiActionsReady = true
-    return true
-end
-
 local function queueApiMessage(message, owner)
     local tasks = rfsuite.tasks
     local msp = tasks and tasks.msp
@@ -117,7 +107,7 @@ local function queueApiMessage(message, owner)
     local errorFn = message.errorHandler
     local bus = msp and msp.bus
 
-    if not message._busContext and (type(replyFn) == "function" or type(errorFn) == "function") and bus and bus.createContext and ensureApiBusActions(bus) then
+    if not message._busContext and (type(replyFn) == "function" or type(errorFn) == "function") and bus and bus.createContext then
         local contextId = bus.createContext({
             reply = type(replyFn) == "function" and replyFn or nil,
             error = type(errorFn) == "function" and errorFn or nil
@@ -128,8 +118,8 @@ local function queueApiMessage(message, owner)
             message.errorHandler = nil
             message._busContext = contextId
             message._releaseBusContext = true
-            if type(replyFn) == "function" then message._replyAction = "api.reply" end
-            if type(errorFn) == "function" then message._errorAction = "api.error" end
+            if type(replyFn) == "function" then message._replyAction = "legacy.reply" end
+            if type(errorFn) == "function" then message._errorAction = "legacy.error" end
         end
     end
 

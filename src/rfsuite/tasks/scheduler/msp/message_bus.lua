@@ -8,27 +8,15 @@ local pairs = pairs
 local pcall = pcall
 
 local bus = {}
-local handlers = {}
-local owners = {}
 local actions = {}
 local contexts = {}
 local contextOwners = {}
-local nextId = 0
 local nextContextId = 0
 
 local function wipe(tbl)
     for k in pairs(tbl) do
         tbl[k] = nil
     end
-end
-
-function bus.register(fn, owner)
-    if type(fn) ~= "function" then return nil end
-
-    nextId = nextId + 1
-    handlers[nextId] = fn
-    owners[nextId] = owner
-    return nextId
 end
 
 function bus.registerAction(name, fn)
@@ -60,27 +48,10 @@ function bus.releaseContext(id)
     return true
 end
 
-function bus.release(id)
-    if id == nil then return false end
-    if handlers[id] == nil then return false end
-
-    handlers[id] = nil
-    owners[id] = nil
-    return true
-end
-
 function bus.releaseOwner(owner)
     if owner == nil then return 0 end
 
     local removed = 0
-    for id, registeredOwner in pairs(owners) do
-        if registeredOwner == owner then
-            handlers[id] = nil
-            owners[id] = nil
-            removed = removed + 1
-        end
-    end
-
     for id, registeredOwner in pairs(contextOwners) do
         if registeredOwner == owner then
             contexts[id] = nil
@@ -90,12 +61,6 @@ function bus.releaseOwner(owner)
     end
 
     return removed
-end
-
-function bus.dispatch(id, ...)
-    local fn = handlers[id]
-    if fn == nil then return false, "missing_handler" end
-    return pcall(fn, ...)
 end
 
 function bus.dispatchAction(name, contextId, ...)
@@ -109,20 +74,9 @@ function bus.dispatchAction(name, contextId, ...)
 end
 
 function bus.reset()
-    wipe(handlers)
-    wipe(owners)
     wipe(contexts)
     wipe(contextOwners)
-    nextId = 0
     nextContextId = 0
-end
-
-function bus.count()
-    local n = 0
-    for _ in pairs(handlers) do
-        n = n + 1
-    end
-    return n
 end
 
 function bus.contextCount()
@@ -149,12 +103,6 @@ function bus.ownerCount(owner)
         return handlerCount, contextCount
     end
 
-    for _, registeredOwner in pairs(owners) do
-        if registeredOwner == owner then
-            handlerCount = handlerCount + 1
-        end
-    end
-
     for _, registeredOwner in pairs(contextOwners) do
         if registeredOwner == owner then
             contextCount = contextCount + 1
@@ -166,7 +114,7 @@ end
 
 function bus.stats()
     return {
-        handlers = bus.count(),
+        handlers = 0,
         contexts = bus.contextCount(),
         actions = bus.actionCount()
     }
