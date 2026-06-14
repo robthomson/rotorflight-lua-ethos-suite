@@ -1268,6 +1268,11 @@ function core.createWriteOnlyAPI(spec)
         error("api.createWriteOnlyAPI requires spec.writeCmd")
     end
 
+    local writeStructure = {}
+    if type(spec.fields) == "table" then
+        writeStructure = select(1, buildRuntimeStructure(spec.fields))
+    end
+
     local completeHandler = nil
     local errorHandler = nil
     local state = {
@@ -1334,6 +1339,13 @@ function core.createWriteOnlyAPI(spec)
                 payload = writeBuilder(state.payloadData, nil, mspHelper, state, ...)
             elseif spec.writePayload ~= nil then
                 payload = spec.writePayload
+            elseif #writeStructure > 0 then
+                payload = core.buildWritePayload(
+                    spec.name,
+                    state.payloadData,
+                    writeStructure,
+                    state.rebuildOnWrite == true
+                )
             else
                 payload = EMPTY_SIM_RESPONSE
             end
@@ -1438,7 +1450,7 @@ function core.createWriteOnlyAPI(spec)
         setBusActions = setBusActions,
         setRebuildOnWrite = setRebuildOnWrite,
         __rfReadStructure = {},
-        __rfWriteStructure = {}
+        __rfWriteStructure = writeStructure
     }
 
     local methods = spec.methods
