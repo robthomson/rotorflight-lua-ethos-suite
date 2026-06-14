@@ -90,15 +90,11 @@ local function releaseMessageHandlers(msg)
     if not msg then return end
 
     local bus = getBus()
-    if bus and bus.release then
-        if msg._processReplyHandler then bus.release(msg._processReplyHandler) end
-        if msg._errorHandler then bus.release(msg._errorHandler) end
+    if bus and bus.releaseContext then
         if msg._busContext and msg._releaseBusContext then bus.releaseContext(msg._busContext) end
         if msg._errorBusContext and msg._releaseErrorBusContext then bus.releaseContext(msg._errorBusContext) end
     end
 
-    msg._processReplyHandler = nil
-    msg._errorHandler = nil
     msg._replyAction = nil
     msg._errorAction = nil
     msg._busContext = nil
@@ -121,15 +117,6 @@ local function dispatchReply(msg, buf)
         return false, "bus_missing"
     end
 
-    local busId = msg._processReplyHandler
-    if busId then
-        local bus = getBus()
-        if bus and bus.dispatch then
-            return bus.dispatch(busId, msg, buf)
-        end
-        return false, "bus_missing"
-    end
-
     if msg.processReply then
         msg:processReply(buf)
         return true
@@ -146,15 +133,6 @@ local function dispatchError(msg, reason)
         local bus = getBus()
         if bus and bus.dispatchAction then
             return bus.dispatchAction(action, msg._errorBusContext or msg._busContext, msg, reason)
-        end
-        return false, "bus_missing"
-    end
-
-    local busId = msg._errorHandler
-    if busId then
-        local bus = getBus()
-        if bus and bus.dispatch then
-            return bus.dispatch(busId, msg, reason)
         end
         return false, "bus_missing"
     end
@@ -527,7 +505,7 @@ function MspQueueController:processQueue()
         or (cmd == self.currentMessage.command and err and self.currentMessage.completeOnErrorReplyAttempt and self.retryCount >= self.currentMessage.completeOnErrorReplyAttempt)
         or (self.currentMessage.command == 68 and self.retryCount == 2) then
 
-        if self.currentMessage.processReply or self.currentMessage._processReplyHandler or self.currentMessage._replyAction then
+        if self.currentMessage.processReply or self.currentMessage._replyAction then
             local ok, errMsg = dispatchReply(self.currentMessage, buf)
             if not ok and errMsg ~= "missing_handler" then
                 if LOG_ENABLED_MSP() then utils.log("MSP reply dispatch failed: " .. tostring(errMsg), "info") end
