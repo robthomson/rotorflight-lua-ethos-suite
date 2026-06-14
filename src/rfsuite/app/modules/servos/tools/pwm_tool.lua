@@ -19,7 +19,6 @@ local servoTable
 local servoCount
 local configs = {}
 local INDEXED_SERVO_CONFIG_MIN_API = {12, 0, 9}
-local servoLoadContext
 
 local function useIndexedServoConfig()
     return rfsuite.utils.apiVersionCompare(">=", INDEXED_SERVO_CONFIG_MIN_API)
@@ -32,11 +31,6 @@ end
 
 local function currentServoWriteIndex()
     return servoIndex
-end
-
-local function queueDirect(message, uuid)
-    if message and uuid and message.uuid == nil then message.uuid = uuid end
-    return rfsuite.tasks.msp.mspQueue:addPage(message)
 end
 
 local function queueApiWrite(apiName, uuid, values)
@@ -60,29 +54,41 @@ local function queueServoOverride(index, value, uuid)
     })
 end
 
-local function servoActions()
-    return rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.servoActions
+local function applyFlags(config)
+    config.reverse = (config.flags == 1 or config.flags == 3) and 1 or 0
+    config.geometry = (config.flags == 2 or config.flags == 3) and 1 or 0
 end
 
-local function createServoLoadContext()
-    local actions = servoActions()
-    local bus = rfsuite.tasks and rfsuite.tasks.msp and rfsuite.tasks.msp.bus
-    if not (actions and actions.actions and bus and bus.createContext) then return nil end
+local function applyServoConfig(index, data)
+    if not data then return false end
 
-    servoLoadContext = {
-        configs = configs,
-        servoTable = servoTable,
-        servoIndex = servoIndex,
-        owner = rfsuite.app and rfsuite.app.lastScript
-    }
-    return bus.createContext(servoLoadContext, servoLoadContext.owner)
+    local config = configs[index] or {}
+    local row = servoTable and servoTable[index + 1]
+    config.name = row and row.title or config.name
+    config.mid = data.mid
+    config.min = data.min
+    config.max = data.max
+    config.scaleNeg = data.rneg
+    config.scalePos = data.rpos
+    config.rate = data.rate
+    config.speed = data.speed
+    config.flags = data.flags
+    applyFlags(config)
+    configs[index] = config
+    return true
 end
 
-local function syncServoLoadState()
-    if servoLoadContext and servoLoadContext.loaded == true then
-        servoCount = servoLoadContext.servoCount or servoCount
-        enableWakeup = servoLoadContext.enableWakeup == true
-        servoLoadContext = nil
+local function completeServoLoad()
+    enableWakeup = true
+
+    local app = rfsuite.app
+    local triggers = app and app.triggers
+    if triggers then
+        triggers.isReady = true
+        triggers.closeProgressLoader = true
+    end
+    if app and app.ui and app.ui.setPageDirty then
+        app.ui.setPageDirty(false)
     end
 end
 
@@ -256,8 +262,6 @@ end
 
 local function wakeup(self)
 
-    syncServoLoadState()
-
     if enableWakeup == true then
 
         -- go back to main as this tool is compromised 
@@ -328,52 +332,58 @@ local function wakeup(self)
 end
 
 local function getServoConfigurations()
-    local actions = servoActions()
-    local contextId = createServoLoadContext()
-    if not (actions and actions.actions and contextId) then return false, "bus_missing" end
+    local API = rfsuite.tasks.msp.api.loadPage("SERVO_CONFIGURATIONS")
+    if not API then return false, "api_unavailable" end
 
-    local message = {
-        command = 120,
-        uuid = "servo.cfg.bulk",
-        _busContext = contextId,
-        _releaseBusContext = true,
-        _replyAction = actions.actions.pwmBulkReply,
-        simulatorResponse = actions.simulatorResponses.pwmBulk
-    }
-    local ok, reason = queueDirect(message)
-    if not ok and rfsuite.tasks.msp.bus and rfsuite.tasks.msp.bus.releaseContext then
-        rfsuite.tasks.msp.bus.releaseContext(contextId)
-        servoLoadContext = nil
-    end
-    return ok, reason
+    API.setUUID("servo.cfg.bulk")
+    API.setCompleteHandler(function()
+        local data = API.data()
+        local parsed = data and data.parsed
+        if not parsed then return end
+
+        servoCount = parsed.servo_count
+        if rfsuite.session then
+            rfsuite.session.servoCount = servoCount
+        end
+
+        if rfsuite.utils and rfsuite.utils.log then
+            rfsuite.utils.log("Servo count " .. tostring(servoCount), "info")
+        end
+
+        for i = 0, (servoCount or 0) - 1 do
+            applyServoConfig(i, parsed.servos and parsed.servos[i])
+        end
+
+        completeServoLoad()
+    end)
+
+    return API.read()
 end
 
 
 local function getServoConfigurationsIndexed()
-    local actions = servoActions()
-    local contextId = createServoLoadContext()
-    if not (actions and actions.actions and contextId) then return false, "bus_missing" end
-
-    -- MSP_GET_SERVO_CONFIG (125) returns config for a *single* servo index.
-    -- Payload must contain exactly 1 byte: the servo index (0-based).
     local readIndex = currentServoReadIndex()
-    local message = {
-        command = 125,
-        payload = {readIndex},
-        uuid = string.format("servo.cfg.%d", readIndex),
-        _busContext = contextId,
-        _releaseBusContext = true,
-        _replyAction = actions.actions.pwmIndexReply,
-        _errorAction = actions.actions.pwmIndexError,
 
-        -- 8x U16 fields (16 bytes). Values: mid=1500, min=1000, max=2000, rneg=1000, rpos=1000, rate=100, speed=0, flags=0
-        simulatorResponse = actions.simulatorResponses.indexed
-    }
+    local API = rfsuite.tasks.msp.api.loadPage("GET_SERVO_CONFIG")
+    if not API then return getServoConfigurations() end
 
-    local ok, reason = queueDirect(message)
-    if not ok and rfsuite.tasks.msp.bus and rfsuite.tasks.msp.bus.releaseContext then
-        rfsuite.tasks.msp.bus.releaseContext(contextId)
-        servoLoadContext = nil
+    API.setUUID(string.format("servo.cfg.%d", readIndex))
+    API.setCompleteHandler(function()
+        local data = API.data()
+        local parsed = data and data.parsed
+        if parsed then
+            servoCount = rfsuite.session and rfsuite.session.servoCount or servoCount
+            applyServoConfig(servoIndex, parsed)
+            completeServoLoad()
+        end
+    end)
+    API.setErrorHandler(function()
+        getServoConfigurations()
+    end)
+
+    local ok, reason = API.read(readIndex)
+    if not ok then
+        return getServoConfigurations()
     end
     return ok, reason
 end
@@ -656,7 +666,6 @@ local function close()
     enableWakeup = false
     form.clear()
     configs = {}
-    servoLoadContext = nil
     servoTable = nil
     collectgarbage("collect")
 end
