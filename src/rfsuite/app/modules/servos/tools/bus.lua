@@ -26,8 +26,29 @@ local busServoCount = 16    -- how many bus servos we display
 -- Index translation for BUS read/write MSP commands is handled in `bus_tool.lua`.
 -- This page only controls BUS servo list UI and navigation.
 
+local function queueApiWrite(apiName, uuid, values)
+    local API = rfsuite.tasks.msp.api.loadPage(apiName)
+    if not API then return false, "api_unavailable" end
+
+    if uuid and API.setUUID then API.setUUID(uuid) end
+    if values then
+        for field, value in pairs(values) do
+            API.setValue(field, value)
+        end
+    end
+
+    return API.write()
+end
+
+local function queueServoOverride(index, value, uuid)
+    return queueApiWrite("SERVO_OVERRIDE", uuid, {
+        servo_id = index,
+        value = value
+    })
+end
+
 local function writeEeprom()
-    local ok, reason = rfsuite.utils.queueEepromWrite({uuid = "servo.bus.eeprom"})
+    local ok, reason = queueApiWrite("EEPROM_WRITE", "servo.bus.eeprom")
     if not ok then
         rfsuite.utils.log("Servo BUS EEPROM enqueue rejected: " .. tostring(reason), "info")
     end
@@ -338,14 +359,10 @@ local function servoCenterFocusAllOn(self)
     rfsuite.app.audio.playServoOverideEnable = true
 
     if rfsuite.utils.apiVersionCompare(">=", {12, 0, 9}) then
-            local message = {command = 196, payload = {}}
-            rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 0)
-            rfsuite.tasks.msp.mspQueue:addPage(message)
+            queueApiWrite("SERVO_OVERRIDE_ALL", "servo.bus.override.all.on", {value = 0})
     else
         for i = 0, #servoTable do
-            local message = {command = 193, payload = {i}}
-            rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 0)
-            rfsuite.tasks.msp.mspQueue:addPage(message)
+            queueServoOverride(i, 0, string.format("servo.bus.override.%d.on", i))
         end
     end    
 
@@ -357,14 +374,10 @@ end
 local function servoCenterFocusAllOff(self)
 
     if rfsuite.utils.apiVersionCompare(">=", {12, 0, 9}) then
-            local message = {command = 196, payload = {}}
-            rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 2001)
-            rfsuite.tasks.msp.mspQueue:addPage(message)
+            queueApiWrite("SERVO_OVERRIDE_ALL", "servo.bus.override.all.off", {value = 2001})
     else
         for i = 0, #servoTable do
-            local message = {command = 193, payload = {i}}
-            rfsuite.tasks.msp.mspHelper.writeU16(message.payload, 2001)
-            rfsuite.tasks.msp.mspQueue:addPage(message)
+            queueServoOverride(i, 2001, string.format("servo.bus.override.%d.off", i))
         end
     end    
     rfsuite.app.triggers.isReady = true
