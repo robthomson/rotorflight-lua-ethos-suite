@@ -15,18 +15,8 @@ local osClock = os.clock
 local sin = math.sin
 local floor = math.floor
 
-local function writeS32(v)
-    if v < 0 then v = v + 0x100000000 end
-    return {
-        v % 256,
-        floor(v / 256) % 256,
-        floor(v / 65536) % 256,
-        floor(v / 16777216) % 256
-    }
-end
-
 local function simulatorResponse()
-    return writeS32(floor(120 + sin(osClock() * 1.5) * 30))
+    return core.writeS32(floor(120 + sin(osClock() * 1.5) * 30))
 end
 
 return core.createReadOnlyAPI({
