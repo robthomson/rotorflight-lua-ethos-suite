@@ -145,6 +145,8 @@ local function queueApiMessage(message, owner)
     return ok, reason, qid, pending
 end
 
+core.queueMessage = queueApiMessage
+
 local function applyFieldMeta(target, tuple)
     local min = tuple[FIELD_MIN]
     local max = tuple[FIELD_MAX]
