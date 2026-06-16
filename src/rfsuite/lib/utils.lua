@@ -139,10 +139,8 @@ function utils.resolveArmedState(refreshFromTelemetry)
 end
 
 function utils.signalArmedWriteBlocked()
-    local app = rfsuite.app
-    if app and app.triggers then
-        app.triggers.showSaveArmedWarning = true
-    end
+    local cb = rfsuite.tasks and rfsuite.tasks.uiCallbacks
+    if cb and cb.showArmedWarning then cb.showArmedWarning() end
 end
 
 function utils.getArmedSaveBlockedMessage()
@@ -167,8 +165,7 @@ function utils.queueEepromWrite(opts)
     local owner = opts.owner
     local createdBusContext
     if owner == nil then
-        local app = rfsuite.app
-        owner = app and app.lastScript
+        owner = rfsuite.tasks.lastScript
     end
 
     if not opts.replyAction and opts.logMessage then
