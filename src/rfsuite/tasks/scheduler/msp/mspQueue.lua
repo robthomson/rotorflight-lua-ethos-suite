@@ -215,12 +215,10 @@ local function setMspStatus(message)
             session.mspStatusLast = message
             session.mspStatusClearAt = nil
         end
-        local app = rfsuite.app
-        if app and app.ui and app.ui.updateProgressDialogMessage then
-            app.ui.updateProgressDialogMessage(message)
-        end
-        if app and app.ui and app.ui.applyMspStatusToActiveDialogs then
-            app.ui.applyMspStatusToActiveDialogs(message)
+        local cb = rfsuite.tasks.uiCallbacks
+        if cb then
+            if cb.updateProgressDialogMessage then cb.updateProgressDialogMessage(message) end
+            if cb.applyMspStatusToActiveDialogs then cb.applyMspStatusToActiveDialogs(message) end
         end
     end
 end
@@ -422,8 +420,8 @@ function MspQueueController:processQueue()
                     else
                         setMspStatus(formatMspStatus(self.currentMessage, "send"))
                     end
-                    local page = rfsuite.app and rfsuite.app.Page
-                    if page and page.mspRetry then page.mspRetry(self) end
+                    local cb = rfsuite.tasks.uiCallbacks
+                    if cb and cb.mspRetry then cb.mspRetry(self) end
                 end
             end
         end
@@ -610,8 +608,8 @@ function MspQueueController:processQueue()
         if self.interMessageDelay and self.interMessageDelay > 0 then
             self._nextMessageAt = now + self.interMessageDelay
         end        
-        local page = rfsuite.app and rfsuite.app.Page
-        if page and page.mspSuccess then page.mspSuccess() end
+        local cb = rfsuite.tasks.uiCallbacks
+        if cb and cb.mspSuccess then cb.mspSuccess() end
 
     -- Too many retries - reset
     elseif self.retryCount > self.maxRetries then
@@ -633,8 +631,8 @@ function MspQueueController:processQueue()
         if msg then dispatchError(msg, "max_retries") end
         self:clear()
         releaseMessageHandlers(msg)
-        local page = rfsuite.app and rfsuite.app.Page
-        if page and page.mspTimeout then page.mspTimeout() end
+        local cb = rfsuite.tasks.uiCallbacks
+        if cb and cb.mspTimeout then cb.mspTimeout() end
     end
 end
 
@@ -705,7 +703,7 @@ function MspQueueController:add(message)
     local toQueue = self.copyOnAdd and cloneMessage(message) or message
     self._qidSeq = (self._qidSeq or 0) + 1
     toQueue._qid = self._qidSeq
-    local pageScript = rfsuite.app and rfsuite.app.lastScript
+    local pageScript = rfsuite.tasks.lastScript
     if pageScript then toQueue._pageScript = pageScript end
     local bus = getBus()
     if bus and bus.createContext then
@@ -759,7 +757,7 @@ end
 
 function MspQueueController:addPage(message)
     if type(message) == "table" then
-        local pageScript = rfsuite.app and rfsuite.app.lastScript
+        local pageScript = rfsuite.tasks.lastScript
         if pageScript then
             message._pageScript = message._pageScript or pageScript
             message._busOwner = message._busOwner or pageScript

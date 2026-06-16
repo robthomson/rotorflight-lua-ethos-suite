@@ -201,16 +201,25 @@ local function createLazyAppProxy()
                 return mod[key]
             end
 
-            if key == "guiIsRunning" or key == "escPowerCycleLoader" then
-                return false
+            if key == "guiIsRunning" then
+                local t = rfsuite.tasks
+                return (t and t.appRunning) or false
             end
-            if key == "tasks" or key == "triggers" or key == "ui" or key == "Page" or key == "formFields" then
+            if key == "escPowerCycleLoader" then
+                local t = rfsuite.tasks
+                return (t and t.escPowerCycleLoader) or false
+            end
+            if key == "tasks" or key == "triggers" or key == "ui" then
                 return nil
             end
 
             return ensureAppModule()[key]
         end,
         __newindex = function(_, key, value)
+            if key == "lastScript" or key == "escPowerCycleLoader" then
+                local t = rfsuite.tasks
+                if t then t[key] = value end
+            end
             ensureAppModule()[key] = value
         end
     })
