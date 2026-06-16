@@ -21,7 +21,7 @@ local function onSaveMenu()
                 local msg = "@i18n(app.modules.profile_select.save_prompt_local)@"
                 rfsuite.app.ui.progressDisplaySave(msg:gsub("%?$", "."))
                 if page and page.write then page.write() end
-                rfsuite.widgets.dashboard.reload_themes()
+                rfsuite.bus.notify("dashboard.reload_themes", {})
                 rfsuite.app.triggers.closeSave = true
                 return true
             end
@@ -58,7 +58,7 @@ local function openPage(opts)
     if app.formFields then for k in pairs(app.formFields) do app.formFields[k] = nil end end
     if app.formLines then for k in pairs(app.formLines) do app.formLines[k] = nil end end
 
-    rfsuite.app.dashboardEditingTheme = source .. "/" .. folder
+    rfsuite.session.dashboardEditingTheme = source .. "/" .. folder
 
     local modulePath = themeScript
 
