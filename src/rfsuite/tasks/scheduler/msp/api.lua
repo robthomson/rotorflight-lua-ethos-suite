@@ -21,13 +21,6 @@ local api = {}
 api._fileExistsCache = {}
 api._fileExistsCacheOrder = {}
 api._fileExistsCacheMax = 24
-api._chunkCache = {}
-api._chunkCacheOrder = {}
-api._chunkCacheMax = 2
-api._helpChunkCache = {}
-api._helpChunkCacheOrder = {}
-api._helpChunkCacheMax = 2
-api._helpDataCache = {}
 api._deltaCacheDefault = true
 api._deltaCacheByApi = {}
 api._ported = {}
@@ -136,51 +129,12 @@ local function resolvePath(apiName)
     return nil, nil
 end
 
-local function getChunk(cacheKey, apiName, path)
-    local chunk = api._chunkCache[cacheKey]
-    if chunk then
-        touchCacheOrder(api._chunkCacheOrder, cacheKey)
-        return chunk
-    end
-
+local function getChunk(apiName, path)
     local loaderFn, err = loadfile(path)
     if not loaderFn then
         utils.log("[api] compile failed for " .. tostring(apiName) .. ": " .. tostring(err), "info")
         return nil
     end
-
-    api._chunkCache[cacheKey] = loaderFn
-    table_insert(api._chunkCacheOrder, cacheKey)
-
-    if #api._chunkCacheOrder > api._chunkCacheMax then
-        local oldestKey = table_remove(api._chunkCacheOrder, 1)
-        api._chunkCache[oldestKey] = nil
-    end
-
-    return loaderFn
-end
-
-local function getHelpChunk(apiName, path)
-    local chunk = api._helpChunkCache[apiName]
-    if chunk then
-        touchCacheOrder(api._helpChunkCacheOrder, apiName)
-        return chunk
-    end
-
-    local loaderFn, err = loadfile(path)
-    if not loaderFn then
-        utils.log("[apihelp] compile failed for " .. tostring(apiName) .. ": " .. tostring(err), "info")
-        return nil
-    end
-
-    api._helpChunkCache[apiName] = loaderFn
-    table_insert(api._helpChunkCacheOrder, apiName)
-
-    if #api._helpChunkCacheOrder > api._helpChunkCacheMax then
-        local oldest = table_remove(api._helpChunkCacheOrder, 1)
-        api._helpChunkCache[oldest] = nil
-    end
-
     return loaderFn
 end
 
@@ -194,47 +148,25 @@ local function shouldLoadHelp(loadOpts)
     return false
 end
 
-local function getHelpFields(apiName)
-    if type(apiName) ~= "string" or apiName == "" then return nil end
-
-    local cached = api._helpDataCache[apiName]
-    if cached ~= nil then
-        return cached or nil
-    end
-
-    local helpPath = resolveHelpPath(apiName)
-    if not helpPath or not cachedFileExists(helpPath) then
-        api._helpDataCache[apiName] = false
-        return nil
-    end
-
-    local chunk = getHelpChunk(apiName, helpPath)
-    if not chunk then
-        api._helpDataCache[apiName] = false
-        return nil
-    end
-
-    local ok, helpData = pcall(chunk)
-    if not ok or type(helpData) ~= "table" then
-        utils.log("[apihelp] invalid help data for " .. tostring(apiName), "info")
-        api._helpDataCache[apiName] = false
-        return nil
-    end
-
-    local fields = type(helpData.fields) == "table" and helpData.fields or helpData
-    if type(fields) ~= "table" then
-        api._helpDataCache[apiName] = false
-        return nil
-    end
-
-    api._helpDataCache[apiName] = fields
-    return fields
-end
-
 local function injectHelpIntoStructure(apiName, structure)
     if type(structure) ~= "table" then return end
 
-    local helpFields = getHelpFields(apiName)
+    local helpPath = resolveHelpPath(apiName)
+    if not helpPath or not cachedFileExists(helpPath) then return end
+
+    local loaderFn, err = loadfile(helpPath)
+    if not loaderFn then
+        utils.log("[apihelp] compile failed for " .. tostring(apiName) .. ": " .. tostring(err), "info")
+        return
+    end
+
+    local ok, helpData = pcall(loaderFn)
+    if not ok or type(helpData) ~= "table" then
+        utils.log("[apihelp] invalid help data for " .. tostring(apiName), "info")
+        return
+    end
+
+    local helpFields = type(helpData.fields) == "table" and helpData.fields or helpData
     if type(helpFields) ~= "table" then return end
 
     for _, entry in ipairs(structure) do
@@ -325,16 +257,12 @@ function api.register(apiName, modulePath)
     if type(apiName) ~= "string" or apiName == "" then return false end
     if type(modulePath) ~= "string" or modulePath == "" then return false end
     api._ported[apiName] = modulePath
-    api._chunkCache = {}
-    api._chunkCacheOrder = {}
     return true
 end
 
 function api.unregister(apiName)
     if type(apiName) ~= "string" or apiName == "" then return false end
     api._ported[apiName] = nil
-    api._chunkCache = {}
-    api._chunkCacheOrder = {}
     return true
 end
 
@@ -361,7 +289,7 @@ function api.load(apiName, loadOpts)
         return nil
     end
 
-    local chunk = getChunk(path, apiName, path)
+    local chunk = getChunk(apiName, path)
     if not chunk then return nil end
 
     local apiModule = chunk()
@@ -439,24 +367,10 @@ function api.resetApidata()
     api.apidata = {}
 end
 
-function api.getFieldHelp(apiName, fieldName)
-    if type(apiName) ~= "string" or apiName == "" then return nil end
-    if type(fieldName) ~= "string" or fieldName == "" then return nil end
-
-    local helpFields = getHelpFields(apiName)
-    if not helpFields then return nil end
-    return helpFields[fieldName]
-end
-
 function api.clearChunkCache()
-    api._chunkCache = {}
-    api._chunkCacheOrder = {}
 end
 
 function api.clearHelpCache()
-    api._helpChunkCache = {}
-    api._helpChunkCacheOrder = {}
-    api._helpDataCache = {}
 end
 
 function api.clearFileExistsCache()
