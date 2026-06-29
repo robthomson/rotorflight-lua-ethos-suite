@@ -80,7 +80,7 @@ local header_boxes_cache = nil
 local themeconfig = nil
 local last_txbatt_type = nil
 
-local layout = {cols = 7, rows = 12, padding = 0, bgcolor = colorMode.bgcolor}
+local layout = {cols = 7, rows = 12, padding = 0}
 
 local header_layout = utils.standardHeaderLayout(headeropts)
 local topbarShiftY = 4
@@ -284,8 +284,9 @@ end
 -- VISUAL BOOSTER: ANIMATED CYBER OSCILLOSCOPE SINE WAVE
 -- =========================================================================
 local function paintCyberBackground(x, y, w, h, box, cache)
-    lcd.color(colorMode.bgcolor)
-    lcd.drawFilledRectangle(x, y, w, h)
+    -- REMOVED SOLID BACKGROUND TO LET ETHOS HEADER SHOW
+    -- lcd.color(colorMode.bgcolor)
+    -- lcd.drawFilledRectangle(x, y, w, h)
 
     local time = os.clock()
     
@@ -304,17 +305,6 @@ local function paintCyberBackground(x, y, w, h, box, cache)
     local db = math.floor(14 + (60 - 14) * pulse)
 
     local cy = y + h / 2
-
-    -- Draw pulsating corner ticks to frame the screen
-    lcd.color(lcd.RGB(dr, dg, db))
-    lcd.drawLine(x + 2, y + 2, x + 14, y + 2)
-    lcd.drawLine(x + 2, y + 2, x + 2, y + 14)
-    lcd.drawLine(x + w - 2, y + 2, x + w - 14, y + 2)
-    lcd.drawLine(x + w - 2, y + 2, x + w - 2, y + 14)
-    lcd.drawLine(x + 2, y + h - 2, x + 14, y + h - 2)
-    lcd.drawLine(x + 2, y + h - 2, x + 2, y + h - 14)
-    lcd.drawLine(x + w - 2, y + h - 2, x + w - 14, y + h - 2)
-    lcd.drawLine(x + w - 2, y + h - 2, x + w - 2, y + h - 14)
 
     -- Draw Center Dashed Axis Line (Oscilloscope Zero-Line)
     for i = x, x + w, 30 do

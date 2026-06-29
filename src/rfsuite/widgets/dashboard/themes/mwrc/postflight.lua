@@ -80,7 +80,7 @@ local boxes_cache = nil
 local header_boxes_cache = nil
 local last_txbatt_type = nil
 
-local layout = {cols = 12, rows = 12, padding = 0, bgcolor = colorMode.bgcolor}
+local layout = {cols = 12, rows = 12, padding = 0}
 local screenBorderStyle = {
     enabled = false,
     bordercolor = colorMode.accentcolor or colorMode.rssifillbgcolor,
@@ -135,9 +135,10 @@ end
 -- FULL SCREEN WIPE FIX: Obliterates the Inflight screen to stop bleed-through
 -- =========================================================================
 local function paintCyberBackground(x, y, w, h, box, cache)
-    local W, H = lcd.getWindowSize()
-    lcd.color(colorMode.bgcolor)
-    lcd.drawFilledRectangle(0, 0, W, H)
+    -- REMOVED FULL SCREEN WIPE TO STOP IT FROM HIDING THE HEADER
+    -- local W, H = lcd.getWindowSize()
+    -- lcd.color(colorMode.bgcolor)
+    -- lcd.drawFilledRectangle(0, 0, W, H)
     
     lcd.color(rc.dim)
     lcd.drawLine(x + 2, y + 2, x + 14, y + 2)
