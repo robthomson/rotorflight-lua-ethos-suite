@@ -11,94 +11,160 @@ local tonumber = tonumber
 
 local config = {}
 
-local THEME_DEFAULTS = {rpm_min = 0, rpm_max = 3000, bec_min = 3.0, bec_warn = 6.0, bec_max = 13.0, esctemp_warn = 90, esctemp_max = 140}
+-- Keep these values aligned with preflight.lua, inflight.lua and postflight.lua.
+local THEME_DEFAULTS = {
+    rpm_min = 0,
+    rpm_max = 2500,
+    bec_min = 6.5,
+    bec_warn = 8.0,
+    bec_max = 12.0,
+    esctemp_warn = 110,
+    esctemp_max = 150
+}
 
-local function clamp(val, min, max)
-    if val < min then return min end
-    if val > max then return max end
-    return val
+local function clamp(value, minimum, maximum)
+    if value < minimum then return minimum end
+    if value > maximum then return maximum end
+    return value
 end
 
-local function getPref(key) return rfsuite.widgets.dashboard.getPreference(key) end
+local function getPref(key)
+    return rfsuite.widgets.dashboard.getPreference(key)
+end
 
-local function setPref(key, value) rfsuite.widgets.dashboard.savePreference(key, value) end
+local function setPref(key, value)
+    rfsuite.widgets.dashboard.savePreference(key, value)
+end
 
-local formFields = {}
-local prevConnectedState = nil
-
-local function isTelemetryConnected() return rfsuite and rfsuite.session and rfsuite.session.isConnected and rfsuite.session.mcu_id and rfsuite.preferences end
-
-local function configure()
-    for k, v in pairs(THEME_DEFAULTS) do
-        local val = tonumber(getPref(k))
-        if k == "bec_min" or k == "bec_max" then
-            if not val or val < 2 or val > 15 then
-                config[k] = v
-                setPref(k, v)
-            else
-                config[k] = val
-            end
-        else
-            config[k] = val or v
-        end
+local function loadPreferences()
+    for key, default in pairs(THEME_DEFAULTS) do
+        config[key] = tonumber(getPref(key)) or default
     end
 
-    local rpm_panel = form.addExpansionPanel("Headspeed")
-    rpm_panel:open(false)
-    local rpm_min_line = rpm_panel:addLine("Min")
-    formFields[#formFields + 1] = form.addNumberField(rpm_min_line, nil, 0, 20000, function() return config.rpm_min end, function(val) config.rpm_min = clamp(tonumber(val) or THEME_DEFAULTS.rpm_min, 0, config.rpm_max - 1) end, 1)
-    formFields[#formFields]:suffix("rpm")
+    config.rpm_min = clamp(config.rpm_min, 0, 19999)
+    config.rpm_max = clamp(config.rpm_max, config.rpm_min + 1, 20000)
 
-    local rpm_max_line = rpm_panel:addLine("Max")
-    formFields[#formFields + 1] = form.addNumberField(rpm_max_line, nil, 1, 20000, function() return config.rpm_max end, function(val) config.rpm_max = clamp(tonumber(val) or THEME_DEFAULTS.rpm_max, config.rpm_min + 1, 20000) end, 1)
-    formFields[#formFields]:suffix("rpm")
+    config.bec_min = clamp(config.bec_min, 2.0, 14.8)
+    config.bec_max = clamp(config.bec_max, config.bec_min + 0.2, 15.0)
+    config.bec_warn = clamp(config.bec_warn, config.bec_min + 0.1, config.bec_max - 0.1)
 
-    local bec_panel = form.addExpansionPanel("BEC Voltage")
-    bec_panel:open(false)
-    local bec_min_line = bec_panel:addLine("Min")
-    formFields[#formFields + 1] = form.addNumberField(bec_min_line, nil, 20, 150, function()
-        local v = config.bec_min or THEME_DEFAULTS.bec_min
-        return floor((v * 10) + 0.5)
-    end, function(val)
-        local min_val = val / 10
-        config.bec_min = clamp(min_val, 2, config.bec_max - 0.1)
-    end)
-    formFields[#formFields]:decimals(1)
-    formFields[#formFields]:suffix("V")
-
-    local bec_warn_line = bec_panel:addLine("Warning")
-    formFields[#formFields + 1] = form.addNumberField(bec_warn_line, nil, 20, 150, function()
-        local v = config.bec_warn or THEME_DEFAULTS.bec_warn
-        return floor((v * 10) + 0.5)
-    end, function(val)
-        local warn_val = val / 10
-        config.bec_warn = clamp(warn_val, config.bec_min + 0.1, config.bec_max - 0.1)
-    end)
-    formFields[#formFields]:decimals(1)
-    formFields[#formFields]:suffix("V")
-
-    local bec_max_line = bec_panel:addLine("Max")
-    formFields[#formFields + 1] = form.addNumberField(bec_max_line, nil, 20, 150, function()
-        local v = config.bec_max or THEME_DEFAULTS.bec_max
-        return floor((v * 10) + 0.5)
-    end, function(val)
-        local max_val = val / 10
-        config.bec_max = clamp(max_val, config.bec_min + 0.1, 15)
-    end)
-    formFields[#formFields]:decimals(1)
-    formFields[#formFields]:suffix("V")
-
-    local esc_panel = form.addExpansionPanel("ESC Temp")
-    esc_panel:open(false)
-    local esc_warn_line = esc_panel:addLine("Warning")
-    formFields[#formFields + 1] = form.addNumberField(esc_warn_line, nil, 0, 200, function() return config.esctemp_warn end, function(val) config.esctemp_warn = clamp(tonumber(val) or THEME_DEFAULTS.esctemp_warn, 0, config.esctemp_max - 1) end, 1)
-    formFields[#formFields]:suffix("°")
-
-    local esc_max_line = esc_panel:addLine("Max")
-    formFields[#formFields + 1] = form.addNumberField(esc_max_line, nil, 1, 200, function() return config.esctemp_max end, function(val) config.esctemp_max = clamp(tonumber(val) or THEME_DEFAULTS.esctemp_max, config.esctemp_warn + 1, 200) end, 1)
-    formFields[#formFields]:suffix("°")
+    config.esctemp_warn = clamp(config.esctemp_warn, 0, 199)
+    config.esctemp_max = clamp(config.esctemp_max, config.esctemp_warn + 1, 200)
 end
 
-local function write() for k, v in pairs(config) do setPref(k, v) end end
+local function addNumberField(line, minimum, maximum, getter, setter, step, suffix, decimals)
+    local field = form.addNumberField(line, nil, minimum, maximum, getter, setter, step)
+    if decimals then field:decimals(decimals) end
+    if suffix then field:suffix(suffix) end
+    return field
+end
+
+local function configure()
+    loadPreferences()
+
+    local rpmPanel = form.addExpansionPanel("Headspeed")
+    rpmPanel:open(false)
+
+    addNumberField(
+        rpmPanel:addLine("Min"),
+        0,
+        20000,
+        function() return config.rpm_min end,
+        function(value)
+            config.rpm_min = clamp(tonumber(value) or THEME_DEFAULTS.rpm_min, 0, config.rpm_max - 1)
+        end,
+        1,
+        "rpm"
+    )
+
+    addNumberField(
+        rpmPanel:addLine("Max"),
+        1,
+        20000,
+        function() return config.rpm_max end,
+        function(value)
+            config.rpm_max = clamp(tonumber(value) or THEME_DEFAULTS.rpm_max, config.rpm_min + 1, 20000)
+        end,
+        1,
+        "rpm"
+    )
+
+    local becPanel = form.addExpansionPanel("BEC Voltage")
+    becPanel:open(false)
+
+    addNumberField(
+        becPanel:addLine("Min"),
+        20,
+        150,
+        function() return floor(config.bec_min * 10 + 0.5) end,
+        function(value)
+            config.bec_min = clamp((tonumber(value) or 20) / 10, 2.0, config.bec_max - 0.2)
+            config.bec_warn = clamp(config.bec_warn, config.bec_min + 0.1, config.bec_max - 0.1)
+        end,
+        nil,
+        "V",
+        1
+    )
+
+    addNumberField(
+        becPanel:addLine("Warning"),
+        20,
+        150,
+        function() return floor(config.bec_warn * 10 + 0.5) end,
+        function(value)
+            config.bec_warn = clamp((tonumber(value) or 20) / 10, config.bec_min + 0.1, config.bec_max - 0.1)
+        end,
+        nil,
+        "V",
+        1
+    )
+
+    addNumberField(
+        becPanel:addLine("Max"),
+        20,
+        150,
+        function() return floor(config.bec_max * 10 + 0.5) end,
+        function(value)
+            config.bec_max = clamp((tonumber(value) or 150) / 10, config.bec_min + 0.2, 15.0)
+            config.bec_warn = clamp(config.bec_warn, config.bec_min + 0.1, config.bec_max - 0.1)
+        end,
+        nil,
+        "V",
+        1
+    )
+
+    local escPanel = form.addExpansionPanel("ESC Temperature")
+    escPanel:open(false)
+
+    addNumberField(
+        escPanel:addLine("Warning"),
+        0,
+        200,
+        function() return config.esctemp_warn end,
+        function(value)
+            config.esctemp_warn = clamp(tonumber(value) or THEME_DEFAULTS.esctemp_warn, 0, config.esctemp_max - 1)
+        end,
+        1,
+        "°C"
+    )
+
+    addNumberField(
+        escPanel:addLine("Max"),
+        1,
+        200,
+        function() return config.esctemp_max end,
+        function(value)
+            config.esctemp_max = clamp(tonumber(value) or THEME_DEFAULTS.esctemp_max, config.esctemp_warn + 1, 200)
+        end,
+        1,
+        "°C"
+    )
+end
+
+local function write()
+    for key in pairs(THEME_DEFAULTS) do
+        setPref(key, config[key])
+    end
+end
 
 return {configure = configure, write = write}
