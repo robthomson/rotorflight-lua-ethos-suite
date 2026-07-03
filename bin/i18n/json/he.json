@@ -12919,7 +12919,7 @@
     "english": "true",
     "max_length": 4,
     "needs_translation": false,
-    "translation": "נָכוֹן",
+    "translation": "true",
     "reverse_text": true
   },
   "reload": {

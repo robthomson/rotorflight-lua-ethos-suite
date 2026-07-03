@@ -12920,7 +12920,7 @@
     "max_length": 4,
     "needs_translation": false,
     "reverse_text": false,
-    "translation": "PRAWDA"
+    "translation": "true"
   },
   "reload": {
     "english": "Reload",
