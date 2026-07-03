@@ -12917,7 +12917,7 @@
   },
   "iscompiledcheck": {
     "english": "true",
-    "translation": "正确",
+    "translation": "true",
     "needs_translation": false,
     "reverse_text": false,
     "max_length": 4

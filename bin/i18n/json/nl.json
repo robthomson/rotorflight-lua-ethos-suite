@@ -12917,7 +12917,7 @@
   },
   "iscompiledcheck": {
     "english": "true",
-    "translation": "WAAR",
+    "translation": "true",
     "needs_translation": false,
     "max_length": 4,
     "reverse_text": false
