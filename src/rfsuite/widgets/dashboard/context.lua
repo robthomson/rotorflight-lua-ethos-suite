@@ -1360,8 +1360,21 @@ end
 
 local function drawBoxBackground(x, y, w, h, bgcolor)
   if type(bgcolor) ~= "table" then
-    lcd.color(bgcolor or legacyPalette().bgcolor)
-    lcd.drawFilledRectangle(math.floor(x + 0.5), math.floor(y + 0.5), math.floor(w + 0.5), math.floor(h + 0.5))
+    -- No `or legacyPalette().bgcolor` fallback here (unlike this
+    -- function's own pre-restoration stub) -- matching the original
+    -- `drawStyledBoxBackground` exactly: a nil/false bgcolor means
+    -- "stay transparent", not "paint the legacy default". Making
+    -- utils.box()'s call to this unconditional (below) is what exposed
+    -- the difference -- a fallback fill was harmless while the call was
+    -- gated on `bgcolor ~= nil`, but firing unconditionally it force-
+    -- painted `legacyPalette().bgcolor` (black in dark mode) over every
+    -- box that relies on transparency to show its parent panel's own
+    -- background through, a real regression across every theme, not
+    -- just kevd, caught live right after this fix shipped.
+    if bgcolor then
+      lcd.color(bgcolor)
+      lcd.drawFilledRectangle(math.floor(x + 0.5), math.floor(y + 0.5), math.floor(w + 0.5), math.floor(h + 0.5))
+    end
     return x, y, w, h
   end
 
