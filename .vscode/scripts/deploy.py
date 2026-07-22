@@ -71,10 +71,10 @@ def _connect_usb_debug(action: str):
     try:
         ri = mod.RadioInterface()
         if action == 'start':
-            print("[CONNECT] Starting USB debug (serial)…")
+            print("[CONNECT] Starting USB debug (serial)...")
             ri.start_usb_debug()
         elif action == 'stop':
-            print("[CONNECT] Stopping USB debug (serial)…")
+            print("[CONNECT] Stopping USB debug (serial)...")
             ri.stop_usb_debug()
         else:
             raise ValueError(f"Unknown action: {action}")
@@ -401,7 +401,7 @@ def scan_usb_drives_for_radio():
     import string
     candidates = []
 
-    print("[ETHOS] Performing fallback USB drive scan for radio…")
+    print("[ETHOS] Performing fallback USB drive scan for radio...")
 
     if os.name == "nt":
         for letter in string.ascii_uppercase:
@@ -512,7 +512,7 @@ def get_ethos_scripts_dir(ethossuite_bin, retries=1, delay=5):
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired, RuntimeError) as e:
             last_err = e
             if attempt < retries:
-                print(f"[ETHOS] Could not get SCRIPTS path (attempt {attempt+1}/{retries+1}). Retrying in {delay}s…")
+                print(f"[ETHOS] Could not get SCRIPTS path (attempt {attempt+1}/{retries+1}). Retrying in {delay}s...")
                 time.sleep(delay)
             else:
                 raise last_err
@@ -627,28 +627,28 @@ def safe_full_copy(srcall, out_dir):
         old_dir = out_dir + ".old"
 
         if os.path.isdir(old_dir):
-            print("Deleting previous backup…")
+            print("Deleting previous backup...")
             delete_tree(old_dir)
             flush_fs()
             time.sleep(2)
 
         try:
-            print(f"Renaming existing to {os.path.basename(old_dir)}…")
+            print(f"Renaming existing to {os.path.basename(old_dir)}...")
             os.replace(out_dir, old_dir)
         except Exception as e:
             print(f"[WARN] Rename failed ({e}). Falling back to direct delete.")
-            print("Deleting files…")
+            print("Deleting files...")
             delete_tree(out_dir)
         flush_fs()
         time.sleep(2)
 
         if os.path.isdir(old_dir):
-            print("Deleting files…")
+            print("Deleting files...")
             delete_tree(old_dir)
             flush_fs()
             time.sleep(2)
 
-    print("Copying files…")
+    print("Copying files...")
     total = count_files(srcall)
     pbar = tqdm(total=total)
     shutil.copytree(srcall, out_dir, dirs_exist_ok=True, copy_function=copy_verbose)
@@ -910,7 +910,7 @@ def wait_for_scripts_mount(ethossuite_bin=None, attempts=10, delay=2):
         # Some radios miss the first mode-switch command while USB is re-enumerating.
         if i > 0 and i % 3 == 0:
             try:
-                print(f"[ETHOS] Re-requesting mass-storage mode ({i+1}/{attempts})…")
+                print(f"[ETHOS] Re-requesting mass-storage mode ({i+1}/{attempts})...")
                 ethos_serial(ethossuite_bin, 'stop')
             except Exception:
                 pass
@@ -918,7 +918,7 @@ def wait_for_scripts_mount(ethossuite_bin=None, attempts=10, delay=2):
         # One-time recovery: bounce debug -> storage to force a fresh USB re-enumeration.
         if i >= max(2, attempts // 2) and not recovery_cycle_done:
             try:
-                print("[ETHOS] Radio drive still missing; forcing USB mode reinit (debug -> storage)…")
+                print("[ETHOS] Radio drive still missing; forcing USB mode reinit (debug -> storage)...")
                 ethos_serial(ethossuite_bin, 'start')
                 time.sleep(1.0)
                 ethos_serial(ethossuite_bin, 'stop')
@@ -959,11 +959,11 @@ def wait_for_scripts_mount(ethossuite_bin=None, attempts=10, delay=2):
             last_err = e
             if debug_mount:
                 print(f"[ETHOS][DEBUG] attempt {i+1}/{attempts} failed: {type(e).__name__}: {e}")
-            print(f"[ETHOS] Waiting for radio drive ({i+1}/{attempts})…")
+            print(f"[ETHOS] Waiting for radio drive ({i+1}/{attempts})...")
             time.sleep(delay)
 
     # Final fallback: explicit USB scan (only after Ethos Suite polling is exhausted)
-    print("[ETHOS] Ethos Suite polling exhausted; attempting USB drive scan fallback…")
+    print("[ETHOS] Ethos Suite polling exhausted; attempting USB drive scan fallback...")
     fb = None
     try:
         fb = scan_usb_drives_for_radio()
@@ -1100,21 +1100,21 @@ def tail_serial_debug(vid=DEFAULT_SERIAL_VID, pid=DEFAULT_SERIAL_PID,
         port = _find_serial_debug_port(vid_hex=vid, pid_hex=pid, name_hint=name_hint)
         if port:
             break
-        print(f"[SERIAL] Waiting for serial port ({i+1}/{retries})…")
+        print(f"[SERIAL] Waiting for serial port ({i+1}/{retries})...")
         time.sleep(delay)
 
     if not port:
         print("[SERIAL] No suitable COM port found. See the detected ports above.")
         return 3
 
-    print(f"[SERIAL] Connecting to {port} @ {baud} …")
+    print(f"[SERIAL] Connecting to {port} @ {baud} ...")
     open_attempts = 8
     for attempt in range(1, open_attempts+1):
         try:
             s = serial.Serial(port=port, baudrate=baud, timeout=0.5)
             break
         except FileNotFoundError as e:
-            print(f"[SERIAL] Open attempt {attempt}/{open_attempts} -> device vanished; rescanning…")
+            print(f"[SERIAL] Open attempt {attempt}/{open_attempts} -> device vanished; rescanning...")
             port = _find_serial_debug_port(vid_hex=vid, pid_hex=pid, name_hint=name_hint)
             if not port:
                 import time as _t; _t.sleep(delay)
@@ -1211,7 +1211,7 @@ def run_step_script(step, out_dir, lang="en"):
         "--git-src", git_src,
     ]
 
-    print(f"[STEP] Running '{step}' → {script_path}")
+    print(f"[STEP] Running '{step}' -> {script_path}")
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
@@ -1288,14 +1288,14 @@ def copy_files(src_override, fileext, targets, lang="en", steps=None):
         repo_src = os.path.join(git_src, 'src', tgt)
 
         if do_stage:
-            print("[STAGE] Staging to local temp, running steps, then copying to radio…")
+            print("[STAGE] Staging to local temp, running steps, then copying to radio...")
             stage_root, staged_out_dir = _stage_tree(repo_src)
 
             # Run steps locally on staged tree
             run_steps(steps, staged_out_dir, lang)
 
             # Small settle time before hammering removable media
-            print("[IO] Letting radio storage settle…")
+            print("[IO] Letting radio storage settle...")
             time.sleep(1.5)
 
             if fileext == 'fast':
@@ -1498,7 +1498,7 @@ def main():
                 print(f"Removed: {f}")
                 removed += 1
             except Exception as e:
-                print(f"Could not remove: {f} — {e}", file=sys.stderr)
+                print(f"Could not remove: {f} -- {e}", file=sys.stderr)
         print(f"Removed {removed} lock file(s) from {tmp}")
         return 0
 
@@ -1512,7 +1512,7 @@ def main():
             print(f"No lock found: {path}")
             return 0
         except Exception as e:
-            print(f"Could not remove: {path} — {e}", file=sys.stderr)
+            print(f"Could not remove: {path} -- {e}", file=sys.stderr)
             return 1
 
     proj_key = md5(os.path.abspath(args.config).encode("utf-8")).hexdigest()[:8]
@@ -1553,7 +1553,7 @@ def main():
 
     if args.radio and not args.connect_only:
         # RADIO DEPLOY: use Ethos Suite to locate the radio SCRIPTS path
-        print("[ETHOS] Disabling serial debug before copy to protect filesystem…")
+        print("[ETHOS] Disabling serial debug before copy to protect filesystem...")
         ethos_serial(config.get('ethossuite_bin'), 'stop')
         try:
             rd = wait_for_scripts_mount(config.get('ethossuite_bin'), attempts=10, delay=2)
@@ -1600,7 +1600,7 @@ def main():
         else:
             rc, _, _ = ethos_serial(config.get('ethossuite_bin'), 'start')
             if rc != 0:
-                print("[ETHOS] First --serial start failed; retrying once…")
+                print("[ETHOS] First --serial start failed; retrying once...")
                 rc, _, _ = ethos_serial(config.get('ethossuite_bin'), 'start')
                 if rc != 0:
                     print("[SERIAL] USB debug start unavailable; continuing to probe for a serial port anyway.")
