@@ -148,7 +148,7 @@ local function open(opts)
   local disposed = false
   local headerHandle
   local settings = settingsStore.load()
-  local original = settingsStore.clone(settings)
+  local originalDashboard
   local modelPrefs
   local modelPath
   local modelDashboard = normalizeDashboard(nil, true)
@@ -160,13 +160,14 @@ local function open(opts)
 
   local choices, modelChoices, pathById, idByPath, fallbackId = buildThemeChoices()
   settings.dashboard = normalizeDashboard(settings.dashboard, false)
+  originalDashboard = copySection(settings.dashboard)
 
   local function modelEnabled()
     return session.connected == true and session.mcuId ~= nil and session.mcuId ~= ""
   end
 
   local function isDirty()
-    local globalDirty = not settingsStore.same(settings, original)
+    local globalDirty = not sameSection(normalizeDashboard(settings and settings.dashboard, false), originalDashboard)
     local modelDirty = modelEnabled() and not sameSection(normalizeDashboard(modelDashboard, true), normalizeDashboard(originalModelDashboard, true))
     return globalDirty or modelDirty
   end
@@ -247,7 +248,7 @@ local function open(opts)
     if opts.setWakeupHandler then opts.setWakeupHandler(nil) end
     if opts.setCleanupHandler then opts.setCleanupHandler(nil) end
     settings = nil
-    original = nil
+    originalDashboard = nil
     modelPrefs = nil
     modelDashboard = nil
     originalModelDashboard = nil
@@ -260,7 +261,7 @@ local function open(opts)
     settings.dashboard = normalizeDashboard(settings.dashboard, false)
     if settings.dashboard.use_same_theme then copyPreflightToAll(settings.dashboard, false, pathById, idByPath, fallbackId) end
     settingsStore.save(settings)
-    original = settingsStore.clone(settings)
+    originalDashboard = copySection(settings.dashboard)
 
     if modelEnabled() and modelPrefs and modelPath then
       modelDashboard = normalizeDashboard(modelDashboard, true)
@@ -416,7 +417,7 @@ local function open(opts)
       disposed = true
       if sessionHandler then bus.unsubscribe("session.update", sessionHandler); sessionHandler = nil end
       settings = nil
-      original = nil
+      originalDashboard = nil
       modelPrefs = nil
       modelDashboard = nil
       originalModelDashboard = nil
