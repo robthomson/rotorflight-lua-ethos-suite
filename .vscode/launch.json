@@ -127,7 +127,18 @@
       "type": "pickString",
       "description": "Select deployment language",
       "options": [
-        "en"
+        "en",
+        "de",
+        "nl",
+        "fr",
+        "es",
+        "it",
+        "pt-br",
+        "zh-cn",
+        "no",
+        "cs",
+        "pl",
+        "he"
       ],
       "default": "en"
     }
