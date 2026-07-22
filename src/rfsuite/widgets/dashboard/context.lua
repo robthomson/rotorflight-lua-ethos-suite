@@ -1321,10 +1321,92 @@ function utils.getFontListsForResolution()
   }
 end
 
+-- Restored from this suite's own pre-rewrite widgets/dashboard/lib/utils.lua
+-- (see the sibling wingflight-lua-ethos-suite repo's `stab-curve` branch,
+-- which still has that file, for the source this was ported from) after
+-- the rfsuite-full-rewrite collapsed this to a flat color-fill-only stub,
+-- which silently broke every caller that passes a style table
+-- (fillcolor/bordercolor/borderwidth/roundradius/inset*) as `bgcolor`
+-- instead of a plain color -- a real, reproducible crash (`lcd.color`:
+-- "number expected, got table"), not a hypothetical one: the kevd theme's
+-- `rs_bgstyle`/`rs_govbgstyle`/`arcGroupTileBg` panels all rely on it, and
+-- every gauge/dial object type (objects/gauge/{arc,bar,ring,step}.lua,
+-- objects/dial/image.lua) already reassigns
+-- `x, y, w, h = utils.drawBoxBackground(...)` expecting the
+-- inset-adjusted content rect this returns.
+local function drawRoundedFilledRectSafe(x, y, w, h, radius, color)
+  if not color or w <= 0 or h <= 0 then return end
+
+  radius = tonumber(radius) or 0
+  if radius < 1 then
+    lcd.color(color)
+    lcd.drawFilledRectangle(x, y, w, h)
+    return
+  end
+
+  local maxRadius = math.floor(math.min(w, h) / 2)
+  if radius > maxRadius then radius = maxRadius end
+
+  lcd.color(color)
+  -- Center/edge fills create a rounded rectangle using primitives already
+  -- used elsewhere in this dashboard renderer.
+  lcd.drawFilledRectangle(x + radius, y, w - radius * 2, h)
+  lcd.drawFilledRectangle(x, y + radius, w, h - radius * 2)
+  lcd.drawFilledCircle(x + radius, y + radius, radius)
+  lcd.drawFilledCircle(x + w - radius - 1, y + radius, radius)
+  lcd.drawFilledCircle(x + radius, y + h - radius - 1, radius)
+  lcd.drawFilledCircle(x + w - radius - 1, y + h - radius - 1, radius)
+end
+
 local function drawBoxBackground(x, y, w, h, bgcolor)
-  lcd.color(bgcolor or legacyPalette().bgcolor)
-  lcd.drawFilledRectangle(math.floor(x + 0.5), math.floor(y + 0.5), math.floor(w + 0.5), math.floor(h + 0.5))
-  return x, y, w, h
+  if type(bgcolor) ~= "table" then
+    lcd.color(bgcolor or legacyPalette().bgcolor)
+    lcd.drawFilledRectangle(math.floor(x + 0.5), math.floor(y + 0.5), math.floor(w + 0.5), math.floor(h + 0.5))
+    return x, y, w, h
+  end
+
+  local backfillcolor = bgcolor.backfillcolor or bgcolor.cellbgcolor or bgcolor.outercolor
+  if backfillcolor then
+    lcd.color(backfillcolor)
+    lcd.drawFilledRectangle(x, y, w, h)
+  end
+
+  local inset = tonumber(bgcolor.inset or bgcolor.margin) or 0
+  local insetleft = tonumber(bgcolor.insetleft or bgcolor.inset_left) or inset
+  local insetright = tonumber(bgcolor.insetright or bgcolor.inset_right) or inset
+  local insettop = tonumber(bgcolor.insettop or bgcolor.inset_top) or inset
+  local insetbottom = tonumber(bgcolor.insetbottom or bgcolor.inset_bottom) or inset
+  local borderwidth = tonumber(bgcolor.borderwidth) or 0
+  local radius = tonumber(bgcolor.roundradius or bgcolor.radius) or 0
+  local fillcolor = bgcolor.bgcolor or bgcolor.fillcolor or bgcolor.fill or bgcolor.color
+  local bordercolor = bgcolor.bordercolor
+
+  local bx = x + insetleft
+  local by = y + insettop
+  local bw = w - insetleft - insetright
+  local bh = h - insettop - insetbottom
+
+  if bw <= 0 or bh <= 0 then return x, y, w, h end
+
+  if borderwidth > 0 and bordercolor then
+    drawRoundedFilledRectSafe(bx, by, bw, bh, radius, bordercolor)
+    local ix = bx + borderwidth
+    local iy = by + borderwidth
+    local iw = bw - borderwidth * 2
+    local ih = bh - borderwidth * 2
+    if iw > 0 and ih > 0 then
+      drawRoundedFilledRectSafe(ix, iy, iw, ih, math.max(0, radius - borderwidth), fillcolor)
+    end
+  else
+    drawRoundedFilledRectSafe(bx, by, bw, bh, radius, fillcolor)
+  end
+
+  local contentPad = tonumber(bgcolor.contentpadding) or 0
+  local innerLeft = insetleft + borderwidth + contentPad
+  local innerRight = insetright + borderwidth + contentPad
+  local innerTop = insettop + borderwidth + contentPad
+  local innerBottom = insetbottom + borderwidth + contentPad
+  return x + innerLeft, y + innerTop, w - innerLeft - innerRight, h - innerTop - innerBottom
 end
 
 function utils.drawBoxBackground(x, y, w, h, bgcolor)
@@ -1332,7 +1414,11 @@ function utils.drawBoxBackground(x, y, w, h, bgcolor)
 end
 
 function utils.box(x, y, w, h, title, titlepos, titlealign, titlefont, titlespacing, titlecolor, titlepadding, titlepaddingleft, titlepaddingright, titlepaddingtop, titlepaddingbottom, displayValue, unit, valuefont, valuealign, textcolor, valuepadding, valuepaddingleft, valuepaddingright, valuepaddingtop, valuepaddingbottom, bgcolor, image, imagewidth, imageheight, imagealign)
-  if bgcolor ~= nil then drawBoxBackground(x, y, w, h, bgcolor) end
+  -- Unconditional (not `if bgcolor ~= nil`): drawBoxBackground() itself
+  -- handles a nil/plain bgcolor by returning x/y/w/h unchanged, and a
+  -- style-table bgcolor needs its inset-adjusted return value so
+  -- title/value/image below draw inside the border, not overlapping it.
+  x, y, w, h = drawBoxBackground(x, y, w, h, bgcolor)
 
   title = (type(title) == "string" or type(title) == "number") and tostring(title) or nil
   local value = displayValue ~= nil and (tostring(displayValue) .. (unit or "")) or nil
