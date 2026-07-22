@@ -3,7 +3,7 @@
   GPLv3 — https://www.gnu.org/licenses/gpl-3.0.en.html
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local floor = math.floor
@@ -419,7 +419,7 @@ local function buildBoxes(W)
                 {value = "SPOOLUP", textcolor = colorMode.accentcolor},
                 {value = "RECOVERY", textcolor = colorMode.fillwarncolor},
                 {value = "ACTIVE", textcolor = colorMode.fillcolor},
-                {value = "@i18n(widgets.governor.THR-OFF)@", textcolor = colorMode.fillcritcolor}
+                {value = "@i18n(widgets.governor.THROFF)@", textcolor = colorMode.fillcritcolor}
             }
         },
         {

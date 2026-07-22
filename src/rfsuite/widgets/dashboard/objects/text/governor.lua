@@ -37,7 +37,7 @@ thresholds = {
 }
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local gmatch = string.gmatch
 local clock = os.clock

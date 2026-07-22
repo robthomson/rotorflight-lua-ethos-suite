@@ -3,7 +3,11 @@
   GPLv3 — https://www.gnu.org/licenses/gpl-3.0.en.html
 ]] --
 
-local rfsuite = require("rfsuite")
+if package.loaded["rfsuite.widgets.dashboard.wrapper_factory"] then
+    return package.loaded["rfsuite.widgets.dashboard.wrapper_factory"]
+end
+
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local clock = os.clock
 local utils = rfsuite.widgets.dashboard.utils
@@ -17,7 +21,7 @@ function factory.createObjectWrapper(objectType, defaultSubtype)
     local wrapper = {}
 
     local renders = rfsuite.widgets.dashboard.renders
-    local folder = "SCRIPTS:/" .. rfsuite.config.baseDir .. "/widgets/dashboard/objects/" .. objectType .. "/"
+    local folder = "widgets/dashboard/objects/" .. objectType .. "/"
 
     function wrapper.paint(x, y, w, h, box)
         local subtype = box.subtype or defaultSubtype
@@ -67,4 +71,5 @@ function factory.createObjectWrapper(objectType, defaultSubtype)
     return wrapper
 end
 
+package.loaded["rfsuite.widgets.dashboard.wrapper_factory"] = factory
 return factory

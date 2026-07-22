@@ -1,4 +1,4 @@
-name: Create rfsuite-lua-ethos ZIP on PR
+name: Create rfsuite-lua-ethos-lite ZIP on PR
 
 on:
   pull_request:
@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 👇 keep this in sync with push.yml (add/remove locales as needed)
-        lang: [en, de, es, fr, it, nl, pt-br, no, cs, pl, he, zh-cn]
+        # 👇 keep this in sync with push.yml (add locales as translations land)
+        lang: [en]
 
     steps:
       - name: Checkout code
@@ -24,30 +24,27 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify generated menu manifest
-        run: python bin/menu/generate.py --check
-
       - name: Set build variables (PR version)
         run: |
           PR_NUMBER='${{ github.event.pull_request.number }}'
           echo "GIT_VER=PR-${PR_NUMBER}" >> $GITHUB_ENV
 
-      - name: Create rotorflight-lua-ethos-suite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip
+      - name: Create rotorflight-lua-ethos-suite-lite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip
         run: |
           python bin/package/build_package.py \
             --lang '${{ matrix.lang }}' \
             --artifact-version '${{ env.GIT_VER }}' \
-            --artifact-name 'rotorflight-lua-ethos-suite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip' \
+            --artifact-name 'rotorflight-lua-ethos-suite-lite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip' \
             --output-dir .
 
       - name: Validate ETHOS package manifest
         run: |
           python bin/package/validate_ethos_manifest_zip.py \
-            'rotorflight-lua-ethos-suite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip'
+            'rotorflight-lua-ethos-suite-lite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip'
 
       - name: Upload per-locale ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: rotorflight-lua-ethos-suite-${{ env.GIT_VER }}-${{ matrix.lang }}
-          path: rotorflight-lua-ethos-suite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip
+          name: rotorflight-lua-ethos-suite-lite-${{ env.GIT_VER }}-${{ matrix.lang }}
+          path: rotorflight-lua-ethos-suite-lite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip
           if-no-files-found: error

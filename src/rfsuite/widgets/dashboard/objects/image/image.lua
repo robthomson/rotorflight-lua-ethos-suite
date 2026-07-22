@@ -28,7 +28,7 @@
     imagealign          : string   -- (Optional) Image alignment ("center", "left", "right", "top", "bottom")
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local render = {}
 

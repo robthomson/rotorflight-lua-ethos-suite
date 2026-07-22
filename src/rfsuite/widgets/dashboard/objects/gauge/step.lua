@@ -48,7 +48,7 @@ Bar padding parameters
     barpaddingbottom    : number    -- (Optional) Bottom padding for bar
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local floor = math.floor
@@ -108,7 +108,8 @@ function render.wakeup(box)
     end
 
     local thresholds = getParam(box, "thresholds")
-    local fillcolor = resolveThemeColor("fillcolor", getParam(box, "fillcolor")) or lcd.WHITE
+    local fillcolor = resolveThemeColor("fillcolor", getParam(box, "fillcolor")) or utils.themeColors().fillcolor or lcd.WHITE
+    local fillbgcolor = resolveThemeColor("fillbgcolor", getParam(box, "fillbgcolor")) or utils.themeColors().fillbgcolor or fillcolor
     local textcolor = resolveThemeColor("textcolor", getParam(box, "textcolor")) or lcd.WHITE
     if thresholds and value ~= nil then
         fillcolor = resolveThresholdColor(value, box, "fillcolor", "fillcolor", thresholds)
@@ -141,7 +142,7 @@ function render.wakeup(box)
     c.titlepaddingbottom = getParam(box, "titlepaddingbottom")
     c.stepcount = getParam(box, "stepcount") or 4
     c.fillcolor = fillcolor
-    c.fillbgcolor = resolveThemeColor("fillbgcolor", getParam(box, "fillbgcolor"))
+    c.fillbgcolor = fillbgcolor
     c.bgcolor = resolveThemeColor("bgcolor", getParam(box, "bgcolor"))
     c.font = getParam(box, "font")
     c.valuealign = getParam(box, "valuealign")

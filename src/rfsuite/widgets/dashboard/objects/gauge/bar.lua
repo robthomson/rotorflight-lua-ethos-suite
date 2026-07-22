@@ -83,7 +83,7 @@ Subtext
     subtextpaddingbottom : number   -- (Optional) Padding above bottom of bar (default: 0)
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 local system = system
 

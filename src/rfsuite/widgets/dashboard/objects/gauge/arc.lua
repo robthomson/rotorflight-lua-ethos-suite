@@ -53,7 +53,7 @@ Arc Geometry/Advanced
     gaugepaddingbottom  : number    -- (Optional) Extra space added below arc region, pushing arc upward (vertical only)
 ]]--
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local tostring = tostring

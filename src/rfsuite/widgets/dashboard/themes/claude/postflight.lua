@@ -7,7 +7,7 @@
   Six-column stat grid — same proven approach as gismo's postflight.
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd     = lcd
 
 local utils      = rfsuite.widgets.dashboard.utils

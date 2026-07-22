@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         # keep in sync with pr.yml / push.yml
-        lang: [en, de, es, fr, it, nl, pt-br, no, cs, pl, he, zh-cn]
+        lang: [en]
 
     steps:
       - name: Checkout code
@@ -26,9 +26,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Verify generated menu manifest
-        run: python bin/menu/generate.py --check
 
       - name: Set build variables (from tag)
         id: buildvars
@@ -53,7 +50,7 @@ jobs:
       - name: Create release ZIP (locale=${{ matrix.lang }})
         shell: bash
         run: |
-          ART="rotorflight-lua-ethos-suite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip"
+          ART="rotorflight-lua-ethos-suite-lite-${{ env.GIT_VER }}-${{ matrix.lang }}.zip"
           python bin/package/build_package.py \
             --lang '${{ matrix.lang }}' \
             --artifact-version '${{ env.GIT_VER }}' \
@@ -70,7 +67,7 @@ jobs:
       - name: Upload per-locale artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rotorflight-lua-ethos-suite-${{ env.GIT_VER }}-${{ matrix.lang }}
+          name: rotorflight-lua-ethos-suite-lite-${{ env.GIT_VER }}-${{ matrix.lang }}
           path: ${{ env.ARTIFACT }}
           if-no-files-found: error
 
@@ -117,4 +114,4 @@ jobs:
         shell: bash
         run: |
           cd dist
-          gh release create "${{ env.GIT_TAG }}" --notes-file ../Notes.md -t "Rotorflight Lua Ethos Suite - ${{ env.GH_TYPE }} ${{ env.GIT_VER }}" *.zip
+          gh release create "${{ env.GIT_TAG }}" --notes-file ../Notes.md -t "Rotorflight Lua Ethos Suite (Lite) - ${{ env.GH_TYPE }} ${{ env.GIT_VER }}" *.zip

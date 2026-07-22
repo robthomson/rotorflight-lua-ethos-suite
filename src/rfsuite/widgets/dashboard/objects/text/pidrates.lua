@@ -50,7 +50,7 @@ Background
     bgcolor                 : color                     -- (Optional) Widget background color
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local min = math.min

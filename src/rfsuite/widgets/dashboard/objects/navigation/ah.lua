@@ -25,7 +25,7 @@
     groundspeedmax            : number   -- Maximum displayed groundspeed (default: 100)
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local floor = math.floor

@@ -31,7 +31,7 @@
     imagealign          : string                    -- (Optional) Image alignment ("center", "left", "right", "top", "bottom")
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local model = model
 
 local render = {}
@@ -138,6 +138,15 @@ local function resolveModelImage(cfg)
     return "widgets/dashboard/gfx/logo-dark.png"
 end
 
+local function getModelBitmapName()
+    if not (model and model.bitmap) then return nil end
+    local bm = model.bitmap()
+    if bm and type(bm) == "string" and bm ~= "" and not string.find(bm, "default_") then
+        return bm
+    end
+    return nil
+end
+
 local function ensureCfg(box)
     return utils.ensureCfg(box, function(cfg, box)
         cfg.box = box
@@ -174,9 +183,13 @@ function render.wakeup(box)
     local cfg = ensureCfg(box)
 
     local craftName = rfsuite and rfsuite.session and rfsuite.session.craftName
-    if cfg._lastCraftName ~= craftName then
+    local modelBitmap = getModelBitmapName()
+    local paramImage = getParam(box, "image")
+    if cfg._lastCraftName ~= craftName or cfg._lastModelBitmap ~= modelBitmap or cfg._lastParamImage ~= paramImage then
         cfg.image = resolveModelImage(cfg)
         cfg._lastCraftName = craftName
+        cfg._lastModelBitmap = modelBitmap
+        cfg._lastParamImage = paramImage
     end
 
     box._currentDisplayValue = cfg.image

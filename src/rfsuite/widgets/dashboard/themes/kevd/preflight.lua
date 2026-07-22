@@ -3,7 +3,7 @@
   GPLv3 — https://www.gnu.org/licenses/gpl-3.0.en.html
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local tonumber = tonumber
@@ -375,7 +375,7 @@ local function buildBoxes(W)
             titlecolor = colorMode.titlecolor,
             thresholds = {
                 {value = "DISARMED", textcolor = colorMode.fillcritcolor}, {value = "OFF", textcolor = colorMode.fillcritcolor}, {value = "IDLE", textcolor = colorMode.accentcolor}, {value = "SPOOLUP", textcolor = colorMode.accentcolor}, {value = "RECOVERY", textcolor = lcd.RGB(0xE3, 0xA3, 0x00)}, {value = "ACTIVE", textcolor = colorMode.fillcolor},
-                {value = "@i18n(widgets.governor.THR-OFF)@", textcolor = colorMode.fillcritcolor}
+                {value = "@i18n(widgets.governor.THROFF)@", textcolor = colorMode.fillcritcolor}
             }
         }
     }

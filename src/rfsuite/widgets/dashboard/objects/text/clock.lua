@@ -28,7 +28,7 @@
     bgcolor             : color                     -- (Optional) Widget background color (theme fallback if nil)
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local render = {}
 

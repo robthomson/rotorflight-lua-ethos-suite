@@ -34,7 +34,7 @@
     bgcolor             : color                     -- (Optional) Widget background color (theme fallback if nil)
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local system = system
 
 local render = {}
@@ -48,7 +48,6 @@ local compileTransform = utils.compileTransform
 function render.invalidate(box) box._cfg = nil end
 
 function render.dirty(box)
-    if not rfsuite.session.telemetryState then return false end
     return utils.dirtyOnDisplayValueChange(box)
 end
 
@@ -93,7 +92,7 @@ function render.wakeup(box)
 
     local telemetry = rfsuite.tasks.telemetry
     local session = rfsuite.session
-    local telemetryActive = session and session.telemetryState and session.isConnected
+    local telemetryActive = session and (session.telemetryState or session.isConnected)
     local inPostflight = (rfsuite.flightmode and rfsuite.flightmode.current == "postflight")
 
     local source = cfg.source
@@ -133,13 +132,13 @@ function render.wakeup(box)
 
     if type(displayValue) == "string" and displayValue:match("^%.+$") then unit = nil end
 
-    if not telemetryActive and not inPostflight then
+    if value == nil and not telemetryActive and not inPostflight then
         box._lastValidValue = nil
         box._lastValidUnit = nil
         box._lastValidTextcolor = nil
     end
 
-    if telemetryActive and value ~= nil then
+    if value ~= nil then
         box._lastValidValue = displayValue
         box._lastValidUnit = unit
         box._lastValidTextcolor = textcolor

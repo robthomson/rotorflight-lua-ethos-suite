@@ -164,6 +164,18 @@ def update_staged_main_version(main_lua_path: Path, artifact_version: str) -> No
     main_lua_path.write_text(updated, encoding="utf-8")
 
 
+def update_staged_build_info_version(build_info_path: Path, artifact_version: str) -> None:
+    content = build_info_path.read_text(encoding="utf-8")
+    updated, count = MAIN_SUFFIX_RE.subn(
+        lambda match: f"{match.group(1)}{artifact_version}{match.group(3)}",
+        content,
+        count=1,
+    )
+    if count != 1:
+        raise ValueError(f"Could not update version suffix in {build_info_path}")
+    build_info_path.write_text(updated, encoding="utf-8")
+
+
 def remove_tree(path: Path) -> None:
     if not path.exists():
         return
@@ -369,6 +381,10 @@ def main() -> int:
         copy_sound_pack(stage_scripts_dir, args.lang)
         update_staged_main_version(
             stage_scripts_dir / args.package_dir / "main.lua", args.artifact_version
+        )
+        update_staged_build_info_version(
+            stage_scripts_dir / args.package_dir / "lib" / "build_info.lua",
+            args.artifact_version,
         )
         build_package_root(stage_scripts_dir, package_root, args.package_dir, args.folder)
 

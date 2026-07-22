@@ -10,7 +10,7 @@
 Note: This widget does not process colors, layout, or padding. All rendering and caching logic must be handled in the user's custom functions.
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local render = {}
 

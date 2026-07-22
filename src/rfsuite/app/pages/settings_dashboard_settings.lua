@@ -1,0 +1,198 @@
+-- Settings -> Dashboard -> Settings.
+--
+-- Mirrors the original suite's dashboard-settings page shape: a tile grid
+-- of dashboard themes that expose a configure.lua, with each tile opening
+-- that theme's own configuration form.
+
+local bus = assert(loadfile("lib/bus.lua"))()
+local closeKey = assert(loadfile("app/close_key.lua"))()
+local header = assert(loadfile("app/header.lua"))()
+local settingsStore = assert(loadfile("lib/settings_store.lua"))()
+local dashboardContext = assert(loadfile("widgets/dashboard/context.lua"))()
+
+local PAGE_TITLE = "@i18n(app.modules.settings.name)@ / @i18n(app.modules.settings.dashboard)@ / @i18n(app.modules.settings.dashboard_settings)@"
+local NO_THEMES = "@i18n(app.modules.settings.no_themes_available_to_configure)@"
+
+local TILE_MIN_SIZE = 112
+local TILE_PADDING = 10
+local TILE_MAX_COLUMNS = 6
+
+local THEME_DEFS = {
+  {label = "@i18n(app.modules.settings.dashboard_theme_aerc)@", folder = "aerc"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_aerc_n)@", folder = "aerc-n"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_claude)@", folder = "claude"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_default)@", folder = "default"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_gismo)@", folder = "gismo"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_kevd)@", folder = "kevd", minResolution = {x = 784, y = 294}},
+  {label = "@i18n(app.modules.settings.dashboard_theme_rfstatus)@", folder = "rfstatus"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_rt_rc)@", folder = "rt-rc"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_rt_rc_n)@", folder = "rt-rc-n"},
+  {label = "@i18n(app.modules.settings.dashboard_theme_srb_rc)@", folder = "srb-rc"},
+}
+
+local lastSelected
+
+local function themeDir(folder)
+  return "widgets/dashboard/themes/" .. folder
+end
+
+local function themeVisible(theme)
+  local minRes = theme and theme.minResolution
+  if type(minRes) ~= "table" then return true end
+  local w, h = lcd.getWindowSize()
+  return not (w and h and (w < (minRes.x or 0) or h < (minRes.y or 0)))
+end
+
+local function configuredThemes()
+  local themes = {}
+  for _, theme in ipairs(THEME_DEFS) do
+    if themeVisible(theme) then
+      local dir = themeDir(theme.folder)
+      local ok = pcall(function() return assert(loadfile(dir .. "/configure.lua")) end)
+      if ok then
+        themes[#themes + 1] = {
+          label = theme.label,
+          folder = theme.folder,
+          configure = dir .. "/configure.lua",
+          icon = dir .. "/icon.png",
+        }
+      end
+    end
+  end
+  return themes
+end
+
+local function gridMetrics(windowWidth)
+  local numPerRow = math.max(1, math.floor((windowWidth - TILE_PADDING) / (TILE_MIN_SIZE + TILE_PADDING)))
+  if numPerRow > TILE_MAX_COLUMNS then numPerRow = TILE_MAX_COLUMNS end
+  local tileSize = math.floor((windowWidth - (TILE_PADDING * (numPerRow + 1))) / numPerRow)
+  if tileSize < TILE_MIN_SIZE then tileSize = TILE_MIN_SIZE end
+  return numPerRow, tileSize
+end
+
+local function saveThemePrefs(settings, themeModule, folder)
+  if themeModule and themeModule.write then themeModule.write() end
+  settingsStore.setDashboardTheme(settings, folder, dashboardContext.widgets.dashboard.preferences())
+  settingsStore.save(settings)
+  bus.publish("settings.update", settingsStore.clone(settings))
+end
+
+local function open(opts)
+  opts = opts or {}
+  local disposed = false
+  local settings = settingsStore.load()
+  local headerHandle
+
+  local function clearHandlers()
+    if opts.setWakeupHandler then opts.setWakeupHandler(nil) end
+    if opts.setPaintHandler then opts.setPaintHandler(nil) end
+    if opts.setCleanupHandler then opts.setCleanupHandler(nil) end
+  end
+
+  local function goBack()
+    if disposed then return end
+    disposed = true
+    clearHandlers()
+    dashboardContext.widgets.dashboard.setPreferences(nil)
+    if opts.onBack then opts.onBack() end
+  end
+
+  local function openTheme(theme)
+    local themeModule = assert(loadfile(theme.configure))()
+
+    form.clear()
+    dashboardContext.widgets.dashboard.setPreferences(settingsStore.dashboardTheme(settings, theme.folder))
+
+    headerHandle = header.build(theme.label, {
+      onBack = function()
+        open(opts)
+      end,
+      onSave = function()
+        saveThemePrefs(settings, themeModule, theme.folder)
+        if headerHandle then headerHandle.focusSave() end
+      end,
+      onReload = function()
+        openTheme(theme)
+        if headerHandle then headerHandle.focusReload() end
+      end,
+    })
+
+    if opts.setEventHandler then
+      opts.setEventHandler(function(category, value)
+        if not closeKey.shouldHandleClose(category, value) then return false end
+        open(opts)
+        return true
+      end)
+    end
+    clearHandlers()
+    if opts.setCleanupHandler then
+      opts.setCleanupHandler(function()
+        dashboardContext.widgets.dashboard.setPreferences(nil)
+      end)
+    end
+
+    if themeModule.configure then themeModule.configure() end
+    if headerHandle then
+      headerHandle.setSaveEnabled(true)
+      headerHandle.setReloadEnabled(true)
+      headerHandle.focusMenu()
+    end
+  end
+
+  local function openThemeGrid()
+    form.clear()
+    clearHandlers()
+    dashboardContext.widgets.dashboard.setPreferences(nil)
+
+    if opts.setEventHandler then
+      opts.setEventHandler(function(category, value)
+        if not closeKey.shouldHandleClose(category, value) then return false end
+        goBack()
+        return true
+      end)
+    end
+    if opts.setCleanupHandler then opts.setCleanupHandler(goBack) end
+
+    local gridHeader = header.build(PAGE_TITLE, {onBack = goBack})
+    local themes = configuredThemes()
+    local windowWidth = ({lcd.getWindowSize()})[1]
+    local numPerRow, tileSize = gridMetrics(windowWidth)
+    local x, y = TILE_PADDING, form.height() + TILE_PADDING
+    local col = 0
+    local buttons = {}
+
+    for i, theme in ipairs(themes) do
+      buttons[i] = form.addButton(nil, {x = x, y = y, w = tileSize, h = tileSize}, {
+        text = theme.label,
+        icon = lcd.loadMask(theme.icon),
+        options = FONT_S,
+        press = function()
+          lastSelected = i
+          openTheme(theme)
+        end,
+      })
+
+      col = col + 1
+      if col >= numPerRow then
+        col = 0
+        x = TILE_PADDING
+        y = y + tileSize + TILE_PADDING
+      else
+        x = x + tileSize + TILE_PADDING
+      end
+    end
+
+    if #themes == 0 then
+      form.addStaticText(nil, {x = TILE_PADDING, y = form.height() + TILE_PADDING, w = windowWidth - (2 * TILE_PADDING), h = 32}, NO_THEMES, CENTERED)
+      gridHeader.focusMenu()
+      return
+    end
+
+    local selected = lastSelected and buttons[lastSelected]
+    if selected then selected:focus() else gridHeader.focusMenu() end
+  end
+
+  openThemeGrid()
+end
+
+return {open = open}

@@ -44,7 +44,7 @@ The widget only displays stat values (not live telemetry). "source" and "stattyp
 To display min stats, set stattype = "min"; for max, omit or set stattype = "max".
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local render = {}
 

@@ -244,41 +244,6 @@
       }
     },
     {
-      "label": "Menu: Generate manifest.lua",
-      "type": "process",
-      "command": "python",
-      "osx": {
-        "command": "${config:python.defaultInterpreterPath}"
-      },
-      "args": [
-        "${workspaceFolder}/bin/menu/generate.py"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      }
-    },
-    {
-      "label": "Menu: Verify generated manifest.lua",
-      "type": "process",
-      "command": "python",
-      "osx": {
-        "command": "${config:python.defaultInterpreterPath}"
-      },
-      "args": [
-        "${workspaceFolder}/bin/menu/generate.py",
-        "--check"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      }
-    },
- {
       "label": "ethos.Start",
       "type": "process",
       "command": "${command:ethos.start}",
@@ -299,7 +264,7 @@
         "ethos.Start"
       ],
       "dependsOrder": "sequence"
-    },    
+    },
     {
       "label": "ethos.OpenControls",
       "type": "process",
@@ -313,21 +278,6 @@
       "command": "${command:ethos.openTelemetry}",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
-    },    
-    {
-      "label": "Run RFSuite Sensor Tool",
-      "type": "process",
-      "command": "${workspaceFolder}/bin/sensors/sensors.exe",
-      "osx": {
-        "command": "${workspaceFolder}/bin/sensors/sensors"
-      },
-      "options": {
-        "env": {
-          "RFSUITE_LANG": "${config:rfsuite.deploy.language}"
-        },
-        "cwd": "${workspaceFolder}/bin/sensors"
-      },
-      "problemMatcher": []
     }
   ]
 }

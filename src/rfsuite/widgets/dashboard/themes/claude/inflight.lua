@@ -6,7 +6,7 @@
   Voltage arc | headspeed rainbow dial (centrepiece) | fuel ring + timer + governor
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd     = lcd
 
 local max      = math.max
@@ -182,7 +182,7 @@ local function buildBoxes(W)
                 {value = "@i18n(widgets.governor.SPOOLUP)@",  textcolor = "lightblue"},
                 {value = "@i18n(widgets.governor.RECOVERY)@", textcolor = colorMode.fillwarncolor},
                 {value = "@i18n(widgets.governor.ACTIVE)@",   textcolor = colorMode.fillcolor},
-                {value = "@i18n(widgets.governor.THR-OFF)@",  textcolor = colorMode.fillcritcolor},
+                {value = "@i18n(widgets.governor.THROFF)@",  textcolor = colorMode.fillcritcolor},
             },
         },
 

@@ -11,7 +11,7 @@
       "justMyCode": true,
       "stopOnEntry": false,
       "preLaunchTask": "Deploy & Launch [SIM]",
-      "postDebugTask": "ethos.Start"      
+      "postDebugTask": "ethos.Start"
     },
     {
       "name": "Deploy Radio",
@@ -102,17 +102,6 @@
       "preLaunchTask": "ethos.OpenTelemetry"
     },
     {
-      "name": "Run RFSuite Sensor Tool",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/.vscode/scripts/dummy.py",
-      "console": "integratedTerminal",
-      "subProcess": false,
-      "justMyCode": true,
-      "stopOnEntry": false,
-      "postDebugTask": "Run RFSuite Sensor Tool"
-    },
-    {
       "name": "Set Deployment Language",
       "type": "debugpy",
       "request": "launch",
@@ -138,18 +127,7 @@
       "type": "pickString",
       "description": "Select deployment language",
       "options": [
-        "en",
-        "de",
-        "nl",
-        "fr",
-        "es",
-        "it",
-        "pt-br",
-        "zh-cn",
-        "no",
-        "cs",
-        "pl",
-        "he"
+        "en"
       ],
       "default": "en"
     }

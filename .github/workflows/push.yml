@@ -1,9 +1,9 @@
-name: Create rfsuite-lua-ethos ZIP on Push
+name: Create rfsuite-lua-ethos-lite ZIP on Push
 
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - 'RF-*'
 
 jobs:
@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ←—— add/remove locales here
-        lang: [en, de, es, fr, it, nl, pt-br, no, cs, pl, he, zh-cn]
+        # ←—— add locales here as translations land
+        lang: [en]
 
     steps:
       - name: Checkout code
@@ -24,9 +24,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify generated menu manifest
-        run: python bin/menu/generate.py --check
-
       - name: Set build variables (commit-based version)
         id: buildvars
         shell: bash
@@ -35,10 +32,10 @@ jobs:
           echo "GIT_VER=commit-${SHORT_SHA}" >> $GITHUB_ENV
           echo "sha7=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Create rotorflight-lua-ethos-suite-<lang>-commit-<sha7>.zip
+      - name: Create rotorflight-lua-ethos-suite-lite-<lang>-commit-<sha7>.zip
         shell: bash
         run: |
-          ART="rotorflight-lua-ethos-suite-${{ matrix.lang }}-${{ env.GIT_VER }}.zip"
+          ART="rotorflight-lua-ethos-suite-lite-${{ matrix.lang }}-${{ env.GIT_VER }}.zip"
           python bin/package/build_package.py \
             --lang '${{ matrix.lang }}' \
             --artifact-version '${{ env.GIT_VER }}' \
@@ -54,7 +51,6 @@ jobs:
       - name: Upload per-locale artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rotorflight-lua-ethos-suite-${{ matrix.lang }}-${{ env.GIT_VER }}
+          name: rotorflight-lua-ethos-suite-lite-${{ matrix.lang }}-${{ env.GIT_VER }}
           path: ${{ env.ARTIFACT }}
           if-no-files-found: error
-

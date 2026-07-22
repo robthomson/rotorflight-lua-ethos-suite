@@ -38,7 +38,7 @@ thresholds = {
 }
 ]]--
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local floor = math.floor
 
