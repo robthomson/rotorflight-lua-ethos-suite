@@ -11,6 +11,7 @@ local flightmode = assert(loadfile("widgets/dashboard/flightmode.lua"))()
 local dataflashErase = assert(loadfile("lib/msp_dataflash_erase.lua"))()
 local dataflashSummary = assert(loadfile("lib/msp_dataflash_summary.lua"))()
 local batteryProfileMsp = assert(loadfile("lib/msp_battery_profile.lua"))()
+local ethosVersion = assert(loadfile("lib/ethos_version.lua"))()
 
 local THEME_DIRS = {
   ["aerc-n"] = "widgets/dashboard/themes/aerc-n",
@@ -241,24 +242,8 @@ local function setToolbarVisible(widget, visible)
   requestPaint(widget)
 end
 
-local function ethosVersionAtLeast(target)
-  if not system or type(system.getVersion) ~= "function" then return false end
-  local version = system.getVersion() or {}
-  local current = {
-    tonumber(version.major or version.majorVersion) or 0,
-    tonumber(version.minor or version.minorVersion) or 0,
-    tonumber(version.revision or version.patch or version.revisionNumber) or 0,
-  }
-  for i = 1, 3 do
-    local want = tonumber(target and target[i]) or 0
-    if current[i] > want then return true end
-    if current[i] < want then return false end
-  end
-  return true
-end
-
 local function resolveToolbarThemeColor(themeColorKey, fallback)
-  if type(themeColorKey) == "number" and type(lcd.themeColor) == "function" and ethosVersionAtLeast({26, 1, 0}) then
+  if type(themeColorKey) == "number" and type(lcd.themeColor) == "function" and ethosVersion.atLeast({26, 1, 0}) then
     return lcd.themeColor(themeColorKey)
   end
   return fallback
@@ -272,7 +257,7 @@ local function toolbarColors()
   local defaultBg = resolveToolbarThemeColor(THEME_DEFAULT_BGCOLOR, themeState.primaryBgColor or lcd.RGB(255, 255, 255, 1))
   local focusBg = resolveToolbarThemeColor(THEME_FOCUS_BGCOLOR, themeState.focusBgColor or lcd.RGB(230, 230, 230, 1))
   local pageBg = resolveToolbarThemeColor(THEME_PAGE_BGCOLOR, themeState.pageBgColor or defaultBg)
-  local surfaceBg = (type(lcd.themeColor) == "function" and ethosVersionAtLeast({26, 1, 0})) and pageBg or defaultBg
+  local surfaceBg = (type(lcd.themeColor) == "function" and ethosVersion.atLeast({26, 1, 0})) and pageBg or defaultBg
   local lineColor = resolveToolbarThemeColor(THEME_BUTTON_BORDER_COLOR, themeState.buttonBorderColor or defaultColor)
   if lineColor == surfaceBg then
     lineColor = resolveToolbarThemeColor(THEME_SECONDARY_COLOR, themeState.secondaryColor or defaultColor)
@@ -312,7 +297,7 @@ local function canOpenSystemTool()
   return systemToolHandle ~= nil
     and system
     and type(system.openPage) == "function"
-    and ethosVersionAtLeast({26, 1, 0})
+    and ethosVersion.atLeast({26, 1, 0})
 end
 
 local function normalizeBatteryProfile(value)

@@ -33,12 +33,19 @@ local system_getSource = system.getSource
 local model_createSensor = model.createSensor
 local debugLog = assert(loadfile("lib/debug_log.lua"))()
 
--- Ethos still accepts a plain :value(v) push if it exists, but newer
--- builds want :rawValue(v) instead. Detected per-sensor-object at runtime
--- rather than gated on an Ethos version compare (this rebuild avoids
--- version-branching wherever a runtime capability check will do).
+-- Ethos before 26.1 only supports :value(v); 26.1+ wants :rawValue(v)
+-- instead. This can't be a runtime capability probe (`if sensor.rawValue
+-- then ...`): the method is bound on the sensor userdata's metatable
+-- regardless of firmware version, so it reads as present on 1.6.x too --
+-- calling it there creates the sensor (all the plain setters still work)
+-- but the value never actually populates. Needs an explicit version gate
+-- instead, same as rotorflight-lua-ethos-suite's master branch
+-- (tasks/scheduler/sensors/*.lua's own `useRawValue`).
+local ethosVersion = assert(loadfile("lib/ethos_version.lua"))()
+local useRawValue = ethosVersion.atLeast({26, 1, 0})
+
 local function pushValue(sensor, v)
-  if sensor.rawValue then
+  if useRawValue then
     sensor:rawValue(v)
   else
     sensor:value(v)

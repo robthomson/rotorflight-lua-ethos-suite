@@ -7,6 +7,7 @@ local cached = package.loaded["rfsuite.dashboard.context"]
 if cached then return cached end
 
 local buildInfo = assert(loadfile("lib/build_info.lua"))()
+local ethosVersion = assert(loadfile("lib/ethos_version.lua"))()
 
 local context = {
   config = {
@@ -331,25 +332,9 @@ local function legacyPalette()
   return palette
 end
 
-local function ethosVersionAtLeast(target)
-  if not system or type(system.getVersion) ~= "function" then return false end
-  local version = system.getVersion() or {}
-  local current = {
-    tonumber(version.major or version.majorVersion) or 0,
-    tonumber(version.minor or version.minorVersion) or 0,
-    tonumber(version.revision or version.patch or version.revisionNumber) or 0,
-  }
-  for i = 1, 3 do
-    local want = tonumber(target and target[i]) or 0
-    if current[i] > want then return true end
-    if current[i] < want then return false end
-  end
-  return true
-end
-
 local function supportsSystemThemeColors()
   if systemThemeSupport ~= nil then return systemThemeSupport end
-  systemThemeSupport = type(lcd.themeColor) == "function" and ethosVersionAtLeast(ETHOS_THEME_MIN_VERSION)
+  systemThemeSupport = type(lcd.themeColor) == "function" and ethosVersion.atLeast(ETHOS_THEME_MIN_VERSION)
   return systemThemeSupport
 end
 
