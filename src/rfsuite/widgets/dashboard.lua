@@ -1131,9 +1131,35 @@ end
 local function paint(widget)
   local w, h = lcd.getWindowSize()
   if shouldShowStartupOverlay(widget) then
-    local hasDashboard = widget.startupDashboardPrepared == true and widget.startupUnderlayDirty ~= true
-    if hasDashboard then
-      paintDashboard(widget, w, h)
+    -- With no link at all, shouldShowStartupOverlay() stays true forever
+    -- (hasTelemetryValues() can never become true), so this branch used to
+    -- run every single paint tick indefinitely -- and, once the box cache
+    -- warmed up, paid for a *full* paintDashboard() (engine.paint() ->
+    -- paintObjects() iterating every box, including each box's own live
+    -- sensor read + value formatting) plus the overlay draw on top of it,
+    -- every frame, forever: strictly more expensive than the normal
+    -- connected steady state (paintDashboard() alone), not less.
+    --
+    -- There's still real value in showing the *themed* look while
+    -- waiting, though -- drawStartupOverlay()'s own bg/panel colors come
+    -- from context.lua's getThemeState(), which reflects Ethos's own
+    -- system theme (or a dark/light legacy fallback), NOT the per-model
+    -- dashboard theme the user actually picked -- that only comes from
+    -- painting the boxes themselves. paintDashboardShell() already exists
+    -- for exactly this "cheap themed preview" need: per-box themed
+    -- background + title only (utils.resolveThemeColor +
+    -- drawBoxBackground), no live sensor reads/value formatting/threshold
+    -- colors. It also does its own layout prep independent of the
+    -- wakeup()-side incremental object warm-up disabled below (shell mode
+    -- never touches per-box object instances), so calling it here with no
+    -- link doesn't reintroduce that cost.
+    if widget.connected == true then
+      local hasDashboard = widget.startupDashboardPrepared == true and widget.startupUnderlayDirty ~= true
+      if hasDashboard then
+        paintDashboard(widget, w, h)
+      else
+        paintDashboardShell(widget, w, h)
+      end
     else
       paintDashboardShell(widget, w, h)
     end
@@ -1332,7 +1358,12 @@ local function wakeup(widget)
   end
 
   if shouldShowStartupOverlay(widget) then
-    if widget.startupOverlayPainted == true and
+    -- Only worth incrementally warming the *full-content* box cache while
+    -- connected -- paint() only ever uses the lightweight shell paint (see
+    -- its own comment) with no link, which never touches per-object
+    -- instances, so preparing them here would just be wasted work, every
+    -- tick, for as long as there's no link.
+    if widget.connected == true and widget.startupOverlayPainted == true and
       (widget.startupDashboardPrepared ~= true or widget.startupUnderlayDirty == true) then
       local ready, shellReady = prepareDashboard(widget, true, STARTUP_PREP_OBJECTS_PER_TICK)
       widget.startupShellPrepared = shellReady == true
