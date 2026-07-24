@@ -44,6 +44,15 @@ local ELRS_SENSOR_INTERVAL = 0.18
 local BLACKBOX_INTERVAL = 20
 local SENSOR_CHECKS_ENABLED = true
 
+-- Computed once at load, matching tasks/background.lua's own gate for
+-- tasks/sim_sensors.lua. The Ethos simulator has no real Rx RSSI source, so
+-- tasks/msp/transport_select.lua always resolves protocol == "sport" there
+-- -- used below to keep runHandshake() from also provisioning real S.Port
+-- sensors (lib/frsky_sensors.lua) on top of the ones tasks/sim_sensors.lua
+-- already creates at their own appIds, and to pick the "sim" candidates in
+-- lib/telemetry_sensors.lua's lookups instead of "sport"'s real appIds.
+local isSim = system.getVersion().simulation == true
+
 -- Ethos's own native telemetry-link-active flag (the original suite aliases
 -- this same source as `tlm`). Driven by the RF
 -- link's own quality tracking, so connection edges are detected from this
@@ -440,7 +449,13 @@ local function runHandshake(mspQueue, protocol)
         if slots[i] and slots[i] ~= 0 then assigned = assigned + 1 end
       end
       debugLog.print("[session] TELEMETRY_CONFIG read ok: " .. assigned .. "/" .. #slots .. " slots assigned")
-      if protocol == "sport" then
+      -- Skipped in the simulator: tasks/sim_sensors.lua already creates its
+      -- own pid_profile/rate_profile/battery_profile/etc. sensors at their
+      -- own appIds, and there's no real S.Port wire here for these
+      -- placeholders to ever receive a value on -- provisioning them too
+      -- just left duplicate "PID Profile"/"Rate Profile"/"Battery Profile"
+      -- sensors sitting alongside the sim ones.
+      if protocol == "sport" and not isSim then
         frskySensors:provision(slots)
       end
     end, function()
@@ -780,9 +795,18 @@ local function updateFuel(protocol)
   end
 end
 
-local function wakeup(mspQueue, protocol, transport)
+local function wakeup(mspQueue, protocol, transport, simSensors)
   local now = os.clock()
   local telemetryActive = tlm and tlm:state()
+
+  -- Ethos's own TELEMETRY_ACTIVE flag can flap in the simulator -- override
+  -- it with the sensor editor's "Telemetry State" switch instead whenever
+  -- one is available (tasks/background.lua only ever passes simSensors
+  -- when isSim), matching that original suite's own tasks/tasks.lua
+  -- comment calling out exactly this flapping.
+  if isSim and simSensors then
+    telemetryActive = simSensors.telemetryState()
+  end
 
   if protocol ~= session.mspTransport then
     session.mspTransport = protocol
@@ -793,23 +817,30 @@ local function wakeup(mspQueue, protocol, transport)
     setConnected(telemetryActive == true, mspQueue, protocol)
   end
 
+  -- Only affects which lib/telemetry_sensors.lua candidate table these
+  -- lookups resolve against -- real transport-format gates below (the
+  -- protocol == "crsf" check around ELRS custom-telemetry frame popping)
+  -- keep using the real `protocol`, since that describes actual wire
+  -- behaviour, not sensor-value lookup.
+  local sensorProtocol = isSim and "sim" or protocol
+
   if SENSOR_CHECKS_ENABLED then
     if shouldRunScheduled("telemetry", TELEMETRY_VALUE_INTERVAL, now) then
-      updateVoltage(protocol)
-      updateRfStatusTelemetry(protocol)
-      updateEscTemp(protocol)
-      updateMcuTemp(protocol)
-      updateBecVoltage(protocol)
-      updateFuel(protocol)
+      updateVoltage(sensorProtocol)
+      updateRfStatusTelemetry(sensorProtocol)
+      updateEscTemp(sensorProtocol)
+      updateMcuTemp(sensorProtocol)
+      updateBecVoltage(sensorProtocol)
+      updateFuel(sensorProtocol)
     end
 
     if shouldRunScheduled("profiles", PROFILE_INTERVAL, now) then
-      updateProfiles(protocol)
-      updateGovernor(protocol)
+      updateProfiles(sensorProtocol)
+      updateGovernor(sensorProtocol)
     end
 
     if shouldRunScheduled("adjustment", ADJUSTMENT_INTERVAL, now) then
-      updateAdjustment(protocol)
+      updateAdjustment(sensorProtocol)
     end
 
     if shouldRunScheduled("blackbox", BLACKBOX_INTERVAL, now) then

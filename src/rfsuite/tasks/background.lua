@@ -38,6 +38,9 @@ local protocol -- "sport"|"crsf", set once at init; see tasks/msp/transport_sele
 local transport -- set once at init; passed through so session.lua can drive
                  -- protocol-specific sensor work (e.g. tasks/elrs_sensors.lua's
                  -- custom-telemetry frame pop) without a second loadfile of it
+local simSensors -- tasks/sim_sensors.lua, loadfile'd (see taskInit below) only when
+                  -- system.getVersion().simulation == true -- stays nil, and the
+                  -- module itself is never parsed/loaded, on real hardware
 local lastTaskStatusAt = nil
 local lastMemoryLogAt = nil
 local memoryLogsEnabled = false
@@ -103,7 +106,7 @@ local function taskInit()
   scheduler:clear()
   lastMemoryLogAt = nil
   scheduler:add("session", 0.05, function()
-    session.wakeup(mspQueue, protocol, transport)
+    session.wakeup(mspQueue, protocol, transport, simSensors)
   end)
   scheduler:add("logging", 0.25, function()
     logging.wakeup(protocol)
@@ -114,6 +117,15 @@ local function taskInit()
   scheduler:add("audio_switches", 0.25, function()
     audioSwitches.wakeup(protocol)
   end)
+
+  -- Only ever loadfile'd/scheduled here, behind this one check -- see
+  -- tasks/sim_sensors.lua's own header for why it costs nothing otherwise.
+  if system.getVersion().simulation == true then
+    simSensors = simSensors or assert(loadfile("tasks/sim_sensors.lua"))()
+    scheduler:add("sim_sensors", 2, function()
+      simSensors.wakeup()
+    end)
+  end
 end
 
 local function taskWakeup()

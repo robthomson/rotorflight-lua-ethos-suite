@@ -30,6 +30,7 @@
 -- NOTE: still not independently verified live against real hardware.
 
 local CANDIDATES = {
+  -- S.Port native appIds -- what the FC/ESC broadcast directly over S.Port.
   sport = {
     voltage = {
       {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0210},
@@ -105,6 +106,8 @@ local CANDIDATES = {
       {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5462},
     },
   },
+  -- CRSF/ELRS appIds -- what tasks/elrs_sensors.lua decodes off CRSF's
+  -- custom-telemetry frames and creates DIY sensors for.
   crsf = {
     voltage = {
       {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1011},
@@ -163,6 +166,64 @@ local CANDIDATES = {
     },
     armflags = {
       {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1202},
+    },
+  },
+
+  -- Ethos-simulator DIY sensors, fabricated by tasks/sim_sensors.lua (only
+  -- loaded/populated when system.getVersion().simulation == true) -- appIds
+  -- must stay in sync with that file's own SENSORS table. Only the keys
+  -- already resolved elsewhere in this file get an entry here; sim sensors
+  -- with no real-hardware counterpart above (fuel, altitude, cell_count,
+  -- accx/y/z, attpitch/roll/yaw, groundspeed, armdisableflags, tailspeed)
+  -- are still created and visible to dashboards/telemetry pages via Ethos's
+  -- own sensor picker, just not looked up through this table -- nothing
+  -- here needs them yet (see this file's own header for why that's
+  -- intentional, not an oversight).
+  sim = {
+    voltage = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5002},
+    },
+    consumption = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5008},
+    },
+    current = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5004},
+    },
+    rpm = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5003},
+    },
+    temp_esc = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5005},
+    },
+    temp_mcu = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5006},
+    },
+    bec_voltage = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5017},
+    },
+    throttle_percent = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5014},
+    },
+    pid_profile = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5012},
+    },
+    rate_profile = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5013},
+    },
+    battery_profile = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5026},
+    },
+    governor = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5009},
+    },
+    adj_f = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5010},
+    },
+    adj_v = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5011},
+    },
+    armflags = {
+      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5001},
     },
   },
 }
