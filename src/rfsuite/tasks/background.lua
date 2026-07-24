@@ -33,9 +33,15 @@ local scheduler = Scheduler.new()
 
 local TASK_STATUS_INTERVAL = 0.5
 local MEMORY_LOG_INTERVAL = 5
+-- Cheap presence check only (tasks/msp/transport_select.lua's detect()) --
+-- fine to poll this often; a real change additionally loadfile()s a fresh
+-- transport module, but that only happens on the (rare) tick it's actually
+-- needed.
+local TRANSPORT_RECHECK_INTERVAL = 1
 
-local protocol -- "sport"|"crsf", set once at init; see tasks/msp/transport_select.lua
-local transport -- set once at init; passed through so session.lua can drive
+local protocol -- "sport"|"crsf", set at init and kept current by
+                -- checkTransportChange() below; see tasks/msp/transport_select.lua
+local transport -- kept current alongside protocol; passed through so session.lua can drive
                  -- protocol-specific sensor work (e.g. tasks/elrs_sensors.lua's
                  -- custom-telemetry frame pop) without a second loadfile of it
 local simSensors -- tasks/sim_sensors.lua, loadfile'd (see taskInit below) only when
@@ -75,6 +81,29 @@ local function onSettingsUpdate(snapshot)
   memoryLogsEnabled = settingsStore.memoryLogsEnabled(snapshot)
 end
 
+-- system.registerTask's `init` runs once for this task's whole lifetime,
+-- not per model switch -- so if the radio's active model changes to one
+-- with a different receiver protocol (S.Port <-> CRSF/ELRS) without the
+-- background task itself reloading, `protocol`/`transport` would otherwise
+-- stay stuck at whatever taskInit() first saw. Polled on an interval
+-- (rather than driven off session.connected, which is private to
+-- tasks/session.lua) so this doesn't need any new coupling between the two.
+local function checkTransportChange()
+  local detected = mspTransportSelect.detect()
+  if detected == protocol then return end
+
+  -- Drop whatever the old transport had in flight before swapping -- a
+  -- half-sent MSPv2 chunk (or its expected reply) means nothing to the new
+  -- transport. Queue:clear() drains it through the *old* transport (still
+  -- set on mspCommon at this point) before setTransport() below replaces it.
+  mspQueue:clear()
+  protocol = detected
+  transport = mspTransportSelect.load(protocol)
+  mspCommon.setTransport(transport)
+  if telemetrySensors then telemetrySensors.reset() end
+  print("[bgtask] transport changed: " .. tostring(protocol))
+end
+
 local function taskInit()
   transport, protocol = mspTransportSelect.select()
   mspCommon.setTransport(transport)
@@ -105,6 +134,7 @@ local function taskInit()
   end)
   scheduler:clear()
   lastMemoryLogAt = nil
+  scheduler:add("transport_recheck", TRANSPORT_RECHECK_INTERVAL, checkTransportChange)
   scheduler:add("session", 0.05, function()
     session.wakeup(mspQueue, protocol, transport, simSensors)
   end)

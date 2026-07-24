@@ -29,204 +29,34 @@
 -- nothing in this rebuild queries it yet; add it back if that changes.)
 -- NOTE: still not independently verified live against real hardware.
 
-local CANDIDATES = {
-  -- S.Port native appIds -- what the FC/ESC broadcast directly over S.Port.
-  sport = {
-    voltage = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0210},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0211},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0218},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x021A},
-    },
-    consumption = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5250},
-    },
-    current = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0200},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0208},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0201},
-    },
-    link = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0xF101, subId = 0},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0xF010, subId = 0},
-    },
-    rpm = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0500},
-    },
-    temp_esc = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0401},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0418},
-    },
-    temp_mcu = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0400},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0401},
-    },
-    bec_voltage = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0901},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0219},
-    },
-    throttle_percent = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5440},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x51A4},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5269},
-    },
-    smartfuel = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0600},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5FE1},
-    },
-    -- Native S.Port broadcasts if the FC sends them directly, but in
-    -- practice these are the same appIds lib/frsky_sensors.lua labels from
-    -- TELEMETRY_CONFIG's slot assignment -- see tasks/session.lua's
-    -- profile-change tracking.
-    pid_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5130},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5471},
-    },
-    rate_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5131},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5472},
-    },
-    battery_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5133},
-    },
-    governor = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5125},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5450},
-    },
-    adj_f = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5110},
-    },
-    adj_v = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5111},
-    },
-    -- Arm-status flags -- see tasks/session.lua's own updateArmedState()
-    -- for how the raw value maps to a plain isArmed boolean.
-    armflags = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5122},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5462},
-    },
-  },
-  -- CRSF/ELRS appIds -- what tasks/elrs_sensors.lua decodes off CRSF's
-  -- custom-telemetry frames and creates DIY sensors for.
-  crsf = {
-    voltage = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1011},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1041},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1051},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1080},
-    },
-    consumption = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1013},
-    },
-    current = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1012},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1042},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x104A},
-    },
-    rpm = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x10C0},
-    },
-    temp_esc = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x10A0},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1047},
-    },
-    temp_mcu = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x10A3},
-    },
-    bec_voltage = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1081},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1049},
-    },
-    throttle_percent = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1035},
-    },
-    smartfuel = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1014},
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5FE1},
-    },
-    -- Same appIds tasks/elrs_sensors.lua's DIY sensors use (SIDs 0x1211/
-    -- 0x1212/0x1214) -- this resolves to that same sensor once it exists.
-    pid_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1211},
-    },
-    rate_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1212},
-    },
-    battery_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1214},
-    },
-    governor = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1205},
-    },
-    adj_f = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1221},
-    },
-    adj_v = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1222},
-    },
-    armflags = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1202},
-    },
-  },
-
-  -- Ethos-simulator DIY sensors, fabricated by tasks/sim_sensors.lua (only
-  -- loaded/populated when system.getVersion().simulation == true) -- appIds
-  -- must stay in sync with that file's own SENSORS table. Only the keys
-  -- already resolved elsewhere in this file get an entry here; sim sensors
-  -- with no real-hardware counterpart above (fuel, altitude, cell_count,
-  -- accx/y/z, attpitch/roll/yaw, groundspeed, armdisableflags, tailspeed)
-  -- are still created and visible to dashboards/telemetry pages via Ethos's
-  -- own sensor picker, just not looked up through this table -- nothing
-  -- here needs them yet (see this file's own header for why that's
-  -- intentional, not an oversight).
-  sim = {
-    voltage = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5002},
-    },
-    consumption = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5008},
-    },
-    current = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5004},
-    },
-    rpm = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5003},
-    },
-    temp_esc = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5005},
-    },
-    temp_mcu = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5006},
-    },
-    bec_voltage = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5017},
-    },
-    throttle_percent = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5014},
-    },
-    pid_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5012},
-    },
-    rate_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5013},
-    },
-    battery_profile = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5026},
-    },
-    governor = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5009},
-    },
-    adj_f = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5010},
-    },
-    adj_v = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5011},
-    },
-    armflags = {
-      {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x5001},
-    },
-  },
+-- Per-protocol candidate tables live in their own files (lib/telemetry_
+-- sensors_sport.lua / _crsf.lua / _sim.lua) instead of one CANDIDATES
+-- literal with all three built in, so only the protocol actually active
+-- this session gets loadfile()'d -- tasks/msp/transport_select.lua picks
+-- "sport" or "crsf" once at background-task init (no dynamic re-selection),
+-- and tasks/session.lua substitutes "sim" for the whole session in the
+-- Ethos simulator, so in practice exactly one (occasionally two, see below)
+-- of these three ever loads per run, not all three unconditionally.
+local CANDIDATE_MODULES = {
+  sport = "lib/telemetry_sensors_sport.lua",
+  crsf = "lib/telemetry_sensors_crsf.lua",
+  sim = "lib/telemetry_sensors_sim.lua",
 }
+
+-- false is a valid cached "no such protocol" marker (as opposed to nil,
+-- meaning "not attempted yet") so an unknown protocol isn't retried every
+-- call.
+local loadedCandidates = {}
+
+local function candidatesForProtocol(protocol)
+  local loaded = loadedCandidates[protocol]
+  if loaded == nil then
+    local path = CANDIDATE_MODULES[protocol]
+    loaded = (path and assert(loadfile(path))()) or false
+    loadedCandidates[protocol] = loaded
+  end
+  return loaded or nil
+end
 
 -- Cache resolved `source` objects per protocol/name so repeated calls
 -- (once per wakeup) don't re-scan candidates every time.
@@ -254,7 +84,8 @@ function telemetry_sensors.getSource(protocol, name)
       return nil
     end
 
-    local candidates = CANDIDATES[protocol] and CANDIDATES[protocol][name]
+    local protocolCandidates = candidatesForProtocol(protocol)
+    local candidates = protocolCandidates and protocolCandidates[name]
     if not candidates then return nil end
     for i = 1, #candidates do
       local candidate = system.getSource(candidates[i])
