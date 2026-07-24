@@ -20,6 +20,18 @@
   device with the lazy callback layer.
 ]] --
 
+-- Measures wall time from the moment Ethos starts running this file to the
+-- moment every subsystem's init() has returned -- i.e. the eager loadfile()
+-- chain rooted at the three requires below (background.lua/tool.lua/
+-- dashboard.lua each transitively loadfile() their own dependencies at
+-- module-load time, before init() is even called) plus each subsystem's own
+-- registration work. Answers "does the eager-load disk IO actually cost
+-- anything perceptible" with a real number instead of a guess -- see the
+-- eager-vs-lazy tradeoff noted below. Printed once, unconditionally: this
+-- runs a single time per app lifetime, not per tick, so the cost of the
+-- print itself is noise.
+local bootStartAt = os.clock()
+
 -- Parsed by bin/package/build_package.py (MAIN_VERSION_RE/MAIN_SUFFIX_RE) to
 -- derive the packaged manifest version; the suffix segment is rewritten
 -- per-build. The literal name/shape of this table is load-bearing for that
@@ -39,6 +51,7 @@ local function init()
     activelook_widget = assert(loadfile("widgets/activelook.lua"))()
     activelook_widget.init()
   end
+  print(string.format("[boot] main.lua load+init: %.3fs", os.clock() - bootStartAt))
 end
 
 return {init = init}

@@ -32,8 +32,6 @@ local smartfuelReserve = assert(loadfile("lib/smartfuel_reserve.lua"))()
 local SmartFuel = assert(loadfile("lib/smartfuel_calc.lua"))()
 local DiySensor = assert(loadfile("lib/diy_sensor.lua"))()
 local telemetryConfig = assert(loadfile("lib/msp_telemetry_config.lua"))()
-local FrskySensors = assert(loadfile("lib/frsky_sensors.lua"))()
-local elrsSensors = assert(loadfile("tasks/elrs_sensors.lua"))()
 local flightTimer = assert(loadfile("tasks/flight_timer.lua"))()
 local debugLog = assert(loadfile("lib/debug_log.lua"))()
 
@@ -127,8 +125,33 @@ local smartfuelSensor = DiySensor.new(SMARTFUEL_APP_ID, "Smart Fuel", UNIT_PERCE
 -- Only acted on for the S.Port protocol -- see runHandshake() below. On
 -- CRSF, tasks/elrs_sensors.lua's own (differently-shaped, reactive rather
 -- than config-provisioned) mechanism handles custom-sensor creation
--- instead -- see wakeup() below.
-local frskySensors = FrskySensors.new()
+-- instead -- see wakeup() below. Both lib/frsky_sensors.lua and
+-- tasks/elrs_sensors.lua are loadfile()'d lazily, on first actual need,
+-- rather than unconditionally here -- only one of the two protocols is
+-- ever active per session, so this is ~20KB of parsing neither Ethos nor
+-- the FC needed to pay for on that session's other protocol (same
+-- lazy-load-per-protocol reasoning as lib/telemetry_sensors.lua's own
+-- candidate-file split). Kept around once loaded, not reloaded per
+-- connection, in case tasks/background.lua's checkTransportChange() picks
+-- a different protocol later in the same run.
+local frskySensors = nil
+local elrsSensors = nil
+
+local function ensureFrskySensors()
+  if not frskySensors then
+    local FrskySensors = assert(loadfile("lib/frsky_sensors.lua"))()
+    frskySensors = FrskySensors.new()
+  end
+  return frskySensors
+end
+
+local function ensureElrsSensors()
+  if not elrsSensors then
+    elrsSensors = assert(loadfile("tasks/elrs_sensors.lua"))()
+  end
+  return elrsSensors
+end
+
 local telemetrySensors = nil
 
 local lastBeepAt = 0
@@ -456,7 +479,7 @@ local function runHandshake(mspQueue, protocol)
       -- just left duplicate "PID Profile"/"Rate Profile"/"Battery Profile"
       -- sensors sitting alongside the sim ones.
       if protocol == "sport" and not isSim then
-        frskySensors:provision(slots)
+        ensureFrskySensors():provision(slots)
       end
     end, function()
       debugLog.print("[session] TELEMETRY_CONFIG read failed")
@@ -526,8 +549,8 @@ local function setConnected(value, mspQueue, protocol)
     localSmartFuel:reset()
     smartfuelSensor:reset()
     if telemetrySensors then telemetrySensors.reset() end
-    frskySensors:reset()
-    elrsSensors.reset()
+    if frskySensors then frskySensors:reset() end
+    if elrsSensors then elrsSensors.reset() end
   end
 
   publish()
@@ -848,7 +871,7 @@ local function wakeup(mspQueue, protocol, transport, simSensors)
     end
 
     if protocol == "crsf" and session.connected and shouldRunScheduled("elrs", ELRS_SENSOR_INTERVAL, now) then
-      elrsSensors.wakeup(transport, session.telemetrySlots)
+      ensureElrsSensors().wakeup(transport, session.telemetrySlots)
     end
   end
 
