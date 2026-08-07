@@ -3,7 +3,7 @@
   GPLv3 — https://www.gnu.org/licenses/gpl-3.0.en.html
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local max = math.max
@@ -322,9 +322,9 @@ local function buildBoxes(W)
             valuepaddingbottom = opts.rpmvaluepadding,
             font = opts.font,
             unit = "",
-            textcolor = "black",
-            titlecolor = "black",
-            bgcolor = colorMode.textcolor,
+            textcolor = colorMode.textcolor,
+            titlecolor = colorMode.titlecolor,
+            bgcolor = colorMode.paneldarkbg,
         },
         {
             col = 11,

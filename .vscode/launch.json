@@ -11,7 +11,7 @@
       "justMyCode": true,
       "stopOnEntry": false,
       "preLaunchTask": "Deploy & Launch [SIM]",
-      "postDebugTask": "ethos.Start"      
+      "postDebugTask": "ethos.Start"
     },
     {
       "name": "Deploy Radio",

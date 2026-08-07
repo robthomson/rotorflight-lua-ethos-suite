@@ -53,7 +53,7 @@ Arc Geometry/Advanced
     gaugepaddingbottom  : number    -- (Optional) Extra space added below arc region, pushing arc upward (vertical only)
 ]]--
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local tostring = tostring
@@ -66,6 +66,8 @@ local resolveThemeColor = utils.resolveThemeColor
 local resolveThresholdColor = utils.resolveThresholdColor
 local resolveFont = utils.resolveFont
 local getPulsingDots = utils.getPulsingDots
+local prepareTextLayout = utils.prepareTextLayout
+local paintTextLayout = utils.paintTextLayout
 local lastDisplayValue = nil
 
 function render.dirty(box)
@@ -74,6 +76,69 @@ end
 
 local drawArc = utils.drawArc
 local compileTransform = utils.compileTransform
+
+local function prepareGeometry(x, y, w, h, box, c)
+    local g = box._geom
+    -- g.thicknessParam (the raw, possibly-nil c.thickness) is the cache key;
+    -- g.thickness below is the *resolved* value used for drawing. Comparing
+    -- the resolved value against the raw param here (as this used to) would
+    -- never match whenever thickness is left at its auto default -- the
+    -- resolved default is never exactly `c.thickness or 0` -- so needGeo was
+    -- true on every single paint() and the cache never actually cached.
+    local needGeo = (not g) or g.x ~= x or g.y ~= y or g.w ~= w or g.h ~= h or g.title ~= c.title or g.titlefont ~= c.titlefont or g.titlespacing ~= (c.titlespacing or 0) or g.titlepaddingtop ~= (c.titlepaddingtop or 0) or g.titlepaddingbottom ~= (c.titlepaddingbottom or 0) or g.titlepos ~= c.titlepos or g.thicknessParam ~= (c.thickness or 0) or g.gaugepadding ~= (c.gaugepadding or 0) or g.gaugepaddingbottom ~= (c.gaugepaddingbottom or 0)
+
+    if not needGeo then return g end
+
+    g = g or {}
+    g.x, g.y = x, y
+    g.w, g.h = w, h
+    g.title, g.titlefont = c.title, c.titlefont
+    g.titlespacing = c.titlespacing or 0
+    g.titlepaddingtop = c.titlepaddingtop or 0
+    g.titlepaddingbottom = c.titlepaddingbottom or 0
+    g.titlepos = c.titlepos
+    g.thicknessParam = c.thickness or 0
+    g.thickness = c.thickness or math.max(6, math.min(w, h) * 0.07)
+    g.gaugepadding = c.gaugepadding or 0
+    g.gaugepaddingbottom = c.gaugepaddingbottom or 0
+
+    local titleHeight = 0
+    if c.title then
+        lcd.font(resolveFont(c.titlefont, FONT_XS))
+        local _, th = lcd.getTextSize(c.title)
+        titleHeight = (th or 0) + g.titlespacing + g.titlepaddingtop + g.titlepaddingbottom
+    end
+
+    local arcRegionY, arcRegionH, cy
+    if c.titlepos == "top" then
+        arcRegionY = y + titleHeight
+        arcRegionH = h - titleHeight - g.gaugepaddingbottom
+        cy = arcRegionY + arcRegionH * 0.5
+    elseif c.titlepos == "bottom" then
+        arcRegionY = y
+        arcRegionH = h - titleHeight - g.gaugepaddingbottom
+        cy = arcRegionY + arcRegionH * 0.6
+    else
+        arcRegionY = y
+        arcRegionH = h - g.gaugepaddingbottom
+        cy = arcRegionY + arcRegionH * 0.55
+    end
+
+    local thickness = g.thickness
+    local maxRadius = (arcRegionH / 2) - (thickness / 2)
+    local radius = math.min((w / 2) - g.gaugepadding, maxRadius + 8)
+
+    g.cx = x + w / 2
+    g.cy = cy
+    g.radius = radius
+
+    local startAngle = 225
+    g.startAngle = startAngle
+    g.endAngleFull = (startAngle + 270) % 360
+
+    box._geom = g
+    return g
+end
 
 function render.wakeup(box)
     local telemetry = rfsuite.tasks.telemetry
@@ -224,65 +289,30 @@ function render.wakeup(box)
     c.maxpaddingtop = cfg.maxpaddingtop
     c.gaugepadding = cfg.gaugepadding
     c.gaugepaddingbottom = cfg.gaugepaddingbottom
+
+    if box._dashboardRectW and box._dashboardRectH then
+        local gx, gy = utils.applyOffset(box._dashboardRectX or 0, box._dashboardRectY or 0, box)
+        local gw, gh
+        gx, gy, gw, gh = utils.boxContentRect(gx, gy, box._dashboardRectW, box._dashboardRectH, c.bgcolor)
+        prepareGeometry(gx, gy, gw, gh, box, c)
+        prepareTextLayout(box, gx, gy, gw, gh, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, c.displayValue, c.unit, c.font, c.valuealign, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom)
+    end
 end
 
 function render.paint(x, y, w, h, box)
+    -- Matches objects/navigation/ah.lua's own guard: box._cache is only ever
+    -- populated by render.wakeup() below, so painting before the first
+    -- wakeup (e.g. a host context that calls paint() without ever pairing
+    -- it with wakeup()) must draw nothing, not fall through to a track arc
+    -- rendered from bare w/h defaults in legacyPalette()'s fallback color.
+    local c = box._cache
+    if not c then return end
+
     x, y = utils.applyOffset(x, y, box)
-    local c = box._cache or {}
 
     x, y, w, h = utils.drawBoxBackground(x, y, w, h, c.bgcolor)
 
-    local g = box._geom
-    local needGeo = (not g) or g.w ~= w or g.h ~= h or g.title ~= c.title or g.titlefont ~= c.titlefont or g.titlespacing ~= (c.titlespacing or 0) or g.titlepaddingtop ~= (c.titlepaddingtop or 0) or g.titlepaddingbottom ~= (c.titlepaddingbottom or 0) or g.titlepos ~= c.titlepos or g.thickness ~= (c.thickness or 0) or g.gaugepadding ~= (c.gaugepadding or 0) or g.gaugepaddingbottom ~= (c.gaugepaddingbottom or 0)
-
-    if needGeo then
-        g = g or {}
-        g.w, g.h = w, h
-        g.title, g.titlefont = c.title, c.titlefont
-        g.titlespacing = c.titlespacing or 0
-        g.titlepaddingtop = c.titlepaddingtop or 0
-        g.titlepaddingbottom = c.titlepaddingbottom or 0
-        g.titlepos = c.titlepos
-        g.thickness = c.thickness or math.max(6, math.min(w, h) * 0.07)
-        g.gaugepadding = c.gaugepadding or 0
-        g.gaugepaddingbottom = c.gaugepaddingbottom or 0
-
-        local titleHeight = 0
-        if c.title then
-            lcd.font(resolveFont(c.titlefont, FONT_XS))
-            local _, th = lcd.getTextSize(c.title)
-            titleHeight = (th or 0) + g.titlespacing + g.titlepaddingtop + g.titlepaddingbottom
-        end
-
-        local arcRegionY, arcRegionH, cy
-        if c.titlepos == "top" then
-            arcRegionY = y + titleHeight
-            arcRegionH = h - titleHeight - g.gaugepaddingbottom
-            cy = arcRegionY + arcRegionH * 0.5
-        elseif c.titlepos == "bottom" then
-            arcRegionY = y
-            arcRegionH = h - titleHeight - g.gaugepaddingbottom
-            cy = arcRegionY + arcRegionH * 0.6
-        else
-            arcRegionY = y
-            arcRegionH = h - g.gaugepaddingbottom
-            cy = arcRegionY + arcRegionH * 0.55
-        end
-
-        local thickness = g.thickness
-        local maxRadius = (arcRegionH / 2) - (thickness / 2)
-        local radius = math.min((w / 2) - g.gaugepadding, maxRadius + 8)
-
-        g.cx = x + w / 2
-        g.cy = cy
-        g.radius = radius
-
-        local startAngle = 225
-        g.startAngle = startAngle
-        g.endAngleFull = (startAngle + 270) % 360
-
-        box._geom = g
-    end
+    local g = prepareGeometry(x, y, w, h, box, c)
 
     drawArc(g.cx, g.cy, g.radius, c.thickness, g.startAngle, g.endAngleFull, c.fillbgcolor)
 
@@ -298,7 +328,8 @@ function render.paint(x, y, w, h, box)
         drawArc(g.cx, g.cy, innerRadius, innerThickness, g.startAngle, maxEndAngle, c.maxfillcolor)
     end
 
-    utils.box(x, y, w, h, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlecolor, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, c.displayValue, c.unit, c.font, c.valuealign, c.textcolor, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom, nil)
+    local layout = prepareTextLayout(box, x, y, w, h, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, c.displayValue, c.unit, c.font, c.valuealign, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom)
+    paintTextLayout(layout, c.textcolor, c.titlecolor)
 
     if c.arcmax and c.maxval then
         local maxStr = tostring(c.maxprefix or "") .. (c.displayMaxValue or c.maxval) .. (c.unit or "")

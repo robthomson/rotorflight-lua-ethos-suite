@@ -3,7 +3,7 @@
   GPLv3 — https://www.gnu.org/licenses/gpl-3.0.en.html
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local tonumber = tonumber
@@ -59,7 +59,7 @@ local header_boxes_cache = nil
 local themeconfig = nil
 local last_txbatt_type = nil
 
-local layout = {cols = 6, rows = 12, padding = 1}
+local layout = {cols = 6, rows = 12, padding = 0}
 
 local header_layout = utils.standardHeaderLayout(headeropts)
 
@@ -98,7 +98,7 @@ local function buildBoxes(W)
             titlecolor = colorMode.titlecolor,
             thresholds = {
                 {value = "@i18n(widgets.governor.DISARMED)@", textcolor = colorMode.fillcritcolor}, {value = "@i18n(widgets.governor.OFF)@", textcolor = colorMode.fillcritcolor}, {value = "@i18n(widgets.governor.IDLE)@", textcolor = "blue"}, {value = "@i18n(widgets.governor.SPOOLUP)@", textcolor = "blue"}, {value = "@i18n(widgets.governor.RECOVERY)@", textcolor = colorMode.fillwarncolor}, {value = "@i18n(widgets.governor.ACTIVE)@", textcolor = colorMode.fillcolor},
-                {value = "@i18n(widgets.governor.THR-OFF)@", textcolor = colorMode.fillcritcolor}
+                {value = "@i18n(widgets.governor.THROFF)@", textcolor = colorMode.fillcritcolor}
             }
         }, {col = 3, row = 1, colspan = 3, rowspan = 9, type = "image", subtype = "model", bgcolor = colorMode.bgcolor},
         {col = 3, row = 10, rowspan = 3, type = "text", subtype = "telemetry", source = "rate_profile", title = "@i18n(widgets.dashboard.rates):upper()@", titlepos = "bottom", font = opts.font, transform = "floor", bgcolor = colorMode.bgcolor, titlecolor = colorMode.titlecolor, thresholds = {{value = 1.5, textcolor = "blue"}, {value = 2.5, textcolor = colorMode.fillwarncolor}, {value = 6, textcolor = colorMode.fillcolor}}},

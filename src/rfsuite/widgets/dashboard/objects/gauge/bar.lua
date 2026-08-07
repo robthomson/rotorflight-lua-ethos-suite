@@ -83,7 +83,7 @@ Subtext
     subtextpaddingbottom : number   -- (Optional) Padding above bottom of bar (default: 0)
 ]]
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 local system = system
 
@@ -101,6 +101,8 @@ local getParam = utils.getParam
 local resolveThemeColor = utils.resolveThemeColor
 local resolveThresholdColor = utils.resolveThresholdColor
 local resolveFont = utils.resolveFont
+local prepareTextLayout = utils.prepareTextLayout
+local paintTextLayout = utils.paintTextLayout
 local lastDisplayValue = nil
 local LOADING_DOTS = {".", "..", "...", "."}
 
@@ -227,16 +229,72 @@ end
 
 local compileTransform = utils.compileTransform
 
+local function prepareGeometry(x, y, w, h, box, c)
+    local g = box._geom
+    local needGeo = (not g) or g.x ~= x or g.y ~= y or g.w ~= w or g.h ~= h or g.title ~= c.title or g.titlefont ~= c.titlefont or g.titlespacing ~= (c.titlespacing or 0) or g.titlepaddingtop ~= (c.titlepaddingtop or 0) or g.titlepaddingbottom ~= (c.titlepaddingbottom or 0) or g.titlepos ~= c.titlepos or g.gpad_left ~= (c.gpad_left or 0) or g.gpad_right ~= (c.gpad_right or 0) or g.gpad_top ~= (c.gpad_top or 0) or g.gpad_bottom ~= (c.gpad_bottom or 0)
+
+    if not needGeo then return g end
+
+    g = g or {}
+    g.x, g.y = x, y
+    g.w, g.h = w, h
+    g.title, g.titlefont = c.title, c.titlefont
+    g.titlespacing = c.titlespacing or 0
+    g.titlepaddingtop = c.titlepaddingtop or 0
+    g.titlepaddingbottom = c.titlepaddingbottom or 0
+    g.titlepos = c.titlepos
+    g.gpad_left = c.gpad_left or 0
+    g.gpad_right = c.gpad_right or 0
+    g.gpad_top = c.gpad_top or 0
+    g.gpad_bottom = c.gpad_bottom or 0
+
+    local title_area_top = 0
+    local title_area_bottom = 0
+    if c.title and c.title ~= "" then
+        lcd.font(resolveFont(c.titlefont, FONT_XS))
+        local _, tsizeH = lcd.getTextSize(c.title)
+        if c.titlepos == "bottom" then
+            title_area_bottom = (tsizeH or 0) + (c.titlepaddingtop or 0) + (c.titlepaddingbottom or 0) + (c.titlespacing or 0)
+        else
+            title_area_top = (tsizeH or 0) + (c.titlepaddingtop or 0) + (c.titlepaddingbottom or 0) + (c.titlespacing or 0)
+        end
+    end
+    g.title_area_top = title_area_top
+    g.title_area_bottom = title_area_bottom
+
+    g.gauge_x = x + g.gpad_left
+    g.gauge_y = y + g.gpad_top + g.title_area_top
+    g.gauge_w = w - g.gpad_left - g.gpad_right
+    g.gauge_h = h - g.gpad_top - g.gpad_bottom - g.title_area_top - g.title_area_bottom
+
+    box._geom = g
+    return g
+end
+
 local function getStatsValue(telemetry, source, statType)
     if source == nil then return nil end
     local stats = telemetry and telemetry.sensorStats and telemetry.sensorStats[source]
-    if stats and stats[statType] ~= nil then return stats[statType] end
+    if stats and stats[statType] ~= nil then
+        local value = stats[statType]
+        local sensorDef = telemetry and telemetry.sensorTable and telemetry.sensorTable[source]
+        local localize = sensorDef and sensorDef.localizations
+        if type(localize) == "function" then
+            local localizedValue = localize(value)
+            if localizedValue ~= nil then return localizedValue end
+        end
+        return value
+    end
     return nil
 end
 
 local function getSensorUnit(telemetry, source)
     if source == nil then return nil end
     local sensorDef = telemetry and telemetry.sensorTable and telemetry.sensorTable[source]
+    local localize = sensorDef and sensorDef.localizations
+    if type(localize) == "function" then
+        local _, _, localizedUnit = localize(nil)
+        if localizedUnit ~= nil then return localizedUnit end
+    end
     return sensorDef and sensorDef.unit_string or nil
 end
 
@@ -588,6 +646,49 @@ function render.wakeup(box)
     c.cappaddingright = cfg.cappaddingright
     c.cappaddingtop = cfg.cappaddingtop
     c.cappaddingbottom = cfg.cappaddingbottom
+
+    if box._dashboardRectW and box._dashboardRectH then
+        local gx, gy = utils.applyOffset(box._dashboardRectX or 0, box._dashboardRectY or 0, box)
+        local gw, gh
+        gx, gy, gw, gh = utils.boxContentRect(gx, gy, box._dashboardRectW, box._dashboardRectH, c.bgcolor)
+        prepareGeometry(gx, gy, gw, gh, box, c)
+
+        local boxValue, boxUnit = c.displayValue, c.unit
+        if c.hidevalue then
+            boxValue = nil
+            boxUnit = nil
+        end
+        prepareTextLayout(box, gx, gy, gw, gh, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, boxValue, boxUnit, c.font, c.valuealign, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom)
+
+        if c.battadv and box._batteryLines then
+            local battadvpaddingleft = tonumber(c.battadvpaddingleft) or 0
+            local battadvpaddingright = tonumber(c.battadvpaddingright) or 0
+            local battadvpaddingtop = tonumber(c.battadvpaddingtop) or 0
+            local battadvpaddingbottom = tonumber(c.battadvpaddingbottom) or 0
+            local battadvgap = tonumber(c.battadvgap) or 5
+            local line1 = box._batteryLines.line1 or ""
+            local line2 = box._batteryLines.line2 or ""
+
+            lcd.font(resolveFont(c.battadvfont, FONT_S))
+            local w1, h1 = lcd.getTextSize(line1)
+            local w2, h2 = lcd.getTextSize(line2)
+            local blockW = max(w1, w2) + battadvpaddingleft + battadvpaddingright
+            local blockH = h1 + h2 + battadvpaddingtop + battadvpaddingbottom + battadvgap
+
+            local startY = gy + max(0, floor((gh - blockH) / 2 + 0.5))
+            local startX
+            if c.battadvblockalign == "left" then
+                startX = gx
+            elseif c.battadvblockalign == "center" then
+                startX = gx + floor((gw - blockW) / 2 + 0.5)
+            else
+                startX = gx + gw - blockW
+            end
+
+            prepareTextLayout(box, startX + battadvpaddingleft, startY + battadvpaddingtop, blockW - battadvpaddingleft - battadvpaddingright, h1, nil, nil, c.battadvvaluealign, c.battadvfont, 0, 0, 0, 0, 0, 0, line1, nil, c.battadvfont, c.battadvvaluealign, 0, 0, 0, 0, 0, "_battadvLayout1")
+            prepareTextLayout(box, startX + battadvpaddingleft, startY + battadvpaddingtop + h1 + battadvgap, blockW - battadvpaddingleft - battadvpaddingright, h2, nil, nil, c.battadvvaluealign, c.battadvfont, 0, 0, 0, 0, 0, 0, line2, nil, c.battadvfont, c.battadvvaluealign, 0, 0, 0, 0, 0, "_battadvLayout2")
+        end
+    end
 end
 
 function render.paint(x, y, w, h, box)
@@ -596,43 +697,7 @@ function render.paint(x, y, w, h, box)
 
     x, y, w, h = utils.drawBoxBackground(x, y, w, h, c.bgcolor)
 
-    local g = box._geom
-    local needGeo = (not g) or g.w ~= w or g.h ~= h or g.title ~= c.title or g.titlefont ~= c.titlefont or g.titlespacing ~= (c.titlespacing or 0) or g.titlepaddingtop ~= (c.titlepaddingtop or 0) or g.titlepaddingbottom ~= (c.titlepaddingbottom or 0) or g.titlepos ~= c.titlepos or g.gpad_left ~= (c.gpad_left or 0) or g.gpad_right ~= (c.gpad_right or 0) or g.gpad_top ~= (c.gpad_top or 0) or g.gpad_bottom ~= (c.gpad_bottom or 0)
-
-    if needGeo then
-        g = g or {}
-        g.w, g.h = w, h
-        g.title, g.titlefont = c.title, c.titlefont
-        g.titlespacing = c.titlespacing or 0
-        g.titlepaddingtop = c.titlepaddingtop or 0
-        g.titlepaddingbottom = c.titlepaddingbottom or 0
-        g.titlepos = c.titlepos
-        g.gpad_left = c.gpad_left or 0
-        g.gpad_right = c.gpad_right or 0
-        g.gpad_top = c.gpad_top or 0
-        g.gpad_bottom = c.gpad_bottom or 0
-
-        local title_area_top = 0
-        local title_area_bottom = 0
-        if c.title and c.title ~= "" then
-            lcd.font(resolveFont(c.titlefont, FONT_XS))
-            local _, tsizeH = lcd.getTextSize(c.title)
-            if c.titlepos == "bottom" then
-                title_area_bottom = (tsizeH or 0) + (c.titlepaddingtop or 0) + (c.titlepaddingbottom or 0) + (c.titlespacing or 0)
-            else
-                title_area_top = (tsizeH or 0) + (c.titlepaddingtop or 0) + (c.titlepaddingbottom or 0) + (c.titlespacing or 0)
-            end
-        end
-        g.title_area_top = title_area_top
-        g.title_area_bottom = title_area_bottom
-
-        g.gauge_x = x + g.gpad_left
-        g.gauge_y = y + g.gpad_top + g.title_area_top
-        g.gauge_w = w - g.gpad_left - g.gpad_right
-        g.gauge_h = h - g.gpad_top - g.gpad_bottom - g.title_area_top - g.title_area_bottom
-
-        box._geom = g
-    end
+    local g = prepareGeometry(x, y, w, h, box, c)
 
     local gauge_x, gauge_y, gauge_w, gauge_h = g.gauge_x, g.gauge_y, g.gauge_w, g.gauge_h
 
@@ -685,7 +750,8 @@ function render.paint(x, y, w, h, box)
         boxValue = nil
         boxUnit = nil
     end
-    utils.box(x, y, w, h, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlecolor, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, boxValue, boxUnit, c.font, c.valuealign, c.textcolor, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom, nil)
+    local layout = prepareTextLayout(box, x, y, w, h, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, boxValue, boxUnit, c.font, c.valuealign, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom)
+    paintTextLayout(layout, c.textcolor, c.titlecolor)
 
     c.battadvpaddingleft = tonumber(c.battadvpaddingleft) or 0
     c.battadvpaddingright = tonumber(c.battadvpaddingright) or 0
@@ -714,9 +780,11 @@ function render.paint(x, y, w, h, box)
             startX = x + w - blockW
         end
 
-        utils.box(startX + c.battadvpaddingleft, startY + c.battadvpaddingtop, blockW - c.battadvpaddingleft - c.battadvpaddingright, h1, nil, nil, c.battadvvaluealign, c.battadvfont, 0, textColor, 0, 0, 0, 0, 0, line1, nil, c.battadvfont, c.battadvvaluealign, textColor, 0, 0, 0, 0, 0, nil)
+        local layout1 = prepareTextLayout(box, startX + c.battadvpaddingleft, startY + c.battadvpaddingtop, blockW - c.battadvpaddingleft - c.battadvpaddingright, h1, nil, nil, c.battadvvaluealign, c.battadvfont, 0, 0, 0, 0, 0, 0, line1, nil, c.battadvfont, c.battadvvaluealign, 0, 0, 0, 0, 0, "_battadvLayout1")
+        paintTextLayout(layout1, textColor, textColor)
 
-        utils.box(startX + c.battadvpaddingleft, startY + c.battadvpaddingtop + h1 + c.battadvgap, blockW - c.battadvpaddingleft - c.battadvpaddingright, h2, nil, nil, c.battadvvaluealign, c.battadvfont, 0, textColor, 0, 0, 0, 0, 0, line2, nil, c.battadvfont, c.battadvvaluealign, textColor, 0, 0, 0, 0, 0, nil)
+        local layout2 = prepareTextLayout(box, startX + c.battadvpaddingleft, startY + c.battadvpaddingtop + h1 + c.battadvgap, blockW - c.battadvpaddingleft - c.battadvpaddingright, h2, nil, nil, c.battadvvaluealign, c.battadvfont, 0, 0, 0, 0, 0, 0, line2, nil, c.battadvfont, c.battadvvaluealign, 0, 0, 0, 0, 0, "_battadvLayout2")
+        paintTextLayout(layout2, textColor, textColor)
     end
 end
 

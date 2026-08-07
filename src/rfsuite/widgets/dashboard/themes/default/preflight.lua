@@ -3,7 +3,7 @@
   GPLv3 — https://www.gnu.org/licenses/gpl-3.0.en.html
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 
 local max = math.max
@@ -137,6 +137,7 @@ local function buildBoxes(W)
                         if type(raw_gm) == "function" then raw_gm = raw_gm(box) end
                         local raw_gM = utils.getParam(box, "max")
                         if type(raw_gM) == "function" then raw_gM = raw_gM(box) end
+                        if raw_gm == nil or raw_gM == nil then return nil end
                         return raw_gm + 0.30 * (raw_gM - raw_gm)
                     end,
                     fillcolor = colorMode.fillcritcolor,
@@ -147,6 +148,7 @@ local function buildBoxes(W)
                         if type(raw_gm) == "function" then raw_gm = raw_gm(box) end
                         local raw_gM = utils.getParam(box, "max")
                         if type(raw_gM) == "function" then raw_gM = raw_gM(box) end
+                        if raw_gm == nil or raw_gM == nil then return nil end
                         return raw_gm + 0.50 * (raw_gM - raw_gm)
                     end,
                     fillcolor = colorMode.fillwarncolor,
