@@ -38,7 +38,7 @@ thresholds = {
 }
 ]]--
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 
 local floor = math.floor
 
@@ -49,8 +49,13 @@ local getParam = utils.getParam
 local resolveThemeColor = utils.resolveThemeColor
 local armingDisableFlagsToString = rfsuite.utils.armingDisableFlagsToString
 local getPulsingDots = utils.getPulsingDots
+local prepareTextLayout = utils.prepareTextLayout
+local paintTextLayout = utils.paintTextLayout
 
-function render.invalidate(box) box._cfg = nil end
+function render.invalidate(box)
+    box._cfg = nil
+    box._textLayout = nil
+end
 
 function render.dirty(box)
     return utils.dirtyOnDisplayValueChange(box)
@@ -104,7 +109,12 @@ function render.wakeup(box)
 
     if not showReason then
         if value ~= nil then
-            if value == 1 or value == 3 then
+            -- Bit 0 (ARMED, firmware runtime_config.h) is the only bit
+            -- that reflects current arm state -- bits 1/2 accumulate over
+            -- a session (e.g. PREARM users see 5, then 7), so a
+            -- whole-value check like value == 1 or 3 stops matching once
+            -- either has been set.
+            if (floor(value) & 1) == 1 then
                 displayValue = "@i18n(widgets.governor.ARMED)@"
             else
                 displayValue = "@i18n(widgets.governor.DISARMED)@"
@@ -121,6 +131,13 @@ function render.wakeup(box)
     box._dynamicTextColor = utils.resolveThresholdColor(displayValue, box, "textcolor", "textcolor") or cfg.defaultTextColor
 
     box._currentDisplayValue = displayValue
+
+    if box._dashboardRectW and box._dashboardRectH then
+        local x, y = utils.applyOffset(box._dashboardRectX or 0, box._dashboardRectY or 0, box)
+        local w, h
+        x, y, w, h = utils.boxContentRect(x, y, box._dashboardRectW, box._dashboardRectH, cfg.bgcolor)
+        prepareTextLayout(box, x, y, w, h, cfg.title, cfg.titlepos, cfg.titlealign, cfg.titlefont, cfg.titlespacing, cfg.titlepadding, cfg.titlepaddingleft, cfg.titlepaddingright, cfg.titlepaddingtop, cfg.titlepaddingbottom, box._currentDisplayValue, cfg.unit, cfg.font, cfg.valuealign, cfg.valuepadding, cfg.valuepaddingleft, cfg.valuepaddingright, cfg.valuepaddingtop, cfg.valuepaddingbottom)
+    end
 end
 
 function render.paint(x, y, w, h, box)
@@ -128,7 +145,9 @@ function render.paint(x, y, w, h, box)
     local c = box._cfg or {}
     local textColor = box._dynamicTextColor or c.defaultTextColor
 
-    utils.box(x, y, w, h, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlecolor, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, box._currentDisplayValue, c.unit, c.font, c.valuealign, textColor, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom, c.bgcolor)
+    x, y, w, h = utils.drawBoxBackground(x, y, w, h, c.bgcolor)
+    local layout = prepareTextLayout(box, x, y, w, h, c.title, c.titlepos, c.titlealign, c.titlefont, c.titlespacing, c.titlepadding, c.titlepaddingleft, c.titlepaddingright, c.titlepaddingtop, c.titlepaddingbottom, box._currentDisplayValue, c.unit, c.font, c.valuealign, c.valuepadding, c.valuepaddingleft, c.valuepaddingright, c.valuepaddingtop, c.valuepaddingbottom)
+    paintTextLayout(layout, textColor, c.titlecolor)
 end
 
 render.scheduler = 0.5

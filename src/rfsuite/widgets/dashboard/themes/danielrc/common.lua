@@ -3,7 +3,7 @@
   GPLv3 — https://www.gnu.org/licenses/gpl-3.0.en.html
 ]] --
 
-local rfsuite = require("rfsuite")
+local rfsuite = assert(loadfile("widgets/dashboard/context.lua"))()
 local lcd = lcd
 local model = model
 
@@ -328,8 +328,7 @@ local function readStats(spec, telemetry)
     if sensorDef then
         unit = sensorDef.unit_string
         if type(sensorDef.localizations) == "function" and value ~= nil then
-            local localizedValue, _, localizedUnit, _, _, thresholds = sensorDef.localizations(value, nil, nil, spec.thresholds)
-            if localizedValue ~= nil then value = localizedValue end
+            local _, _, localizedUnit, _, _, thresholds = sensorDef.localizations(value, nil, nil, spec.thresholds)
             if localizedUnit ~= nil then unit = localizedUnit end
             if thresholds ~= nil then localizedThresholds = thresholds end
         end
@@ -359,7 +358,11 @@ local function readArmflags(telemetry, showReason)
     end
 
     if value == nil then return nil end
-    if value == 1 or value == 3 then return "@i18n(widgets.governor.ARMED)@" end
+    -- Bit 0 (ARMED, firmware runtime_config.h) is the only bit that
+    -- reflects current arm state -- bits 1/2 accumulate over a session
+    -- (e.g. PREARM users see 5, then 7), so a whole-value check like
+    -- value == 1 or 3 stops matching once either has been set.
+    if (floor(value) & 1) == 1 then return "@i18n(widgets.governor.ARMED)@" end
     return "@i18n(widgets.governor.DISARMED)@"
 end
 
