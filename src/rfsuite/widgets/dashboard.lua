@@ -1423,6 +1423,7 @@ local function wakeup(widget)
     widget.needsPaint = false
     local prepared = prepareDashboard(widget)
     if widget.themeReloadPending == true and prepared then finishThemeReload(widget) end
+    if prepared == false then widget.needsPaint = true end
     if forcePaintRetry then
       invalidateWidgetGlobal(widget)
     else
