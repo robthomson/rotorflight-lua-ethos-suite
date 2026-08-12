@@ -138,6 +138,13 @@ local function copyPreflightToAll(dashboard, allowDisabled, pathById, idByPath, 
   dashboard.theme_postflight = path
 end
 
+local function hasModelDashboardOverride(dashboard)
+  dashboard = normalizeDashboard(dashboard, true)
+  return dashboard.theme_preflight ~= "nil"
+    or dashboard.theme_inflight ~= "nil"
+    or dashboard.theme_postflight ~= "nil"
+end
+
 local function open(opts)
   opts = opts or {}
   local disposed = false
@@ -261,7 +268,12 @@ local function open(opts)
     if modelEnabled() and modelPrefs and modelPath then
       modelDashboard = normalizeDashboard(modelDashboard, true)
       if modelDashboard.use_same_theme then copyPreflightToAll(modelDashboard, true, pathById, idByPath, fallbackId) end
-      modelPrefs.dashboard = modelDashboard
+      if hasModelDashboardOverride(modelDashboard) then
+        modelPrefs.dashboard = modelDashboard
+      else
+        modelDashboard = normalizeDashboard(nil, true)
+        modelPrefs.dashboard = nil
+      end
       modelPreferences.save(modelPath, modelPrefs)
       originalModelDashboard = tableClone.shallow(modelDashboard)
     end
