@@ -841,6 +841,7 @@ end
 local function sensorValue(name)
   local widget = currentWidget
   if not widget then return nil end
+  if widget.connected ~= true then return nil end
   if name == "voltage" then return widget.voltage or liveSensorValue(name), "V" end
   if name == "cell_voltage" then
     local cells = widget.batteryConfig and tonumber(widget.batteryConfig.cellCount)
@@ -2303,26 +2304,11 @@ function context.setWidget(widget)
   local settings = widget and widget.settingsSnapshot
   context.preferences.general = settings and settings.general or context.preferences.general
   context.preferences.dashboard = settings and settings.dashboard or context.preferences.dashboard
-  local telemetryState = widget and (widget.connected == true
-    or widget.voltage ~= nil
-    or widget.current ~= nil
-    or widget.consumption ~= nil
-    or widget.rpm ~= nil
-    or widget.linkQuality ~= nil
-    or widget.tempEsc ~= nil
-    or widget.tempMcu ~= nil
-    or widget.becVoltage ~= nil
-    or widget.fuelPercent ~= nil
-    or widget.pidProfile ~= nil
-    or widget.rateProfile ~= nil
-    or widget.batteryProfile ~= nil
-    or widget.governorState ~= nil
-    or widget.isArmed ~= nil)
   context.tasks.telemetry.sensorStats = widget and widget.dashboardStats or nil
   context.session.isConnected = widget and widget.connected == true
   context.session.connected = context.session.isConnected
   context.session.isArmed = widget and widget.isArmed == true
-  context.session.telemetryState = telemetryState == true
+  context.session.telemetryState = context.session.isConnected
   context.session.mcu_id = widget and widget.mcuId
   context.session.craftName = widget and widget.craftName
   context.session.apiVersion = widget and widget.rfVersion
