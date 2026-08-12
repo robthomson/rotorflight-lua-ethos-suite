@@ -4,7 +4,6 @@
 -- while loading only the selected theme and current state page.
 
 local bus = assert(loadfile("lib/bus.lua"))()
-local buildInfo = assert(loadfile("lib/build_info.lua"))()
 local modelPreferences = assert(loadfile("lib/model_preferences.lua"))()
 local settingsStore = assert(loadfile("lib/settings_store.lua"))()
 local flightmode = assert(loadfile("widgets/dashboard/flightmode.lua"))()
@@ -58,15 +57,6 @@ local GESTURE_MIN_DY = 20
 local GESTURE_MAX_DX = 40
 local GESTURE_CONSUME_TIMEOUT = 0.75
 local TOOLBAR_TIMEOUT = 10
--- Paces the cold-start object warm-up (each box's object-type/subtype
--- module load, first sensor-source resolution, any images) across many
--- wakeup ticks instead of paying for it all in a single burst the moment
--- the startup overlay drops -- af92913d dropped this pacing, which turned
--- first-load into one uncontrolled burst that Ethos's own per-tick
--- instruction budget then had to throttle anyway (see the runaway-script
--- guard comment on context.lua's isImageTooLarge), making the whole radio
--- feel laggy for as long as that burst took to grind through.
-local STARTUP_PREP_OBJECTS_PER_TICK = 2
 -- Master keeps inactive dashboard-state preloading disabled by default:
 -- it saves RAM and avoids loading a non-visible theme during startup.
 local PREWARM_STATES = {}
@@ -247,25 +237,11 @@ local function resetDashboardPrewarm(widget)
   end
 end
 
-local function markStartupUnderlayDirty(widget)
-  if not widget then return end
-  widget.startupComplete = false
-  -- Also re-arm the pre-link warm-up latch (see wakeup()'s own comment).
-  -- Some callers of this function also clearThemeCache() -> engine.reset(),
-  -- which throws away the engine's own "fully warmed" bookkeeping
-  -- (pendingTypeQueue/wakePassCount) and genuinely does need this re-armed;
-  -- others (plain disconnect, reset-flight) leave the engine cache alone,
-  -- so this is a harmless one-tick recheck there rather than a real
-  -- redo -- simpler than tracking which callers actually need it.
-  widget.startupWarmupDone = false
-end
-
 local function requestThemeReload(widget, restoreAfterReload)
-  local wasComplete = widget and (widget.startupComplete == true or widget.dashboardEverPainted == true)
+  local wasComplete = widget and widget.dashboardEverPainted == true
   clearThemeCache()
   resetDashboardPrewarm(widget)
   resetDashboardPaintRetry(widget)
-  markStartupUnderlayDirty(widget)
   if widget then
     widget.themeReloadPending = true
     widget.themeReloadWasComplete = wasComplete or restoreAfterReload == true
@@ -275,10 +251,8 @@ end
 
 local function finishThemeReload(widget)
   if not widget then return end
-  widget.startupWarmupDone = true
   widget.themeReloadPending = false
   widget.themeReloadWasComplete = false
-  widget.startupComplete = true
 end
 
 local function invalidateWidget(widget)
@@ -561,7 +535,6 @@ local function applyResetFlight(widget)
 
   setToolbarVisible(widget, false)
   resetDashboardPrewarm(widget)
-  markStartupUnderlayDirty(widget)
   requestPaint(widget)
   invalidateWidget(widget)
 end
@@ -964,8 +937,6 @@ local function create()
     dashboardInstructionBudgetRetryLogged = false,
     themeReloadPending = false,
     themeReloadWasComplete = false,
-    startupComplete = false,
-    startupWarmupDone = false,
     dashboardPrewarmIndex = 1,
     dashboardPrewarmed = {},
     toolbarVisible = false,
@@ -1109,7 +1080,6 @@ local function update(widget, snapshot)
     clearDashboardStats(widget.dashboardStats)
     widget.headspeedVariancePct = nil
   elseif previousConnected == true and widget.connected ~= true then
-    markStartupUnderlayDirty(widget)
     -- Re-arm the startup battery-profile prompt for the next connection
     -- (matches master's own reset of session.batteryDialogShown on
     -- disconnect) -- otherwise reconnecting the same craft would never
@@ -1129,174 +1099,19 @@ local function dashboardState(widget)
   return widget.flightmodeState or "preflight"
 end
 
-local function hasTelemetryValues(widget)
-  return widget
-    and (widget.voltage ~= nil
-      or widget.current ~= nil
-      or widget.consumption ~= nil
-      or widget.throttlePercent ~= nil
-      or widget.rpm ~= nil
-      or widget.linkQuality ~= nil
-      or widget.tempEsc ~= nil
-      or widget.tempMcu ~= nil
-      or widget.becVoltage ~= nil
-      or widget.fuelPercent ~= nil)
-end
-
--- TEMP: startup overlay disabled for testing -- flip to false to restore it.
-local STARTUP_OVERLAY_DISABLED = false
-
-local function shouldShowStartupOverlay(widget)
-  if STARTUP_OVERLAY_DISABLED then return false end
-  if not widget then return true end
-  -- Checked ahead of startupComplete's latch so an unsupported FC still
-  -- surfaces if a previous connection in this widget session completed.
-  if widget.connected == true and widget.apiVersionSupported == false then return true end
-  if widget.themeReloadPending == true then return true end
-  if widget.startupComplete == true then return false end
-  if dashboardState(widget) == "postflight" then return false end
-  if widget.taskRunning ~= true then return true end
-  if widget.connected ~= true then return true end
-  -- Wait for real sensor data, not just a live task/link, before switching
-  -- to the full dashboard -- otherwise the very first wakeOne() per box
-  -- resolves its sensor source before anything is actually broadcasting,
-  -- which caches a miss (lib/telemetry_sensors.lua / context.lua's
-  -- liveSensorSource()) and used to block retrying for a flat 5s -- exactly
-  -- the "values take forever to appear" symptom this avoids. Both caches now
-  -- back off exponentially from a fast first retry instead, so this miss
-  -- window is normally a fraction of a second, not a full 5s stall.
-  if not hasTelemetryValues(widget) then return true end
-  -- Keep the full object/value paint path hidden until the paced cold-start
-  -- warm-up has completed. Otherwise a fast link can make the first real
-  -- paint drain the remaining object loads and wakeups in one instruction
-  -- budget, which is visible on heavier themes.
-  if widget.startupWarmupDone ~= true then return true end
-  return false
-end
-
-local function startupOverlayMessage(widget)
-  if not widget or widget.taskRunning ~= true then
-    return "@i18n(widgets.dashboard.startup_waiting_task)@",
-      "@i18n(widgets.dashboard.startup_waiting_task_detail)@"
-  end
-  if widget.connected == true and widget.apiVersionSupported == false then
-    local detected = "?"
-    if widget.apiVersionMajor and widget.apiVersionMinor then
-      detected = string.format("%d.%02d", widget.apiVersionMajor, widget.apiVersionMinor)
-    end
-    return "@i18n(widgets.dashboard.startup_unsupported_version)@",
-      "@i18n(widgets.dashboard.startup_unsupported_version_detail)@ " .. detected
-  end
-  if widget.connected ~= true then
-    return "@i18n(widgets.dashboard.startup_no_link)@",
-      "@i18n(widgets.dashboard.startup_no_link_detail)@"
-  end
-  -- Reached once connected/taskRunning are both true but hasTelemetryValues()
-  -- still isn't -- the link is up (the connect beep has already played) but
-  -- the FC hasn't started streaming individual sensor values yet, which on
-  -- S.Port's round-robin polling can visibly lag the link itself by a
-  -- couple of seconds (see shouldShowStartupOverlay()'s own comment on
-  -- this same wait). Worded around that specifically, rather than the
-  -- previous generic "preparing/loading theme" text, which had nothing to
-  -- do with what this phase is actually waiting on.
-  return "@i18n(widgets.dashboard.startup_preparing_dashboard)@",
-    "@i18n(widgets.dashboard.startup_preparing_dashboard_detail)@"
-end
-
-local function drawCenteredText(text, y, font, color, screenW)
-  if not text or text == "" then return 0 end
-  lcd.font(font)
-  lcd.color(color)
-  local tw, th = lcd.getTextSize(text)
-  lcd.drawText(math.floor((screenW - (tw or 0)) / 2 + 0.5), y, text)
-  return th or 0
-end
-
-local function drawFilledRoundRect(x, y, w, h, radius)
-  x = math.floor((x or 0) + 0.5)
-  y = math.floor((y or 0) + 0.5)
-  w = math.floor((w or 0) + 0.5)
-  h = math.floor((h or 0) + 0.5)
-  if w <= 0 or h <= 0 then return end
-
-  radius = math.floor((radius or 0) + 0.5)
-  radius = math.max(0, math.min(radius, math.floor(math.min(w, h) / 2)))
-  if radius <= 0 or not lcd.drawFilledCircle then
-    lcd.drawFilledRectangle(x, y, w, h)
-    return
-  end
-
-  lcd.drawFilledRectangle(x + radius, y, w - (2 * radius), h)
-  lcd.drawFilledRectangle(x, y + radius, radius, h - (2 * radius))
-  lcd.drawFilledRectangle(x + w - radius, y + radius, radius, h - (2 * radius))
-  lcd.drawFilledCircle(x + radius, y + radius, radius)
-  lcd.drawFilledCircle(x + w - radius - 1, y + radius, radius)
-  lcd.drawFilledCircle(x + radius, y + h - radius - 1, radius)
-  lcd.drawFilledCircle(x + w - radius - 1, y + h - radius - 1, radius)
-end
-
-local function drawRoundedPanel(x, y, w, h, border, radius, borderColor, fillColor)
-  lcd.color(borderColor)
-  drawFilledRoundRect(x, y, w, h, radius)
-  local innerW = w - (2 * border)
-  local innerH = h - (2 * border)
-  if innerW <= 0 or innerH <= 0 then return end
-  lcd.color(fillColor)
-  drawFilledRoundRect(x + border, y + border, innerW, innerH, math.max(0, radius - border))
-end
-
-local function drawStartupOverlay(widget, w, h, hasBackground)
-  local utils = dashboardUtils(false)
-  local theme = utils and utils.getThemeState and utils.getThemeState() or {}
-  local bg = theme.pageBgColor or theme.primaryBgColor or lcd.RGB(16, 16, 16, 1)
-  local panel = theme.primaryBgColor or lcd.RGB(0, 0, 0, 1)
-  local border = theme.buttonBorderActiveColor or theme.secondaryColor or lcd.RGB(255, 255, 255, 1)
-  local text = theme.primaryColor or lcd.RGB(255, 255, 255, 1)
-  local subtext = theme.secondaryColor or text
-
-  lcd.color(hasBackground and lcd.RGB(0, 0, 0, 0.35) or bg)
-  lcd.drawFilledRectangle(0, 0, w, h)
-
-  local panelW = math.floor(math.min(w * 0.78, 520) + 0.5)
-  local panelH = math.floor(math.min(h * 0.62, 300) + 0.5)
-  local panelX = math.floor((w - panelW) / 2 + 0.5)
-  local panelY = math.floor((h - panelH) / 2 + 0.5)
-  local borderW = math.max(4, math.floor(math.min(panelW, panelH) * 0.055 + 0.5))
-  local radius = math.floor(math.min(panelW, panelH) * 0.14 + 0.5)
-
-  drawRoundedPanel(panelX, panelY, panelW, panelH, borderW, radius, border, panel)
-
-  local logo = utils and utils.loadImage and utils.loadImage(utils.getLogoFallbackForBackground and utils.getLogoFallbackForBackground(panel) or "widgets/dashboard/gfx/logo-light.png")
-  local cursorY = panelY + math.floor(panelH * 0.18)
-  if logo and lcd.drawBitmap then
-    local logoW = math.floor(math.min(panelW * 0.55, 230) + 0.5)
-    local logoH = math.floor(logoW * 0.23 + 0.5)
-    lcd.drawBitmap(math.floor(panelX + (panelW - logoW) / 2 + 0.5), cursorY, logo, logoW, logoH)
-    cursorY = cursorY + logoH + math.floor(panelH * 0.12)
-  else
-    cursorY = cursorY + drawCenteredText("@i18n(widgets.dashboard.startup_title)@", cursorY, FONT_L, text, w) + math.floor(panelH * 0.10)
-  end
-
-  local message, detail = startupOverlayMessage(widget)
-  cursorY = cursorY + drawCenteredText(message, cursorY, FONT_S, text, w) + 8
-  cursorY = cursorY + drawCenteredText(detail, cursorY, FONT_XS, subtext, w) + 6
-  drawCenteredText(buildInfo.displayName(), cursorY, FONT_XXS, subtext, w)
-end
-
 local function setDashboardPreferences(widget, theme)
   ensureDashboardSettings(widget)
   ensureDashboardContext().widgets.dashboard.setPreferences(settingsStore.dashboardTheme(widget.settingsSnapshot, theme))
 end
 
-local function prepareDashboard(widget, allowStartupOverlay, maxObjects)
-  if shouldShowStartupOverlay(widget) and not allowStartupOverlay then return end
+local function prepareDashboard(widget)
   local w, h = lcd.getWindowSize()
   local state = dashboardState(widget)
   local theme = selectedThemeForState(widget, state)
   setDashboardPreferences(widget, theme)
   local engine = ensureDashboardEngine()
   if engine.wakeup then
-    return engine.wakeup(widget, loadStateDef(theme, state), w, h, maxObjects and {maxObjects = maxObjects} or nil)
+    return engine.wakeup(widget, loadStateDef(theme, state), w, h)
   end
   return true
 end
@@ -1312,20 +1127,11 @@ local function handleDashboardResize(widget)
   widget.dashboardWindowH = h
   if previousW == nil or previousH == nil then return end
 
-  if widget.startupComplete ~= true or widget.dashboardEverPainted ~= true or widget.themeReloadPending == true then
+  if widget.dashboardEverPainted ~= true or widget.themeReloadPending == true then
     resetDashboardPrewarm(widget)
     resetDashboardPaintRetry(widget)
-    markStartupUnderlayDirty(widget)
     requestPaint(widget)
   end
-end
-
-local function paintDashboardShell(widget, w, h)
-  local state = dashboardState(widget)
-  local theme = selectedThemeForState(widget, state)
-  setDashboardPreferences(widget, theme)
-  local engine = ensureDashboardEngine()
-  if engine.paintShell then engine.paintShell(widget, loadStateDef(theme, state), w, h) end
 end
 
 local function paintDashboard(widget, w, h)
@@ -1380,39 +1186,7 @@ end
 local function paint(widget)
   local w, h = lcd.getWindowSize()
   if widget and widget.themeReloadPending == true then
-    if widget.themeReloadWasComplete == true and prepareDashboard(widget, true) then finishThemeReload(widget) end
-  end
-  if shouldShowStartupOverlay(widget) then
-    -- Keep blocking startup states cheap: draw only the themed shell behind
-    -- the overlay, not the live object/value pipeline.
-    --
-    -- This trio used to run unprotected, unlike paintDashboard() below which
-    -- has always retried gracefully on an instruction-budget error. Full-
-    -- screen layouts (extra header boxes, see engine.lua's isFullScreen) plus
-    -- protocols that take longer to report full telemetry (CRSF/ELRS -- see
-    -- shouldShowStartupOverlay()'s own comment) meant this branch could stay
-    -- on-screen, and get re-entered, for long enough that it hit the same
-    -- per-tick instruction cap paintDashboard() already knows how to survive
-    -- -- except here it surfaced as an uncaught "Max instructions count
-    -- reached" script error instead of a quiet retry next tick.
-    local ok, err = pcall(function()
-      paintDashboardShell(widget, w, h)
-      drawStartupOverlay(widget, w, h, true)
-      drawToolbar(widget, w, h)
-    end)
-    if not ok then
-      if isInstructionBudgetError(err) then
-        if widget and widget.dashboardInstructionBudgetRetryLogged ~= true then
-          print("[dashboard] startup paint budget exhausted; retrying next tick: " .. tostring(err))
-          widget.dashboardInstructionBudgetRetryLogged = true
-        end
-        requestPaint(widget)
-        invalidateWidgetGlobal(widget)
-        return
-      end
-      print("[dashboard] startup paint failed: " .. tostring(err))
-    end
-    return
+    if prepareDashboard(widget) then finishThemeReload(widget) end
   end
   if paintDashboard(widget, w, h) == false then
     requestPaint(widget)
@@ -1551,34 +1325,9 @@ local function event(widget, category, value, x, y)
 end
 
 local function wakeup(widget)
-  -- Self-caught bug, found live: these three bus subscriptions (plus the
-  -- one-time settings load) used to sit *after* the appRunning/isVisible
-  -- early-return below, back when that guard was the very first line of
-  -- this function. That meant widget.connected/widget.taskRunning could
-  -- only ever be set by processing a "session.update"/"task.status" bus
-  -- event from inside a wakeup() call that actually got past the guard --
-  -- so if the widget's very first few ticks after a fresh script load
-  -- happened to land while lcd.isVisible() was still settling (Ethos
-  -- deciding which screen is foreground right after boot), the guard
-  -- tripped every time, these subscribe() calls never ran, and
-  -- widget.connected stayed stuck at create()'s "false" default
-  -- regardless of what the FC/session actually did in the meantime --
-  -- observed live as the startup overlay freezing on "No telemetry link
-  -- detected" for a stretch after the real connect (audible beep and
-  -- all), then jumping straight to the fully-loaded dashboard the moment
-  -- wakeup() finally got a tick that passed the guard, with none of the
-  -- intermediate startupOverlayMessage() states ever visibly appearing
-  -- in between -- both retained bus topics (session.update, task.status)
-  -- replay synchronously on that first successful subscribe (see
-  -- lib/bus.lua's subscribe()), so everything caught up in one jump. A
-  -- reconnect within the same already-running widget instance never hit
-  -- this, since by then lcd.isVisible() was already reliably true on
-  -- every tick, which is why the freeze only ever showed up once, right
-  -- after a fresh boot/script load.
-  --
-  -- Moved above the guard so state tracking is never gated behind a
-  -- visibility check that only exists to skip *expensive* per-tick
-  -- painting/prep work -- everything below this point still is.
+  -- Keep retained session/task/settings subscriptions above the visibility
+  -- guard so state tracking is never gated behind a check that only exists
+  -- to skip expensive per-tick dashboard prep work.
   if not widget.dashboardSettings then
     widget.settingsSnapshot = settingsStore.load()
     widget.dashboardSettings = settingsStore.dashboard(widget.settingsSnapshot)
@@ -1672,7 +1421,8 @@ local function wakeup(widget)
 
   if widget.needsPaint then
     widget.needsPaint = false
-    prepareDashboard(widget)
+    local prepared = prepareDashboard(widget)
+    if widget.themeReloadPending == true and prepared then finishThemeReload(widget) end
     if forcePaintRetry then
       invalidateWidgetGlobal(widget)
     else
@@ -1689,54 +1439,7 @@ local function wakeup(widget)
     end
   end
 
-  if shouldShowStartupOverlay(widget) then
-    -- paint() only ever shows the lightweight shell while the overlay is up
-    -- (see its own comment), so this can't paint anything premature -- but
-    -- it's still worth incrementally warming the *full-content* box cache
-    -- here, a few objects per tick, so that by the time real telemetry
-    -- arrives and the overlay drops, every box's object-type module and
-    -- sensor source are already resolved instead of all needing it at once.
-    --
-    -- Self-caught bug: this used to be gated on widget.connected == true --
-    -- added back when the concern was specifically the overlay's own
-    -- lifecycle, without noticing that gate also meant the warm-up couldn't
-    -- even *start* until link detection, so a fresh connect still paid the
-    -- full paced ramp-up (loadfile per object type, first sensor-source
-    -- resolution) right when the pilot is watching for the dashboard to
-    -- appear -- the "loads slowly" feel. None of this work actually depends
-    -- on being connected (engine.lua's object.wakeup() already has to
-    -- tolerate nil sensor values -- that's the normal "connected but no data
-    -- yet" case), so there's nothing to gain by waiting: running it from the
-    -- moment the widget is first visible spends the same paced, capped cost
-    -- on otherwise-idle overlay-shell ticks instead, so the cache is usually
-    -- already warm by the time a real link shows up.
-    --
-    -- Latched once a full pass completes so this doesn't turn into an
-    -- indefinite background cost while just sitting disconnected (a radio
-    -- powered on without a craft attached could otherwise re-wake 2 boxes'
-    -- worth of sensor resolution every tick forever) -- markStartupUnderlayDirty()
-    -- re-arms this wherever the overlay/engine state actually needs redoing.
-    if widget.themeReloadPending == true or not widget.startupWarmupDone then
-      local passComplete = prepareDashboard(widget, true, STARTUP_PREP_OBJECTS_PER_TICK)
-      requestPaint(widget)
-      invalidateWidget(widget)
-      if passComplete then
-        local reloadWasComplete = widget.themeReloadWasComplete == true
-        if reloadWasComplete then
-          finishThemeReload(widget)
-        else
-          widget.startupWarmupDone = true
-          widget.themeReloadPending = false
-          widget.themeReloadWasComplete = false
-          if not shouldShowStartupOverlay(widget) then widget.startupComplete = true end
-        end
-      end
-    end
-  else
-    widget.startupComplete = true
-  end
-
-  if widget.startupComplete == true then
+  if widget.dashboardEverPainted == true then
     prewarmDashboardState(widget)
   end
 
