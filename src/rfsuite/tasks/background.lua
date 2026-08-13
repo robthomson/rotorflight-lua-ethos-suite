@@ -40,7 +40,7 @@ local settingsStore = assert(loadfile("lib/settings_store.lua"))()
 bgMark("lib/settings_store.lua", t0)
 
 t0 = os.clock()
-local debugLog = assert(loadfile("lib/debug_log.lua"))()
+local debugLog = assert(loadfile("lib/debug_log.lua"))(bus, settingsStore)
 bgMark("lib/debug_log.lua", t0)
 
 t0 = os.clock()
