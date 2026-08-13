@@ -348,8 +348,8 @@ local loadComplete = false
 -- loadfile() chain was competing with that rather than waiting it out.
 -- Idling first, then loading once the radio has actually finished
 -- booting, sidesteps that contention instead of trying to survive it.
--- Adjust if 2s proves too short/long once tested on device.
-local BOOT_DEFER_S = 2.0
+-- Adjust further if this proves too short/long once tested on device.
+local BOOT_DEFER_S = 5.0
 local bootDeferUntil
 
 local function taskInit()
