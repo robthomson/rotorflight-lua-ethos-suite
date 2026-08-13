@@ -348,8 +348,14 @@ local loadComplete = false
 -- loadfile() chain was competing with that rather than waiting it out.
 -- Idling first, then loading once the radio has actually finished
 -- booting, sidesteps that contention instead of trying to survive it.
--- Adjust further if this proves too short/long once tested on device.
-local BOOT_DEFER_S = 5.0
+-- Tested at both 2s and 5s on device: the same ~2/3 of boots still showed
+-- tasks/session.lua's own load elevated (~1.0s vs. the clean ~0.68s) at
+-- either value, with no improvement from the extra 3s wait -- pointing at
+-- intermittent SD-card I/O latency (wear-leveling/GC/flash jitter) rather
+-- than a fixed-duration boot storm this can wait out. Left at 2s since 5s
+-- measured no benefit; not expected to fully eliminate the remaining
+-- variance, but the delay itself isn't worth paying further for.
+local BOOT_DEFER_S = 2.0
 local bootDeferUntil
 
 local function taskInit()
