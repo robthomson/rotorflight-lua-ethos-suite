@@ -26,11 +26,22 @@
 -- in for that whole ~1s straight -- a visible stutter on real hardware
 -- even though the PC simulator's near-zero disk latency never showed it.
 -- loadSteps below is that same chain reordered into a plain list of
--- closures, run one per taskWakeup() tick instead of all at once: this
--- file's own module-load time is now near-instant (nothing but function
--- definitions), system.registerTask() happens on the first tick same as
--- before, and the disk IO is spread across however many ticks loadSteps
--- has, each individually well under the old single-frame total.
+-- closures; this file's own module-load time is now near-instant (nothing
+-- but function definitions), and system.registerTask() happens on the
+-- first tick same as before.
+--
+-- taskWakeup() spends up to LOAD_STEP_BUDGET_S of wall time per call
+-- running consecutive steps, not exactly one step per call: an earlier
+-- version tied one step to one tick and measured 13-17s (not the expected
+-- well-under-1s) wall-clock time to finish loading on 2 of 3 boots --
+-- system.registerTask()'s wakeup() cadence during the boot window is
+-- slow and irregular (competing with everything else booting), not
+-- frame-rate-like, so one-step-per-tick tied total load time to however
+-- rarely Ethos happened to call back in rather than to the actual amount
+-- of work. A time budget bounds the worst single-call block to
+-- ~LOAD_STEP_BUDGET_S regardless of tick cadence, and lets one call
+-- finish several cheap steps back-to-back when cadence is sparse instead
+-- of paying that sparseness once per step.
 --
 -- taskInit() deliberately stays a no-op beyond resetting the step index:
 -- whether Ethos calls `init` synchronously inside registerTask() or on a
@@ -237,6 +248,7 @@ end
 -- on-device improvement is confirmed.
 local bgLoadStartAt
 local bgLoadSteps = {}
+local bgLoadTickCount = 0
 local function bgMark(label, startedAt)
   bgLoadSteps[#bgLoadSteps + 1] = {label, os.clock() - startedAt}
 end
@@ -253,20 +265,20 @@ local function bgLogResults()
   for _, step in ipairs(bgLoadSteps) do
     bootLog(string.format("[boot]   background/%s: %.3fs", step[1], step[2]))
   end
-  bootLog(string.format("[boot]   background/<loadSteps total, spread over %d ticks>: %.3fs",
-    #bgLoadSteps, os.clock() - bgLoadStartAt))
+  bootLog(string.format("[boot]   background/<loadSteps total, %d files over %d taskWakeup() calls>: %.3fs",
+    #bgLoadSteps, bgLoadTickCount, os.clock() - bgLoadStartAt))
   if bootLogFile then bootLogFile:close() end
 end
 
--- One taskWakeup() tick runs exactly one of these -- see the header
--- comment above. mspQueue/session/logging/audio_events/audio_switches are
--- all handed the bus/settingsStore/debugLog/mspCommon instances already
--- loaded earlier in this same list explicitly, rather than loadfile()'ing
--- their own copies -- see the note atop tasks/msp/queue.lua and
--- tasks/session.lua for why: loadfile() has no require()-style caching, so
--- every redundant loadfile() of the same small shared module was paying
--- real disk-open/compile cost on device even though the module itself
--- self-caches via package.loaded.
+-- Each taskWakeup() tick runs as many of these as fit in LOAD_STEP_BUDGET_S
+-- -- see the header comment above. mspQueue/session/logging/audio_events/
+-- audio_switches are all handed the bus/settingsStore/debugLog/mspCommon
+-- instances already loaded earlier in this same list explicitly, rather
+-- than loadfile()'ing their own copies -- see the note atop
+-- tasks/msp/queue.lua and tasks/session.lua for why: loadfile() has no
+-- require()-style caching, so every redundant loadfile() of the same small
+-- shared module was paying real disk-open/compile cost on device even
+-- though the module itself self-caches via package.loaded.
 local loadSteps = {
   {"lib/bus.lua", function()
     bus = assert(loadfile("lib/bus.lua"))()
@@ -311,6 +323,9 @@ local loadSteps = {
 }
 local loadStepIndex = 1
 local loadComplete = false
+-- See the header comment above for why this is a time budget, not a
+-- one-step-per-tick count.
+local LOAD_STEP_BUDGET_S = 0.15
 
 local function taskInit()
   -- Deliberately kept to trivial, instant state resets -- see the header
@@ -320,17 +335,24 @@ local function taskInit()
   loadComplete = false
   bgLoadStartAt = os.clock()
   bgLoadSteps = {}
+  bgLoadTickCount = 0
 end
 
 local function taskWakeup()
   if not loadComplete then
-    local step = loadSteps[loadStepIndex]
-    local t0 = os.clock()
-    step[2]()
-    bgMark(step[1], t0)
-    loadStepIndex = loadStepIndex + 1
-    if loadStepIndex > #loadSteps then
-      loadComplete = true
+    bgLoadTickCount = bgLoadTickCount + 1
+    local budgetStartedAt = os.clock()
+    while not loadComplete and (os.clock() - budgetStartedAt) < LOAD_STEP_BUDGET_S do
+      local step = loadSteps[loadStepIndex]
+      local t0 = os.clock()
+      step[2]()
+      bgMark(step[1], t0)
+      loadStepIndex = loadStepIndex + 1
+      if loadStepIndex > #loadSteps then
+        loadComplete = true
+      end
+    end
+    if loadComplete then
       bgLogResults()
       runDeferredInit()
     end
