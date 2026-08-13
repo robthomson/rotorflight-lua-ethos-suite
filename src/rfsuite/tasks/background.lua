@@ -15,20 +15,94 @@
 -- tasks/session.lua). This module never reads or writes anything
 -- belonging to the system tool or the dashboard widget.
 
+-- Temporary: breaks down the [boot] tasks/background.lua load total (see
+-- main.lua) into its individual loadfile() calls -- was used to find which
+-- dependency accounted for the cost (see git history/PR description: it
+-- was the redundant per-module loadfile()s of bus/settingsStore/debugLog,
+-- since fixed just above). Kept for now to confirm the fix's real-world
+-- improvement; remove once that's confirmed. Also written to
+-- LOGS:/rfsuite/boot_timing.log, not just print()'d -- print() output is
+-- lost if the USB-serial debug port hasn't finished enumerating by the
+-- time this runs, while a file survives the boot and can be read
+-- afterward with no serial connection needed at all.
+local bgLoadStartAt = os.clock()
+local bgLoadSteps = {}
+local function bgMark(label, startedAt)
+  bgLoadSteps[#bgLoadSteps + 1] = {label, os.clock() - startedAt}
+end
+
+local t0 = os.clock()
 local bus = assert(loadfile("lib/bus.lua"))()
+bgMark("lib/bus.lua", t0)
+
+t0 = os.clock()
 local settingsStore = assert(loadfile("lib/settings_store.lua"))()
+bgMark("lib/settings_store.lua", t0)
+
+t0 = os.clock()
+local debugLog = assert(loadfile("lib/debug_log.lua"))()
+bgMark("lib/debug_log.lua", t0)
+
+t0 = os.clock()
 local mspCommon = assert(loadfile("tasks/msp/common.lua"))()
+bgMark("tasks/msp/common.lua", t0)
+
+t0 = os.clock()
 local mspTransportSelect = assert(loadfile("tasks/msp/transport_select.lua"))()
+bgMark("tasks/msp/transport_select.lua", t0)
+
+t0 = os.clock()
 local Scheduler = assert(loadfile("tasks/scheduler.lua"))()
+bgMark("tasks/scheduler.lua", t0)
+
+t0 = os.clock()
 local telemetrySensors = assert(loadfile("lib/telemetry_sensors.lua"))()
--- mspQueue is constructed with mspCommon explicitly, and handed to
--- session.lua the same way -- see the comment atop tasks/msp/queue.lua for
--- why nothing here may loadfile() its own second copy of either.
-local mspQueue = assert(loadfile("tasks/msp/queue.lua"))().new(mspCommon)
-local session = assert(loadfile("tasks/session.lua"))()
-local logging = assert(loadfile("tasks/logging.lua"))()
-local audioEvents = assert(loadfile("tasks/audio_events.lua"))()
-local audioSwitches = assert(loadfile("tasks/audio_switches.lua"))()
+bgMark("lib/telemetry_sensors.lua", t0)
+
+-- mspQueue/session/logging/audio_events/audio_switches are all handed the
+-- bus/settingsStore/debugLog/mspCommon instances already loaded above
+-- explicitly, rather than loadfile()'ing their own copies -- see the note
+-- atop tasks/msp/queue.lua and tasks/session.lua for why: loadfile() has no
+-- require()-style caching, so every redundant loadfile() of the same small
+-- shared module was paying real disk-open/compile cost on device -- the
+-- dominant contributor to this file's eager-load time -- even though the
+-- module itself self-caches via package.loaded.
+t0 = os.clock()
+local mspQueue = assert(loadfile("tasks/msp/queue.lua"))().new(mspCommon, debugLog)
+bgMark("tasks/msp/queue.lua", t0)
+
+t0 = os.clock()
+local session = assert(loadfile("tasks/session.lua"))(bus, settingsStore, debugLog)
+bgMark("tasks/session.lua", t0)
+
+t0 = os.clock()
+local logging = assert(loadfile("tasks/logging.lua"))(bus, settingsStore, debugLog)
+bgMark("tasks/logging.lua", t0)
+
+t0 = os.clock()
+local audioEvents = assert(loadfile("tasks/audio_events.lua"))(bus, settingsStore)
+bgMark("tasks/audio_events.lua", t0)
+
+t0 = os.clock()
+local audioSwitches = assert(loadfile("tasks/audio_switches.lua"))(bus, settingsStore)
+bgMark("tasks/audio_switches.lua", t0)
+
+if os and os.mkdir then
+  pcall(os.mkdir, "LOGS:")
+  pcall(os.mkdir, "LOGS:/rfsuite")
+end
+local bootLogFile = io.open("LOGS:/rfsuite/boot_timing.log", "a")
+local function bootLog(line)
+  print(line)
+  if bootLogFile then bootLogFile:write(line, "\n") end
+end
+
+for _, step in ipairs(bgLoadSteps) do
+  bootLog(string.format("[boot]   background/%s: %.3fs", step[1], step[2]))
+end
+bootLog(string.format("[boot]   background/<loadfile total>: %.3fs", os.clock() - bgLoadStartAt))
+if bootLogFile then bootLogFile:close() end
+
 local scheduler = Scheduler.new()
 
 local TASK_STATUS_INTERVAL = 0.5
