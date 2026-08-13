@@ -259,38 +259,6 @@ local function runDeferredInit()
   publishTaskStatus()
 end
 
--- Temporary: breaks down the loadSteps total into its individual
--- loadfile() calls, to confirm the real-world effect of both this file's
--- dedup fix (see git history) and staged loading itself. Also written to
--- LOGS:/rfsuite/boot_timing.log, not just print()'d -- print() output is
--- lost if the USB-serial debug port hasn't finished enumerating by the
--- time this runs, while a file survives the boot and can be read
--- afterward with no serial connection needed at all. Remove once the
--- on-device improvement is confirmed.
-local bgLoadStartAt
-local bgLoadSteps = {}
-local bgLoadTickCount = 0
-local function bgMark(label, startedAt)
-  bgLoadSteps[#bgLoadSteps + 1] = {label, os.clock() - startedAt}
-end
-local function bgLogResults()
-  if os and os.mkdir then
-    pcall(os.mkdir, "LOGS:")
-    pcall(os.mkdir, "LOGS:/rfsuite")
-  end
-  local bootLogFile = io.open("LOGS:/rfsuite/boot_timing.log", "a")
-  local function bootLog(line)
-    print(line)
-    if bootLogFile then bootLogFile:write(line, "\n") end
-  end
-  for _, step in ipairs(bgLoadSteps) do
-    bootLog(string.format("[boot]   background/%s: %.3fs", step[1], step[2]))
-  end
-  bootLog(string.format("[boot]   background/<loadSteps total, %d files over %d taskWakeup() calls>: %.3fs",
-    #bgLoadSteps, bgLoadTickCount, os.clock() - bgLoadStartAt))
-  if bootLogFile then bootLogFile:close() end
-end
-
 -- All run to completion in a single taskWakeup() call, once past the
 -- boot-storm defer window -- see the header comment above. mspQueue/
 -- session/logging/audio_events/audio_switches are all handed the
@@ -302,40 +270,40 @@ end
 -- compile cost on device even though the module itself self-caches via
 -- package.loaded.
 local loadSteps = {
-  {"lib/settings_store.lua", function()
+  function()
     settingsStore = assert(loadfile("lib/settings_store.lua"))()
-  end},
-  {"lib/debug_log.lua", function()
+  end,
+  function()
     debugLog = assert(loadfile("lib/debug_log.lua"))(bus, settingsStore)
-  end},
-  {"tasks/msp/common.lua", function()
+  end,
+  function()
     mspCommon = assert(loadfile("tasks/msp/common.lua"))()
-  end},
-  {"tasks/msp/transport_select.lua", function()
+  end,
+  function()
     mspTransportSelect = assert(loadfile("tasks/msp/transport_select.lua"))()
-  end},
-  {"tasks/scheduler.lua", function()
+  end,
+  function()
     Scheduler = assert(loadfile("tasks/scheduler.lua"))()
     scheduler = Scheduler.new()
-  end},
-  {"lib/telemetry_sensors.lua", function()
+  end,
+  function()
     telemetrySensors = assert(loadfile("lib/telemetry_sensors.lua"))()
-  end},
-  {"tasks/msp/queue.lua", function()
+  end,
+  function()
     mspQueue = assert(loadfile("tasks/msp/queue.lua"))().new(mspCommon, debugLog)
-  end},
-  {"tasks/session.lua", function()
+  end,
+  function()
     session = assert(loadfile("tasks/session.lua"))(bus, settingsStore, debugLog)
-  end},
-  {"tasks/logging.lua", function()
+  end,
+  function()
     logging = assert(loadfile("tasks/logging.lua"))(bus, settingsStore, debugLog)
-  end},
-  {"tasks/audio_events.lua", function()
+  end,
+  function()
     audioEvents = assert(loadfile("tasks/audio_events.lua"))(bus, settingsStore)
-  end},
-  {"tasks/audio_switches.lua", function()
+  end,
+  function()
     audioSwitches = assert(loadfile("tasks/audio_switches.lua"))(bus, settingsStore)
-  end},
+  end,
 }
 local loadStepIndex = 1
 local loadComplete = false
@@ -364,24 +332,18 @@ local function taskInit()
   -- callback here unambiguously driven per-tick by Ethos.
   loadStepIndex = 1
   loadComplete = false
-  bgLoadStartAt = nil -- set when the defer window actually ends, not here -- see below
-  bgLoadSteps = {}
-  bgLoadTickCount = 0
   bootDeferUntil = os.clock() + BOOT_DEFER_S
 
   -- bus.lua loads here, synchronously, rather than as a deferred/staged
   -- step below -- the "msp.request" subscription (and pendingMspRequests
   -- buffer) needs to exist for the ENTIRE defer+load window, not just once
-  -- loadSteps itself starts running post-defer. Cheap (~0.02s measured on
-  -- device), unlike the rest of this file's loadfile() chain, so doing it
-  -- here doesn't reintroduce the blocking BOOT_DEFER_S is otherwise there
-  -- to avoid.
+  -- loadSteps itself starts running post-defer. Cheap, unlike the rest of
+  -- this file's loadfile() chain, so doing it here doesn't reintroduce the
+  -- blocking BOOT_DEFER_S is otherwise there to avoid.
   mspRequestsReady = false
   pendingMspRequests = {}
-  local t0 = os.clock()
   bus = assert(loadfile("lib/bus.lua"))()
   bus.subscribe("msp.request", onMspRequestReceived)
-  bgMark("lib/bus.lua", t0)
 end
 
 local function taskWakeup()
@@ -394,17 +356,11 @@ local function taskWakeup()
     -- Past the defer window: run every remaining step to completion in
     -- this one call, no further per-tick splitting -- see the header
     -- comment on why that was tried and reverted.
-    bgLoadStartAt = os.clock()
-    bgLoadTickCount = 1
     for i = loadStepIndex, #loadSteps do
-      local step = loadSteps[i]
-      local t0 = os.clock()
-      step[2]()
-      bgMark(step[1], t0)
+      loadSteps[i]()
     end
     loadStepIndex = #loadSteps + 1
     loadComplete = true
-    bgLogResults()
     runDeferredInit()
     return
   end
