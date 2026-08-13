@@ -28,28 +28,37 @@
 -- loadSteps below is that same chain (minus bus.lua -- see taskInit())
 -- reordered into a plain list of closures; this file's own module-load
 -- time is now near-instant (nothing but function definitions), and
--- system.registerTask() happens on the first tick same as before. Three
--- things pace how/when loadSteps actually runs, layered in the order
--- they were found necessary:
+-- system.registerTask() happens on the first tick same as before.
+--
+-- Two things pace how/when loadSteps actually runs, in the order they
+-- were found necessary -- and one thing that was tried and reverted:
 --
 -- 1. BOOT_DEFER_S: taskWakeup() does nothing at all -- not even one step
 --    -- until this many seconds have passed since taskInit(). Ethos's own
 --    boot sequence (other widgets/tasks loading, initial screen paint) is
 --    itself heavy disk/CPU competition during that same window, and this
 --    file's loadfile() chain was fighting that contention rather than
---    waiting it out.
--- 2. LOAD_STEP_BUDGET_S: once past the defer window, taskWakeup() spends
---    up to this much wall time per call running consecutive steps, not
---    exactly one step per call. An earlier version tied one step to one
---    tick and measured 13-17s (not the expected well-under-1s) wall-clock
---    time to finish loading on 2 of 3 boots -- system.registerTask()'s
---    wakeup() cadence during the boot window is slow and irregular, not
---    frame-rate-like, so one-step-per-tick tied total load time to however
---    rarely Ethos happened to call back in rather than to the actual
---    amount of work. A time budget bounds the worst single-call block
---    regardless of tick cadence, and lets one call finish several cheap
---    steps back-to-back when cadence is sparse instead of paying that
---    sparseness once per step.
+--    waiting it out. Confirmed on device: tasks/session.lua's own load
+--    (the single biggest step) dropped from ~1.0s while contending with
+--    the boot storm to ~0.68s once deferred past it -- back to the same
+--    number measured with no staging at all.
+-- 2. Once past the defer window, taskWakeup() runs every remaining step
+--    to completion in that one call -- no further per-tick splitting.
+--    An earlier version DID split further, spending only up to a small
+--    time budget per call and yielding the rest to later ticks, on the
+--    theory that system.registerTask()'s wakeup() cadence might still be
+--    frame-rate-like even post-defer. Measured on device: 12 steps whose
+--    own costs summed to ~1.15s took 7.5s of *wall time* across 4 calls
+--    to finish -- ~6.3s of that was pure idle time between calls, for no
+--    smoothing benefit, because wakeup() cadence turned out to be sparse
+--    (multi-second gaps) even in steady state, not just during the boot
+--    storm. Budgeting per call only helps when ticks are frequent enough
+--    that spreading work finely reduces the worst single block; here the
+--    scarce resource was getting a tick at all, not CPU time once one
+--    arrived, and tasks/session.lua's own single step (~0.68s) already
+--    exceeded any reasonably small budget by itself regardless. Once the
+--    defer has already bought contention-free disk access, there's
+--    nothing left to spread the remaining ~1.1-1.2s across.
 -- 3. bus.lua itself loads synchronously in taskInit(), before either of
 --    the above -- see taskInit() for why: the "msp.request" subscription
 --    it sets up needs to exist for the *entire* defer+load window, not
@@ -282,15 +291,16 @@ local function bgLogResults()
   if bootLogFile then bootLogFile:close() end
 end
 
--- Each taskWakeup() tick runs as many of these as fit in LOAD_STEP_BUDGET_S
--- -- see the header comment above. mspQueue/session/logging/audio_events/
--- audio_switches are all handed the bus/settingsStore/debugLog/mspCommon
--- instances already loaded earlier in this same list explicitly, rather
--- than loadfile()'ing their own copies -- see the note atop
--- tasks/msp/queue.lua and tasks/session.lua for why: loadfile() has no
--- require()-style caching, so every redundant loadfile() of the same small
--- shared module was paying real disk-open/compile cost on device even
--- though the module itself self-caches via package.loaded.
+-- All run to completion in a single taskWakeup() call, once past the
+-- boot-storm defer window -- see the header comment above. mspQueue/
+-- session/logging/audio_events/audio_switches are all handed the
+-- bus/settingsStore/debugLog/mspCommon instances already loaded earlier
+-- in this same list explicitly, rather than loadfile()'ing their own
+-- copies -- see the note atop tasks/msp/queue.lua and tasks/session.lua
+-- for why: loadfile() has no require()-style caching, so every redundant
+-- loadfile() of the same small shared module was paying real disk-open/
+-- compile cost on device even though the module itself self-caches via
+-- package.loaded.
 local loadSteps = {
   {"lib/settings_store.lua", function()
     settingsStore = assert(loadfile("lib/settings_store.lua"))()
@@ -329,9 +339,6 @@ local loadSteps = {
 }
 local loadStepIndex = 1
 local loadComplete = false
--- See the header comment above for why this is a time budget, not a
--- one-step-per-tick count.
-local LOAD_STEP_BUDGET_S = 0.15
 
 -- Boot-storm defer: don't even attempt the first load step until
 -- BOOT_DEFER_S has passed since this task's init(). The previous commit
@@ -361,8 +368,8 @@ local function taskInit()
   -- buffer) needs to exist for the ENTIRE defer+load window, not just once
   -- loadSteps itself starts running post-defer. Cheap (~0.02s measured on
   -- device), unlike the rest of this file's loadfile() chain, so doing it
-  -- here doesn't reintroduce the blocking BOOT_DEFER_S/LOAD_STEP_BUDGET_S
-  -- are otherwise there to avoid.
+  -- here doesn't reintroduce the blocking BOOT_DEFER_S is otherwise there
+  -- to avoid.
   mspRequestsReady = false
   pendingMspRequests = {}
   local t0 = os.clock()
@@ -378,28 +385,21 @@ local function taskWakeup()
       -- not even a step, until it passes.
       return
     end
-    if not bgLoadStartAt then
-      -- First tick past the defer window -- start the loadSteps clock
-      -- here, not at taskInit(), so the logged total measures only the
-      -- actual loading work, not time spent waiting out the boot storm.
-      bgLoadStartAt = os.clock()
-    end
-    bgLoadTickCount = bgLoadTickCount + 1
-    local budgetStartedAt = os.clock()
-    while not loadComplete and (os.clock() - budgetStartedAt) < LOAD_STEP_BUDGET_S do
-      local step = loadSteps[loadStepIndex]
+    -- Past the defer window: run every remaining step to completion in
+    -- this one call, no further per-tick splitting -- see the header
+    -- comment on why that was tried and reverted.
+    bgLoadStartAt = os.clock()
+    bgLoadTickCount = 1
+    for i = loadStepIndex, #loadSteps do
+      local step = loadSteps[i]
       local t0 = os.clock()
       step[2]()
       bgMark(step[1], t0)
-      loadStepIndex = loadStepIndex + 1
-      if loadStepIndex > #loadSteps then
-        loadComplete = true
-      end
     end
-    if loadComplete then
-      bgLogResults()
-      runDeferredInit()
-    end
+    loadStepIndex = #loadSteps + 1
+    loadComplete = true
+    bgLogResults()
+    runDeferredInit()
     return
   end
 
