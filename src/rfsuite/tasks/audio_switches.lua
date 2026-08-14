@@ -1,9 +1,7 @@
 -- Switch-driven telemetry value callouts.
---
--- bus/settingsStore are the instances tasks/background.lua already loaded
--- for itself, passed in as this chunk's args rather than loadfile()'d again
--- here -- see the equivalent note atop tasks/session.lua for why.
-local bus, settingsStore = ...
+
+local bus = assert(loadfile("lib/bus.lua"))()
+local settingsStore = assert(loadfile("lib/settings_store.lua"))()
 
 local audio_switches = {}
 

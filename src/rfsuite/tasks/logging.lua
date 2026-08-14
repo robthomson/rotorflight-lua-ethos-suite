@@ -1,9 +1,8 @@
 -- Flight telemetry CSV logger, owned by the background task.
---
--- bus/settingsStore/debugLog are the instances tasks/background.lua already
--- loaded for itself, passed in as this chunk's args rather than loadfile()'d
--- again here -- see the equivalent note atop tasks/session.lua for why.
-local bus, settingsStore, debugLog = ...
+
+local bus = assert(loadfile("lib/bus.lua"))()
+local settingsStore = assert(loadfile("lib/settings_store.lua"))()
+local debugLog = assert(loadfile("lib/debug_log.lua"))()
 
 local FLUSH_INTERVAL = 2.5
 local FLUSH_QUEUE_SIZE = 20
