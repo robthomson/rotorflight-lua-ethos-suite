@@ -94,6 +94,20 @@ local function open(opts)
       yaw_degrees = 0,
       mag_alignment = 0,
     },
+    -- Board offsets as currently saved on the FC at the moment this page
+    -- opened -- i.e. the offsets already baked into every MSP_ATTITUDE
+    -- sample below, since board alignment is applied to the sensor data
+    -- before attitude is computed (rebootAfterSave = true: nothing typed
+    -- into the roll/pitch/yaw fields here takes effect until saved and
+    -- rebooted). Captured once, on the first syncDisplayFromData() call,
+    -- and never touched again for the life of this page instance -- see
+    -- its use in alignment_visual.draw()/recenterYaw().
+    baseline = {
+      roll_degrees = 0,
+      pitch_degrees = 0,
+      yaw_degrees = 0,
+    },
+    baselineCaptured = false,
     live = {
       roll = 0,
       pitch = 0,
@@ -105,8 +119,27 @@ local function open(opts)
     pendingAt = 0,
     lastAttitudeAt = 0,
     lastInvalidateAt = 0,
-    attitudeSamplePeriod = 0.08,
-    pendingTimeout = 1.0,
+    -- Was 0.08 (12.5Hz), then 0.2 (5Hz) -- both too hot in practice on
+    -- their own. tasks/msp/queue.lua is strictly single-in-flight (one
+    -- request out at a time, one processQueue() call per background-task
+    -- tick -- see its own header comment), shared with everything
+    -- tasks/session.lua polls continuously in the background (telemetry
+    -- every 0.5s, adjustments every 0.2s, ELRS sensor every 0.18s, etc.).
+    -- 0.4s (2.5Hz) confirmed working live once paired with two other
+    -- fixes: lib/msp_attitude.lua's wider per-request retry budget (was
+    -- failing every single attempt outright, unrelated to this rate), and
+    -- tasks/session.lua's blackbox-summary poll no longer firing while a
+    -- page is open (see its own appRunning comment). With that contention
+    -- gone there's headroom to nudge this back up a bit; 0.3s (~3.3Hz).
+    attitudeSamplePeriod = 0.3,
+    -- Must clear a stuck pendingAttitude flag only *after* the underlying
+    -- queued message has had its own fair chance to succeed or fail, or
+    -- this page would fire a duplicate requestAttitude() while the first
+    -- one is still legitimately retrying, piling up redundant in-flight
+    -- messages. lib/msp_attitude.lua's buildReadMessage() now allows up to
+    -- 3 attempts at the default 0.8s spacing (~1.6s worst case) -- see its
+    -- own comment for why. 3.0s gives that comfortable headroom.
+    pendingTimeout = 3.0,
   }
 
   local runtime
@@ -148,6 +181,25 @@ local function open(opts)
     state.display.mag_alignment = sensor.mag_alignment or 0
   end
 
+  -- Deliberately NOT folded into syncDisplayFromData() above: that runs
+  -- from onPaint too, and Ethos calls a freshly-built field's paint (so
+  -- this page's onPaint, hence syncDisplayFromData()) before loadInitial()
+  -- has gotten anywhere -- see page_runtime.lua's PageRuntime.new() comment
+  -- on why self.data[source.key] is pre-seeded to {}. Capturing baseline
+  -- there would latch it onto that pre-seeded {roll=0,pitch=0,yaw=0}
+  -- forever, before the real saved offsets ever arrive, silently turning
+  -- the live+display-baseline math back into plain live+display -- the
+  -- exact double-count bug this baseline exists to fix. Only call this
+  -- from onLoaded, which page_runtime.lua defers until after loadData()'s
+  -- full read has actually landed in runtime.data.
+  local function captureBaselineIfNeeded()
+    if state.baselineCaptured then return end
+    state.baseline.roll_degrees = state.display.roll_degrees
+    state.baseline.pitch_degrees = state.display.pitch_degrees
+    state.baseline.yaw_degrees = state.display.yaw_degrees
+    state.baselineCaptured = true
+  end
+
   runtime = pageRuntime.new({
     pageTitle = PAGE_TITLE,
     logTag = "alignment",
@@ -166,6 +218,7 @@ local function open(opts)
     },
     onLoaded = function()
       syncDisplayFromData()
+      captureBaselineIfNeeded()
       if state.autoRecenterPending then
         recenterYaw()
       end
