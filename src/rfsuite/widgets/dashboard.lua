@@ -7,7 +7,6 @@ local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("
 local bus = requireModule("lib/bus.lua")
 local modelPreferences = requireModule("lib/model_preferences.lua")
 local settingsStore = requireModule("lib/settings_store.lua")
-local flightmode = requireModule("widgets/dashboard/flightmode.lua")
 local dataflashErase = requireModule("lib/msp_dataflash_erase.lua")
 local dataflashSummary = requireModule("lib/msp_dataflash_summary.lua")
 local batteryProfileMsp = requireModule("lib/msp_battery_profile.lua")
@@ -522,9 +521,13 @@ end
 
 local function applyResetFlight(widget)
   if not widget then return end
-  if widget.flightmode and type(widget.flightmode.reset) == "function" then
-    widget.flightmode:reset()
-  end
+  -- flightmodeState is now tracked by tasks/session.lua (see its own
+  -- flightmodeTracker), not locally on this widget -- tell it to reset too,
+  -- otherwise the very next "session.update" tick would recompute from
+  -- state this reset never touched and silently undo it. The optimistic
+  -- local set below just avoids a one-tick flash of the pre-reset state
+  -- before that bus round-trip completes.
+  bus.publish("flightmode.reset", true)
   widget.flightmodeState = "preflight"
   widget.headspeedVariancePct = nil
   clearDashboardStats(widget.dashboardStats)
@@ -925,7 +928,6 @@ local function create()
     dashboardStats = {},
     dashboardSettings = nil,
     modelDashboard = nil,
-    flightmode = flightmode.new(),
     flightmodeState = "preflight",
     handler = nil,
     settingsHandler = nil,
@@ -1053,6 +1055,11 @@ local function update(widget, snapshot)
   widget.bblFlags = snapshot.bblFlags
   widget.bblSize = snapshot.bblSize
   widget.bblUsed = snapshot.bblUsed
+  -- Computed by tasks/session.lua's own flightmodeTracker now (see
+  -- tasks/flightmode.lua) -- a straight field copy like everything else
+  -- above, not a local computation. Must land before the reset-trigger
+  -- blocks below, which compare it via previousState/read it directly.
+  widget.flightmodeState = snapshot.flightmodeState or "preflight"
 
   if widget.mcuId ~= previousMcuId and widget.connected == true and widget.mcuId and widget.mcuId ~= "" then
     if widget.lastConnectedMcuId and widget.lastConnectedMcuId ~= widget.mcuId then
@@ -1060,12 +1067,11 @@ local function update(widget, snapshot)
       -- out mcuId on every disconnect, so previousMcuId (this tick's prior
       -- value) is always nil right here and can't distinguish "same model
       -- reconnecting" from "different model connected" -- lastConnectedMcuId
-      -- persists across that gap for the real comparison. Postflight/
-      -- inflight state, min/max stats, and timers from the previous model
-      -- must not bleed into the new one.
-      if widget.flightmode and type(widget.flightmode.reset) == "function" then
-        widget.flightmode:reset()
-      end
+      -- persists across that gap for the real comparison. Min/max stats and
+      -- timers from the previous model must not bleed into the new one.
+      -- (flightmodeState/hasBeenInFlight for this same case are already
+      -- handled at the source -- see tasks/session.lua's own
+      -- lastConnectedMcuId check in its UID-handshake callback.)
       widget.headspeedVariancePct = nil
       clearDashboardStats(widget.dashboardStats)
       widget.timerLive = 0
@@ -1081,9 +1087,9 @@ local function update(widget, snapshot)
   end
 
   if previousConnected == false and widget.connected == true then
-    if previousState == "postflight" and widget.flightmode and type(widget.flightmode.reset) == "function" then
-      widget.flightmode:reset()
-    end
+    -- (The previousState == "postflight" flightmode reset this used to do
+    -- here now happens at the source too -- see tasks/session.lua's own
+    -- setConnected(true, ...).)
     clearDashboardStats(widget.dashboardStats)
     widget.headspeedVariancePct = nil
   elseif previousConnected == true and widget.connected ~= true then
@@ -1094,7 +1100,6 @@ local function update(widget, snapshot)
     widget.batteryDialogShown = false
   end
 
-  widget.flightmodeState = widget.flightmode:update(widget)
   if widget.flightmodeState == "inflight" and previousState ~= "inflight" and previousState ~= "postflight" then
     clearDashboardStats(widget.dashboardStats)
     widget.headspeedVariancePct = nil
@@ -1641,6 +1646,19 @@ local widget = {
   close = close,
   title = false,
 }
+
+-- "launch_app" specifically, for a *foreign* dashboard widget (see the
+-- sibling `dashboard` repo's own toolbar) requesting this suite's own
+-- app/tool open itself -- needs systemToolHandle, which only this file has
+-- (set below in init()); tasks/session.lua's own "dashboard.action"
+-- subscriber deliberately skips this action for exactly that reason.
+-- "erase_blackbox"/"battery_profile" are session.lua's to handle, not
+-- repeated here.
+bus.subscribe("dashboard.action", function(payload)
+  if type(payload) ~= "table" or payload.action ~= "launch_app" then return end
+  if not canOpenSystemTool() then return end
+  system.openPage({system = systemToolHandle})
+end)
 
 local function init(opts)
   opts = opts or {}

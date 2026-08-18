@@ -27,6 +27,18 @@ return {
     {category = CATEGORY_TELEMETRY_SENSOR, appId = 0xF101, subId = 0},
     {category = CATEGORY_TELEMETRY_SENSOR, appId = 0xF010, subId = 0},
   },
+  -- Deliberately no `category` field, unlike `link` above -- matches the
+  -- pre-extraction widgets/dashboard/context.lua's own LIVE_SENSOR_CANDIDATES
+  -- table (removed when the shared `dashboard` package's context.lua was
+  -- extracted; see its own header) exactly, which queried this appId as a
+  -- raw/system source, not a CATEGORY_TELEMETRY_SENSOR one. `vfr` mirrors
+  -- `rssi` one-for-one, same as that removed table did.
+  rssi = {
+    {appId = 0xF010, subId = 0},
+  },
+  vfr = {
+    {appId = 0xF010, subId = 0},
+  },
   rpm = {
     {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x0500},
   },

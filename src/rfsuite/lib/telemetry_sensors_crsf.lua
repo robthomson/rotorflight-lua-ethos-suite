@@ -74,4 +74,35 @@ return {
   armdisableflags = {
     {category = CATEGORY_TELEMETRY_SENSOR, appId = 0x1203},
   },
+  -- subId=2 is the dedicated Link Quality field on firmware that broadcasts
+  -- this suite's newer CRSF telemetry frame; subIdStart/subIdEnd is the
+  -- plain-fallback range for older firmware without that marker (a raw
+  -- antenna RSSI, not a true 0-100 LQ%). Matches the pre-extraction
+  -- widgets/dashboard/context.lua's own LIVE_SENSOR_CANDIDATES table
+  -- exactly (removed when the shared `dashboard` package's context.lua was
+  -- extracted). `vfr` mirrors `rssi` one-for-one, same as that removed
+  -- table did.
+  rssi = {
+    {crsfId = 0x14, subId = 2},
+    {crsfId = 0x14, subIdStart = 0, subIdEnd = 1},
+  },
+  vfr = {
+    {crsfId = 0x14, subId = 2},
+    {crsfId = 0x14, subIdStart = 0, subIdEnd = 1},
+  },
+  -- "link" (session.linkQuality, the rt-rc/rt-rc-n themes' own "LQ" box)
+  -- had no CRSF entry at all until now -- a pre-existing gap, not something
+  -- the rssi/vfr addition above introduced: S.Port's own candidate table
+  -- (see telemetry_sensors_sport.lua) already had one, CRSF's didn't, so
+  -- linkQuality silently stayed nil for every CRSF/ELRS pilot. Unlike
+  -- rssi/vfr above, "link" does NOT try subId=2 (the dedicated LQ field)
+  -- first -- matches the pre-extraction widgets/dashboard/context.lua's own
+  -- LIVE_SENSOR_CANDIDATES table exactly, subIdStart/subIdEnd range first,
+  -- falling back to a plain named-sensor lookup ("Rx RSSI1", a string
+  -- candidate -- system.getSource() accepts either shape, same as this
+  -- module's own getSource() loop already assumes).
+  link = {
+    {crsfId = 0x14, subIdStart = 0, subIdEnd = 1},
+    "Rx RSSI1",
+  },
 }

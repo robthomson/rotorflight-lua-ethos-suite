@@ -41,6 +41,16 @@ local retainedTopics = {
   ["session.update"] = true,
   ["task.status"] = true,
   ["app.state"] = true,
+  -- The dashboard toolbar's current {action=, enabled=} spec (see
+  -- tasks/session.lua's own buildToolbarSpec()) -- retained so a widget
+  -- subscribing well after boot (e.g. the sibling `dashboard` repo's own
+  -- standalone widget) gets the current spec immediately, same reasoning
+  -- as "session.update". "dashboard.action" (a widget requesting an action)
+  -- and "dashboard.action.progress" (started/done/error for one in-flight
+  -- action) are deliberately NOT retained here -- replaying a stale
+  -- started/done/error to a future subscriber would be actively wrong,
+  -- same reasoning "msp.request" itself is never retained.
+  ["dashboard.toolbar"] = true,
 }
 
 local function subscribe(topic, handler)

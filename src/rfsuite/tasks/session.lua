@@ -27,6 +27,9 @@ local mspApiVersion = requireModule("lib/msp_api_version.lua")
 local settingsStore = requireModule("lib/settings_store.lua")
 local mspBattery = requireModule("lib/msp_battery.lua")
 local dataflashSummary = requireModule("lib/msp_dataflash_summary.lua")
+local dataflashErase = requireModule("lib/msp_dataflash_erase.lua")
+local batteryProfileMsp = requireModule("lib/msp_battery_profile.lua")
+local ethosVersion = requireModule("lib/ethos_version.lua")
 local governorConfig = requireModule("lib/msp_governor_config.lua")
 local modelPreferences = requireModule("lib/model_preferences.lua")
 local flightStats = requireModule("lib/msp_flight_stats.lua")
@@ -36,6 +39,7 @@ local SmartFuel = requireModule("lib/smartfuel_calc.lua")
 local DiySensor = requireModule("lib/diy_sensor.lua")
 local telemetryConfig = requireModule("lib/msp_telemetry_config.lua")
 local flightTimer = requireModule("tasks/flight_timer.lua")
+local flightmode = requireModule("tasks/flightmode.lua")
 local debugLog = requireModule("lib/debug_log.lua")
 
 local TELEMETRY_VALUE_INTERVAL = 0.5
@@ -81,6 +85,15 @@ local session = {
   throttlePercent = nil,
   rpm = nil,
   linkQuality = nil,
+  -- Raw radio-telemetry RSSI/VFR (Rx signal strength), distinct from
+  -- linkQuality above (an FC-broadcast, protocol-agnostic value) -- these
+  -- are read straight off S.Port/CRSF via lib/telemetry_sensors.lua, same
+  -- as the rest of this table, restoring what the pre-extraction
+  -- widgets/dashboard/context.lua used to read directly and locally for
+  -- its own header RSSI step-gauge (see that widget's own removed
+  -- LIVE_SENSOR_CANDIDATES table).
+  rssi = nil,
+  vfr = nil,
   tempEsc = nil,
   tempMcu = nil,
   becVoltage = nil,
@@ -124,7 +137,24 @@ local session = {
   -- armingDisableFlagsToString() for how the dashboard's governor/armflags
   -- objects turn this into a human-readable reason list.
   armDisableFlags = nil,
+  -- "preflight"|"inflight"|"postflight", computed by flightmodeTracker
+  -- below from isArmed/governorState/throttlePercent/connected -- see
+  -- tasks/flightmode.lua. Published on "session.update" so any subscriber
+  -- (this suite's own dashboard/activelook widgets, or an external one --
+  -- see the sibling `dashboard` repo's docs/dashboard-spec.md) gets the
+  -- real value instead of approximating it from isArmed alone.
+  flightmodeState = "preflight",
 }
+
+local flightmodeTracker = flightmode.new()
+-- Persists across the mcuId wipe setConnected(false) does below, same
+-- purpose as widgets/dashboard.lua's own (now-redundant for this suite's
+-- own dashboard, still used by widgets/activelook.lua's separate tracker)
+-- lastConnectedMcuId: distinguishes "same aircraft reconnecting" (keep
+-- hasBeenInFlight, e.g. a momentary telemetry dropout mid-flight should not
+-- restart the flight) from "a genuinely different aircraft just connected"
+-- (must reset).
+local lastConnectedMcuId = nil
 
 local localSmartFuel = SmartFuel.new()
 
@@ -295,6 +325,8 @@ local function flush()
     throttlePercent = session.throttlePercent,
     rpm = session.rpm,
     linkQuality = session.linkQuality,
+    rssi = session.rssi,
+    vfr = session.vfr,
     tempEsc = session.tempEsc,
     tempMcu = session.tempMcu,
     becVoltage = session.becVoltage,
@@ -317,6 +349,7 @@ local function flush()
     bblUsed = session.bblUsed,
     isArmed = session.isArmed,
     armDisableFlags = session.armDisableFlags,
+    flightmodeState = session.flightmodeState,
   })
 end
 
@@ -547,6 +580,18 @@ local function runHandshake(mspQueue, protocol)
   if not session.mcuId then
     mspQueue:add(handshake.buildUidReadMessage(function(mcuId)
       session.mcuId = mcuId
+      -- A genuinely different aircraft just connected (not just the same
+      -- one reconnecting after setConnected(false) wiped mcuId to nil) --
+      -- postflight/inflight state and hasBeenInFlight from the previous
+      -- model must not bleed into the new one. lastConnectedMcuId persists
+      -- across the disconnect gap specifically to make this comparison
+      -- possible (session.mcuId itself is always nil right here on a fresh
+      -- connect, so it can't distinguish the two cases on its own).
+      if lastConnectedMcuId and lastConnectedMcuId ~= mcuId then
+        flightmodeTracker:reset()
+        session.flightmodeState = "preflight"
+      end
+      lastConnectedMcuId = mcuId
       loadModelPreferences()
       scheduleStatsSync(0)
       publish()
@@ -634,6 +679,17 @@ local function setConnected(value, mspQueue, protocol)
 
   if value then
     debugLog.print("[session] connected (protocol=" .. tostring(protocol) .. ")")
+    -- Reconnecting out of postflight starts a *new* flight fresh at
+    -- preflight -- matches widgets/dashboard.lua's own prior
+    -- previousState == "postflight" reset-on-reconnect behavior. A
+    -- reconnect out of preflight/inflight (e.g. a momentary telemetry
+    -- dropout mid-flight) must NOT reset here -- that's what let a brief
+    -- link blip wrongly restart the flight before this moved to the task
+    -- layer.
+    if session.flightmodeState == "postflight" then
+      flightmodeTracker:reset()
+      session.flightmodeState = "preflight"
+    end
     runHandshake(mspQueue, protocol)
   else
     debugLog.print("[session] disconnected")
@@ -663,6 +719,8 @@ local function setConnected(value, mspQueue, protocol)
     session.throttlePercent = nil
     session.rpm = nil
     session.linkQuality = nil
+    session.rssi = nil
+    session.vfr = nil
     session.tempEsc = nil
     session.tempMcu = nil
     session.becVoltage = nil
@@ -715,6 +773,28 @@ local function updateVoltage(protocol)
     session.voltage = value
     publish()
   end
+end
+
+-- Raw radio-telemetry RSSI/VFR -- see session.rssi's own comment for why
+-- this is separate from updateRfStatusTelemetry()'s linkQuality below.
+local function updateRssi(protocol)
+  if not telemetrySensors then return end
+
+  local changed = false
+
+  local rssi = telemetrySensors.getValue(protocol, "rssi")
+  if rssi ~= session.rssi then
+    session.rssi = rssi
+    changed = true
+  end
+
+  local vfr = telemetrySensors.getValue(protocol, "vfr")
+  if vfr ~= session.vfr then
+    session.vfr = vfr
+    changed = true
+  end
+
+  if changed then publish() end
 end
 
 local function updateRfStatusTelemetry(protocol)
@@ -868,6 +948,128 @@ local function updateGovernor(protocol)
     publish()
   end
 end
+
+-- Recomputes flightmodeState every tick from whatever session.isArmed/
+-- governorState/throttlePercent/connected currently hold (each maintained
+-- on its own schedule elsewhere in this file -- same eventual-consistency
+-- model widgets/dashboard.lua's own per-tick recompute used before this
+-- moved here, not a regression). Unconditional, not gated behind
+-- SENSOR_CHECKS_ENABLED, matching updateFlightTimer()'s own placement.
+local function updateFlightMode()
+  local mode = flightmodeTracker:update(session)
+  if mode ~= session.flightmodeState then
+    session.flightmodeState = mode
+    publish()
+  end
+end
+
+-- Lets a pilot's manual "Reset Flight" action (widgets/dashboard.lua's
+-- toolbar) reset the task-level tracker too -- without this, the very next
+-- wakeup() tick's updateFlightMode() would recompute from
+-- hasBeenInFlight/current state that "Reset Flight" never actually
+-- touched (that state now lives here, not on the widget), silently undoing
+-- the reset's effect on flightmodeState within one tick.
+bus.subscribe("flightmode.reset", function()
+  flightmodeTracker:reset()
+  session.flightmodeState = "preflight"
+  publish()
+end)
+
+-- Dashboard toolbar spec + remote action dispatch, for a *foreign* dashboard
+-- widget with no local access to session state (see the sibling `dashboard`
+-- repo's widgets/dashboard/toolbar.lua) -- this suite's own
+-- widgets/dashboard.lua computes its own local TOOLBAR_ITEMS/
+-- isToolbarItemEnabled instead and doesn't use any of this. "reset_flight"
+-- already has its own dedicated "flightmode.reset" topic above and isn't
+-- repeated here; "launch_app" needs widgets/dashboard.lua's own
+-- systemToolHandle (not available in this file) and is handled by its own
+-- "dashboard.action" subscriber there, not here -- this file only ever
+-- handles "erase_blackbox"/"battery_profile", both plain MSP writes.
+local function batteryProfileCount()
+  local profiles = session.batteryConfig and session.batteryConfig.profiles
+  if type(profiles) ~= "table" then return 0 end
+  local count = 0
+  for i = 0, 5 do
+    local capacity = tonumber(profiles[i])
+    if capacity and capacity > 0 then count = count + 1 end
+  end
+  return count
+end
+
+local function buildToolbarSpec()
+  local ready = session.connected == true and session.apiVersionSupported ~= false
+  return {
+    {action = "reset_flight", enabled = true},
+    {action = "erase_blackbox", enabled = ready},
+    {action = "battery_profile", enabled = ready and batteryProfileCount() > 1},
+    -- No systemToolHandle check here (unlike widgets/dashboard.lua's own
+    -- canOpenSystemTool()) -- this file doesn't have one. A false positive
+    -- here just means widgets/dashboard.lua's own "launch_app" handler
+    -- silently no-ops; acceptable, simpler than threading that handle
+    -- through to this file just to compute a flag.
+    {action = "launch_app", enabled = ethosVersion.atLeast({26, 1, 0})},
+  }
+end
+
+local function publishActionProgress(action, state, extra)
+  local payload = {action = action, state = state}
+  if extra then
+    for key, value in pairs(extra) do payload[key] = value end
+  end
+  bus.publish("dashboard.action.progress", payload)
+end
+
+local eraseInFlight = false
+
+local function performEraseBlackbox()
+  if eraseInFlight or session.connected ~= true then return end
+  eraseInFlight = true
+  publishActionProgress("erase_blackbox", "started")
+
+  bus.publish("msp.request", dataflashErase.buildWriteMessage(function()
+    bus.publish("msp.request", dataflashSummary.buildReadMessage(function(data)
+      session.bblFlags = data and data.flags or session.bblFlags
+      session.bblSize = data and data.total or session.bblSize
+      session.bblUsed = data and data.used or session.bblUsed
+      publish()
+      eraseInFlight = false
+      publishActionProgress("erase_blackbox", "done")
+    end, function()
+      -- Erase itself already succeeded -- a failed post-erase summary
+      -- readback is still a successful erase from the pilot's perspective.
+      eraseInFlight = false
+      publishActionProgress("erase_blackbox", "done")
+    end))
+  end, function(reason)
+    eraseInFlight = false
+    publishActionProgress("erase_blackbox", "error", {message = tostring(reason)})
+  end))
+end
+
+local function performBatteryProfile(profileIndex)
+  profileIndex = tonumber(profileIndex)
+  if profileIndex == nil or session.connected ~= true then return end
+  publishActionProgress("battery_profile", "started")
+
+  local message = batteryProfileMsp.buildWriteMessage({batteryProfile = profileIndex}, function()
+    session.batteryProfile = profileIndex
+    publish()
+    publishActionProgress("battery_profile", "done")
+  end, function(reason)
+    publishActionProgress("battery_profile", "error", {message = tostring(reason)})
+  end)
+  message.sessionBatteryProfile = profileIndex
+  bus.publish("msp.request", message)
+end
+
+bus.subscribe("dashboard.action", function(payload)
+  if type(payload) ~= "table" then return end
+  if payload.action == "erase_blackbox" then
+    performEraseBlackbox()
+  elseif payload.action == "battery_profile" then
+    performBatteryProfile(payload.profileIndex)
+  end
+end)
 
 local function updateFlightTimer(now)
   local changed, snapshot, event = flightTimer.update(session.connected, session.isArmed, now)
@@ -1069,6 +1271,7 @@ local function wakeup(mspQueue, protocol, transport, simSensors)
     if shouldRunScheduled("telemetry", TELEMETRY_VALUE_INTERVAL, now) then
       updateVoltage(sensorProtocol)
       updateRfStatusTelemetry(sensorProtocol)
+      updateRssi(sensorProtocol)
       updateEscTemp(sensorProtocol)
       updateMcuTemp(sensorProtocol)
       updateBecVoltage(sensorProtocol)
@@ -1103,6 +1306,7 @@ local function wakeup(mspQueue, protocol, transport, simSensors)
     end
   end
 
+  updateFlightMode()
   updateFlightTimer(now)
 
   if pendingStatsSync and pendingStatsSyncAt and now >= pendingStatsSyncAt then
@@ -1122,6 +1326,10 @@ local function wakeup(mspQueue, protocol, transport, simSensors)
   if dirty then
     dirty = false
     flush()
+    -- Cheap (4-element array) to just rebuild every flush rather than
+    -- separately dirty-tracking exactly which inputs (connected,
+    -- apiVersionSupported, batteryConfig) changed.
+    bus.publish("dashboard.toolbar", buildToolbarSpec())
   end
 end
 
