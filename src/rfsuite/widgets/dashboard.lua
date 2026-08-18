@@ -1660,9 +1660,37 @@ bus.subscribe("dashboard.action", function(payload)
   system.openPage({system = systemToolHandle})
 end)
 
+-- Must match the shared `dashboard` package's own api.API_VERSION
+-- (widgets/dashboard/api.lua in that repo) -- see api.init()'s own header
+-- for the version-mismatch contract this checks against.
+local DASHBOARD_API_VERSION = 1
+
+-- Hard dependency, not a bundled fallback: this suite's own engine.lua/
+-- context.lua are now thin shims onto SCRIPTS:/dashboard (see their own
+-- headers), so a missing/incompatible install of that package means this
+-- widget cannot render at all. Rather than let that surface as a raw Lua
+-- assertion error the first time something touches the shim, check for it
+-- up front and simply not register the widget -- matching the same
+-- "refuse to register, log why" contract app/tool.lua's own background-task
+-- checks use elsewhere in this suite.
+local function dashboardPackageReady()
+  local ok, dashboardApi = pcall(function()
+    return assert(loadfile("SCRIPTS:/dashboard/widgets/dashboard/api.lua"))()
+  end)
+  if not ok or type(dashboardApi) ~= "table" then
+    return false, "shared `dashboard` package not found at SCRIPTS:/dashboard"
+  end
+  return dashboardApi.init({hostId = "rotorflight", apiVersion = DASHBOARD_API_VERSION})
+end
+
 local function init(opts)
   opts = opts or {}
   systemToolHandle = opts.systemToolHandle
+  local ready, message = dashboardPackageReady()
+  if not ready then
+    print("[dashboard] not registering -- " .. tostring(message))
+    return
+  end
   system.registerWidget(widget)
 end
 
