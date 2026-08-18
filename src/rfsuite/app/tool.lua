@@ -448,9 +448,9 @@ local function create()
   taskAlertShown = false
   updateDeveloperMode()
   menuContainer.openRoot(nav, ROOT_ENTRIES, setEventHandler, setWakeupHandler, setPaintHandler, setCleanupHandler, MENUS, taskGuard)
-  -- Lets background-screen widgets (widgets/dashboard.lua) skip their own
-  -- wakeup work while this full-screen tool owns the display -- matches
-  -- master's rfsuite.tasks.appRunning gate (dashboard.lua's wakeup()).
+  -- Lets other subsystems (see tasks/session.lua's own "app.state"
+  -- subscription) skip work that would otherwise contend with this
+  -- full-screen tool for the display or the single-in-flight mspQueue.
   bus.publish("app.state", {running = true})
   return {}
 end

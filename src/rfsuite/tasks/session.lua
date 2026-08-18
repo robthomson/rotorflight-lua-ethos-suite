@@ -199,12 +199,11 @@ end
 
 local telemetrySensors = nil
 
--- Mirrors widgets/dashboard.lua's own "app.state" subscription (see its
--- appRunning comment there): true while app/tool.lua's full-screen
--- page/menu system owns the display, false back at the plain dashboard.
--- Used below to skip the recurring blackbox-summary poll while a page
--- (e.g. the alignment page) is actively contending for the same
--- single-in-flight mspQueue -- see updateBlackboxSummary()'s own comment.
+-- True while app/tool.lua's full-screen page/menu system owns the display,
+-- false back at the plain dashboard. Used below to skip the recurring
+-- blackbox-summary poll while a page (e.g. the alignment page) is actively
+-- contending for the same single-in-flight mspQueue -- see
+-- updateBlackboxSummary()'s own comment.
 local appRunning = false
 bus.subscribe("app.state", function(state) appRunning = state and state.running == true end)
 
@@ -975,16 +974,17 @@ bus.subscribe("flightmode.reset", function()
   publish()
 end)
 
--- Dashboard toolbar spec + remote action dispatch, for a *foreign* dashboard
--- widget with no local access to session state (see the sibling `dashboard`
--- repo's widgets/dashboard/toolbar.lua) -- this suite's own
--- widgets/dashboard.lua computes its own local TOOLBAR_ITEMS/
--- isToolbarItemEnabled instead and doesn't use any of this. "reset_flight"
--- already has its own dedicated "flightmode.reset" topic above and isn't
--- repeated here; "launch_app" needs widgets/dashboard.lua's own
--- systemToolHandle (not available in this file) and is handled by its own
--- "dashboard.action" subscriber there, not here -- this file only ever
--- handles "erase_blackbox"/"battery_profile", both plain MSP writes.
+-- Dashboard toolbar spec + remote action dispatch, for the shared
+-- `dashboard` package's own standalone widget (see its own
+-- widgets/dashboard/toolbar.lua) -- this suite no longer registers its own
+-- dashboard widget at all (see widgets/dashboard.lua's own header), so this
+-- is the *only* toolbar spec on the radio for this suite now, not a
+-- fallback for a foreign widget. "reset_flight" already has its own
+-- dedicated "flightmode.reset" topic above and isn't repeated here;
+-- "launch_app" needs widgets/dashboard.lua's own systemToolHandle (not
+-- available in this file) and is handled by its own "dashboard.action"
+-- subscriber there, not here -- this file only ever handles
+-- "erase_blackbox"/"battery_profile", both plain MSP writes.
 local function batteryProfileCount()
   local profiles = session.batteryConfig and session.batteryConfig.profiles
   if type(profiles) ~= "table" then return 0 end
