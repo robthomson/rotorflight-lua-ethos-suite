@@ -1680,7 +1680,11 @@ local function dashboardPackageReady()
   if not ok or type(dashboardApi) ~= "table" then
     return false, "shared `dashboard` package not found at SCRIPTS:/dashboard"
   end
-  return dashboardApi.init({hostId = "rotorflight", apiVersion = DASHBOARD_API_VERSION})
+  -- baseDir: this suite's own SD install folder name -- needed by theme
+  -- files that build an absolute SCRIPTS:/ path back to a sibling file of
+  -- their own (the danielrc theme does; see context.lua's own header in
+  -- the shared package for why that can't be hardcoded there anymore).
+  return dashboardApi.init({hostId = "rotorflight", baseDir = "rfsuite", apiVersion = DASHBOARD_API_VERSION})
 end
 
 local function init(opts)
