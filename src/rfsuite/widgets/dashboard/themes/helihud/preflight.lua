@@ -3,7 +3,14 @@ local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("
 local rfsuite = requireModule("widgets/dashboard/context.lua")
 local lcd = lcd
 
-local common = requireModule("widgets/dashboard/themes/helihud/common.lua")
+-- Absolute, not relative: a bare relative requireModule() here resolves
+-- against whichever WIDGET Ethos is currently running the callback for --
+-- rfsuite's own native dashboard widget (fine), but also the sibling
+-- `dashboard` repo's own standalone widget when it's the one rendering this
+-- theme (wrong -- it would look for this file under THAT package's own
+-- root, where it doesn't exist). Matches the danielrc theme's own existing
+-- workaround for the same problem.
+local common = requireModule("SCRIPTS:/" .. rfsuite.config.baseDir .. "/widgets/dashboard/themes/helihud/common.lua")
 
 local boxes_cache = nil
 local lastScreenW = nil

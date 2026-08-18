@@ -3,7 +3,8 @@ local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("
 local rfsuite = requireModule("widgets/dashboard/context.lua")
 local lcd = lcd
 
-local common = requireModule("widgets/dashboard/themes/helihud/common.lua")
+-- Absolute, not relative -- see preflight.lua's own comment for why.
+local common = requireModule("SCRIPTS:/" .. rfsuite.config.baseDir .. "/widgets/dashboard/themes/helihud/common.lua")
 
 local boxes_cache = nil
 local lastScreenW = nil
