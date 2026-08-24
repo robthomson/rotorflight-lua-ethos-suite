@@ -68,6 +68,7 @@ local function normalize(prefs)
   prefs.general.batterylocalcalculation = clampNumber(prefs.general.batterylocalcalculation, DEFAULTS.general.batterylocalcalculation, 0, 1)
 
   prefs.battery = prefs.battery or {}
+  prefs.battery.smartfuel_model_type = clampNumber(prefs.battery.smartfuel_model_type, DEFAULTS.battery.smartfuel_model_type, 0, 2)
   prefs.battery.flighttime = clampNumber(prefs.battery.flighttime, DEFAULTS.battery.flighttime, 0, 3600)
   prefs.battery.alert_type = clampNumber(prefs.battery.alert_type, DEFAULTS.battery.alert_type, 0, 2)
   prefs.battery.becalertvalue = clampDecimal(prefs.battery.becalertvalue, DEFAULTS.battery.becalertvalue, 3.0, 14.0)
@@ -132,6 +133,17 @@ end
 function model_preferences.setTimerTarget(prefs, value)
   prefs = model_preferences.withDefaults(prefs)
   prefs.battery.flighttime = clampNumber(value, prefs.battery.flighttime, 0, 3600)
+  return prefs
+end
+
+function model_preferences.smartfuelModelType(prefs)
+  prefs = model_preferences.withDefaults(prefs)
+  return clampNumber(prefs.battery.smartfuel_model_type, DEFAULTS.battery.smartfuel_model_type, 0, 2)
+end
+
+function model_preferences.setSmartfuelModelType(prefs, value)
+  prefs = model_preferences.withDefaults(prefs)
+  prefs.battery.smartfuel_model_type = clampNumber(value, prefs.battery.smartfuel_model_type, 0, 2)
   return prefs
 end
 

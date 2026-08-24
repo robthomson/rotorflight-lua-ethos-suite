@@ -102,6 +102,7 @@ local session = {
   timerSession = 0,
   timerFlightCounted = false,
   timerTarget = 300,
+  smartfuelModelType = 0,
   modelPreferences = nil,
   modelPreferencesFile = nil,
   modelPreferencesMcuId = nil,
@@ -319,6 +320,7 @@ local function flush()
     timerSession = session.timerSession,
     timerFlightCounted = session.timerFlightCounted,
     timerTarget = session.timerTarget,
+    smartfuelModelType = session.smartfuelModelType,
     modelStats = copyStats(session.modelStats),
     bblFlags = session.bblFlags,
     bblSize = session.bblSize,
@@ -333,9 +335,11 @@ local function updateModelSnapshots()
   if session.modelPreferences then
     session.modelStats = modelPreferences.stats(session.modelPreferences)
     session.timerTarget = modelPreferences.timerTarget(session.modelPreferences)
+    session.smartfuelModelType = modelPreferences.smartfuelModelType(session.modelPreferences)
   else
     session.modelStats = nil
     session.timerTarget = 300
+    session.smartfuelModelType = 0
   end
 end
 
@@ -699,6 +703,7 @@ local function setConnected(value, mspQueue, protocol)
     session.timerSession = 0
     session.timerFlightCounted = false
     session.timerTarget = 300
+    session.smartfuelModelType = 0
     session.modelPreferences = nil
     session.modelPreferencesFile = nil
     session.modelPreferencesMcuId = nil
@@ -933,6 +938,18 @@ local function onModelTimerUpdate(payload)
 end
 
 bus.subscribe("model.timer.update", onModelTimerUpdate)
+
+local function onModelSmartfuelTypeUpdate(payload)
+  if type(payload) ~= "table" then return end
+  if not session.mcuId or payload.mcuId ~= session.mcuId then return end
+  loadModelPreferences()
+  session.modelPreferences = modelPreferences.setSmartfuelModelType(session.modelPreferences, payload.smartfuelModelType)
+  saveModelPreferences()
+  updateModelSnapshots()
+  publish()
+end
+
+bus.subscribe("model.smartfuel_type.update", onModelSmartfuelTypeUpdate)
 
 -- Setup > Power > Battery / SmartFuel each write straight to the FC (see
 -- app/pages/power_battery.lua and app/pages/power_smartfuel.lua's own
