@@ -4782,6 +4782,12 @@
           "needs_translation": false,
           "translation": "S.PORT Master"
         },
+        "function_rx_sbus_input": {
+          "english": "Serial Rx (Backup, SBUS)",
+          "max_length": 24,
+          "needs_translation": false,
+          "translation": "Serial Rx (Backup, SBUS)"
+        },
         "function_telem_frsky": {
           "english": "Telemetry FrSky",
           "max_length": 15,
@@ -5461,6 +5467,62 @@
           "max_length": 9,
           "needs_translation": false,
           "translation": "RF Module"
+        }
+      },
+      "sbus_input_status": {
+        "active_fallback": {
+          "english": "Fallback",
+          "max_length": 8,
+          "needs_translation": false,
+          "translation": "Fallback"
+        },
+        "active_main": {
+          "english": "Main",
+          "max_length": 4,
+          "needs_translation": false,
+          "translation": "Main"
+        },
+        "active_source": {
+          "english": "Active Source",
+          "max_length": 13,
+          "needs_translation": false,
+          "translation": "Active Source"
+        },
+        "channel": {
+          "english": "Channel",
+          "max_length": 7,
+          "needs_translation": false,
+          "translation": "Channel"
+        },
+        "link": {
+          "english": "Link",
+          "max_length": 4,
+          "needs_translation": false,
+          "translation": "Link"
+        },
+        "link_down": {
+          "english": "Down",
+          "max_length": 4,
+          "needs_translation": false,
+          "translation": "Down"
+        },
+        "link_up": {
+          "english": "Up",
+          "max_length": 2,
+          "needs_translation": false,
+          "translation": "Up"
+        },
+        "name": {
+          "english": "Serial Rx (Backup)",
+          "max_length": 19,
+          "needs_translation": false,
+          "translation": "Serial Rx (Backup)"
+        },
+        "not_configured": {
+          "english": "Not Configured",
+          "max_length": 14,
+          "needs_translation": false,
+          "translation": "Not Configured"
         }
       },
       "servos": {
