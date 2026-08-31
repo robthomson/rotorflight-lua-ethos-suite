@@ -1,10 +1,11 @@
 -- Tools -> Diagnostics -> Serial Rx (Backup) page.
 --
--- Live link/channel readout for the SBUS-In Fallback receiver (see
--- app/pages/ports.lua's RX_SBUS_INPUT function and
--- lib/msp_sbus_input_status.lua), for bench-testing that a fallback
--- satellite is wired/bound correctly and to watch it take over when the
--- main RX link is pulled.
+-- Live link/channel readout for the backup-RX input (see app/pages/ports.lua's
+-- RX_INPUT_BACKUP function and lib/msp_rx_input_backup_status.lua), for
+-- bench-testing that a backup satellite is wired/bound correctly and to watch
+-- it take over when the main RX link is pulled. Provider-selectable in
+-- firmware (rx_input_backup_provider) - only SBUS exists today, but the
+-- Protocol line below is already generic.
 --
 -- Read-only, so this uses app/diagnostics_common.lua's openReadOnlyPage()
 -- helper like diagnostics_fblstatus.lua does. Refreshed faster than that
@@ -16,26 +17,31 @@
 local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("lib/require.lua"))()
 local bus = requireModule("lib/bus.lua")
 local common = requireModule("app/diagnostics_common.lua")
-local sbusInputStatus = requireModule("lib/msp_sbus_input_status.lua")
+local rxInputBackupStatus = requireModule("lib/msp_rx_input_backup_status.lua")
 
-local PAGE_TITLE = "@i18n(app.modules.diagnostics.name)@ / @i18n(app.modules.sbus_input_status.name)@"
+local PAGE_TITLE = "@i18n(app.modules.diagnostics.name)@ / @i18n(app.modules.rx_input_backup_status.name)@"
 
 local T = {
-  link = "@i18n(app.modules.sbus_input_status.link)@",
-  linkUp = "@i18n(app.modules.sbus_input_status.link_up)@",
-  linkDown = "@i18n(app.modules.sbus_input_status.link_down)@",
-  activeSource = "@i18n(app.modules.sbus_input_status.active_source)@",
-  activeMain = "@i18n(app.modules.sbus_input_status.active_main)@",
-  activeFallback = "@i18n(app.modules.sbus_input_status.active_fallback)@",
-  notConfigured = "@i18n(app.modules.sbus_input_status.not_configured)@",
-  channel = "@i18n(app.modules.sbus_input_status.channel)@",
+  protocol = "@i18n(app.modules.rx_input_backup_status.protocol)@",
+  link = "@i18n(app.modules.rx_input_backup_status.link)@",
+  linkUp = "@i18n(app.modules.rx_input_backup_status.link_up)@",
+  linkDown = "@i18n(app.modules.rx_input_backup_status.link_down)@",
+  activeSource = "@i18n(app.modules.rx_input_backup_status.active_source)@",
+  activeMain = "@i18n(app.modules.rx_input_backup_status.active_main)@",
+  activeBackup = "@i18n(app.modules.rx_input_backup_status.active_backup)@",
+  notConfigured = "@i18n(app.modules.rx_input_backup_status.not_configured)@",
+  channel = "@i18n(app.modules.rx_input_backup_status.channel)@",
 }
+
+-- Keep in sync with rotorflight-firmware's cli/settings.c
+-- lookupTableRxInputBackupProvider[] (same order) - only SBUS exists today.
+local PROVIDER_NAMES = { [0] = "SBUS" }
 
 local REFRESH_INTERVAL_SECONDS = 0.3
 
--- SBUS_INPUT_MAX_CHANNEL (drivers/rx_sbus_input.h) -- the channel row count
--- is fixed at page-build time, so pre-build the maximum and only as many
--- rows as the firmware actually reports get real values; the rest stay "-".
+-- RX_INPUT_BACKUP_MAX_CHANNEL (drivers/rx_input_backup.h) -- the channel row
+-- count is fixed at page-build time, so pre-build the maximum and only as
+-- many rows as the firmware actually reports get real values; the rest stay "-".
 local MAX_CHANNELS = 18
 
 local function open(opts)
@@ -48,6 +54,7 @@ local function open(opts)
       common.updateField(field, value)
     end
 
+    local protocolField = common.addValueLine(T.protocol, "-")
     local linkField = common.addValueLine(T.link, "-")
     local activeField = common.addValueLine(T.activeSource, "-")
 
@@ -60,16 +67,19 @@ local function open(opts)
 
     local function applyStatus(data)
       if not data.enabled then
+        setFieldValue(protocolField, "-")
         setFieldValue(linkField, T.notConfigured)
         if linkField.color then linkField:color(nil) end
         setFieldValue(activeField, "-")
       else
+        setFieldValue(protocolField, PROVIDER_NAMES[data.provider] or tostring(data.provider))
+
         setFieldValue(linkField, data.linkUp and T.linkUp or T.linkDown)
         if linkField.color then linkField:color(data.linkUp and GREEN or RED) end
 
-        local isFallback = data.activeSource == "fallback"
-        setFieldValue(activeField, isFallback and T.activeFallback or T.activeMain)
-        if activeField.color then activeField:color(isFallback and RED or GREEN) end
+        local isBackup = data.activeSource == "backup"
+        setFieldValue(activeField, isBackup and T.activeBackup or T.activeMain)
+        if activeField.color then activeField:color(isBackup and RED or GREEN) end
       end
 
       for i = 1, MAX_CHANNELS do
@@ -87,7 +97,7 @@ local function open(opts)
       if ctx.isDisposed() or pending then return end
       pending = true
       if ctx.header then ctx.header.setReloadEnabled(false) end
-      bus.publish("msp.request", sbusInputStatus.buildReadMessage(function(data)
+      bus.publish("msp.request", rxInputBackupStatus.buildReadMessage(function(data)
         if not ctx.isDisposed() then applyStatus(data) end
         finish()
       end, finish))

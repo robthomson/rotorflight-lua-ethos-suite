@@ -2388,11 +2388,11 @@
           "needs_translation": false,
           "max_length": 13
         },
-        "function_rx_sbus_input": {
-          "english": "Serial Rx (Backup, SBUS)",
-          "translation": "Serial Rx (Backup, SBUS)",
+        "function_rx_input_backup": {
+          "english": "Serial Rx (Backup)",
+          "translation": "Serial Rx (Backup)",
           "needs_translation": false,
-          "max_length": 24
+          "max_length": 19
         },
         "function_telem_frsky": {
           "english": "Telemetry FrSky",
@@ -4189,12 +4189,12 @@
           "max_length": 9
         }
       },
-      "sbus_input_status": {
-        "active_fallback": {
-          "english": "Fallback",
-          "translation": "Fallback",
+      "rx_input_backup_status": {
+        "active_backup": {
+          "english": "Backup",
+          "translation": "Backup",
           "needs_translation": false,
-          "max_length": 8
+          "max_length": 6
         },
         "active_main": {
           "english": "Main",
@@ -4243,6 +4243,12 @@
           "translation": "Not Configured",
           "needs_translation": false,
           "max_length": 14
+        },
+        "protocol": {
+          "english": "Protocol",
+          "translation": "Protocol",
+          "needs_translation": false,
+          "max_length": 8
         }
       },
       "fblstatus": {

@@ -4782,11 +4782,11 @@
           "needs_translation": false,
           "translation": "S.PORT Master"
         },
-        "function_rx_sbus_input": {
-          "english": "Serial Rx (Backup, SBUS)",
-          "max_length": 24,
+        "function_rx_input_backup": {
+          "english": "Serial Rx (Backup)",
+          "max_length": 19,
           "needs_translation": false,
-          "translation": "Serial Rx (Backup, SBUS)"
+          "translation": "Serial Rx (Backup)"
         },
         "function_telem_frsky": {
           "english": "Telemetry FrSky",
@@ -5469,12 +5469,12 @@
           "translation": "RF Module"
         }
       },
-      "sbus_input_status": {
-        "active_fallback": {
-          "english": "Fallback",
-          "max_length": 8,
+      "rx_input_backup_status": {
+        "active_backup": {
+          "english": "Backup",
+          "max_length": 6,
           "needs_translation": false,
-          "translation": "Fallback"
+          "translation": "Backup"
         },
         "active_main": {
           "english": "Main",
@@ -5523,6 +5523,12 @@
           "max_length": 14,
           "needs_translation": false,
           "translation": "Not Configured"
+        },
+        "protocol": {
+          "english": "Protocol",
+          "max_length": 8,
+          "needs_translation": false,
+          "translation": "Protocol"
         }
       },
       "servos": {
