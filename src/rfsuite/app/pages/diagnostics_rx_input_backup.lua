@@ -4,8 +4,8 @@
 -- RX_INPUT_BACKUP function and lib/msp_rx_input_backup_status.lua), for
 -- bench-testing that a backup satellite is wired/bound correctly and to watch
 -- it take over when the main RX link is pulled. Provider-selectable in
--- firmware (rx_input_backup_provider) - only SBUS exists today, but the
--- Protocol line below is already generic.
+-- firmware (rx_input_backup_provider) - NONE/SBUS/FBUS/FPORT/FPORT2 -
+-- the Protocol line below is already generic.
 --
 -- Read-only, so this uses app/diagnostics_common.lua's openReadOnlyPage()
 -- helper like diagnostics_fblstatus.lua does. Refreshed faster than that
@@ -34,8 +34,8 @@ local T = {
 }
 
 -- Keep in sync with rotorflight-firmware's cli/settings.c
--- lookupTableRxInputBackupProvider[] (same order) - only SBUS exists today.
-local PROVIDER_NAMES = { [0] = "SBUS" }
+-- lookupTableRxInputBackupProvider[] (same order, NONE=0 first).
+local PROVIDER_NAMES = { [0] = "NONE", [1] = "SBUS", [2] = "FBUS", [3] = "FPORT", [4] = "FPORT2" }
 
 local REFRESH_INTERVAL_SECONDS = 0.3
 
