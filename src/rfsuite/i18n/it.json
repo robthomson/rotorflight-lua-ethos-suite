@@ -51,6 +51,27 @@
         "needs_translation": false,
         "reverse_text": false,
         "translation": "Batteria ricevente"
+      },
+      "tbl_auto": {
+        "english": "Auto",
+        "translation": "Auto",
+        "needs_translation": true,
+        "reverse_text": false,
+        "max_length": 4
+      },
+      "tbl_electric": {
+        "english": "Electric",
+        "translation": "Electric",
+        "needs_translation": true,
+        "reverse_text": false,
+        "max_length": 8
+      },
+      "tbl_nitro": {
+        "english": "Nitro",
+        "translation": "Nitro",
+        "needs_translation": true,
+        "reverse_text": false,
+        "max_length": 5
       }
     },
     "ESC_SENSOR_CONFIG": {
@@ -5732,6 +5753,13 @@
           "needs_translation": false,
           "reverse_text": false,
           "translation": "Min Cella Tensione"
+        },
+        "model_type": {
+          "english": "Power Type",
+          "translation": "Power Type",
+          "needs_translation": true,
+          "reverse_text": false,
+          "max_length": 10
         },
         "name": {
           "english": "Power",
