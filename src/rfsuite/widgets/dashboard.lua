@@ -209,11 +209,13 @@ end
 local function loadModelDashboard(widget)
   if not widget or widget.connected ~= true or not widget.mcuId or widget.mcuId == "" then
     widget.modelDashboard = nil
+    widget.smartfuelModelType = nil
     return
   end
 
   local prefs = modelPreferences.load(widget.mcuId)
   widget.modelDashboard = normalizeModelDashboard(prefs and prefs.dashboard)
+  widget.smartfuelModelType = tonumber(prefs and prefs.battery and prefs.battery.smartfuel_model_type) or 0
 end
 
 local function requestPaint(widget)
@@ -926,6 +928,7 @@ local function create()
     dashboardStats = {},
     dashboardSettings = nil,
     modelDashboard = nil,
+    smartfuelModelType = nil,
     flightmode = flightmode.new(),
     flightmodeState = "preflight",
     handler = nil,
@@ -1051,6 +1054,7 @@ local function update(widget, snapshot)
   widget.timerLive = snapshot.timerLive or 0
   widget.timerSession = snapshot.timerSession or 0
   widget.timerTarget = snapshot.timerTarget or 300
+  widget.smartfuelModelType = snapshot.smartfuelModelType
   widget.modelStats = snapshot.modelStats
   widget.bblFlags = snapshot.bblFlags
   widget.bblSize = snapshot.bblSize
