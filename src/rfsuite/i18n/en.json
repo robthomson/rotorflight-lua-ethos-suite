@@ -4890,6 +4890,12 @@
           "needs_translation": false,
           "translation": "[RX]"
         },
+        "save_armed": {
+          "english": "Saved; written to flash on disarm",
+          "max_length": 33,
+          "needs_translation": false,
+          "translation": "Saved; written to flash on disarm"
+        },
         "save_error_prefix": {
           "english": "Save error:",
           "max_length": 11,
@@ -7434,6 +7440,12 @@
         "max_length": 7,
         "needs_translation": false,
         "translation": "RPM Min"
+      },
+      "startup_invalid_device": {
+        "english": "Invalid device connected",
+        "max_length": 24,
+        "needs_translation": false,
+        "translation": "Invalid device connected"
       },
       "startup_no_link": {
         "english": "No telemetry link detected",
