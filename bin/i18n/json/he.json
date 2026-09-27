@@ -2883,6 +2883,13 @@
           "needs_translation": false,
           "reverse_text": true,
           "max_length": 11
+        },
+        "save_armed": {
+          "english": "Saved; written to flash on disarm",
+          "translation": "Saved; written to flash on disarm",
+          "needs_translation": true,
+          "reverse_text": false,
+          "max_length": 33
         }
       },
       "mixer": {
@@ -8567,6 +8574,13 @@
         "needs_translation": false,
         "reverse_text": true,
         "max_length": 29
+      },
+      "startup_invalid_device": {
+        "english": "Invalid device connected",
+        "translation": "Invalid device connected",
+        "needs_translation": true,
+        "reverse_text": false,
+        "max_length": 24
       },
       "startup_unsupported_version": {
         "english": "Unsupported firmware",
