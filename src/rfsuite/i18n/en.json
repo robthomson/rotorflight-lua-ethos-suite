@@ -3494,6 +3494,24 @@
           "needs_translation": false,
           "translation": "Override"
         },
+        "arming_disable_flag_26": {
+          "english": "No Filter",
+          "max_length": 10,
+          "needs_translation": false,
+          "translation": "No Filter"
+        },
+        "arming_disable_flag_27": {
+          "english": "Backup RX",
+          "max_length": 10,
+          "needs_translation": false,
+          "translation": "Backup RX"
+        },
+        "arming_disable_flag_28": {
+          "english": "Arm Switch",
+          "max_length": 10,
+          "needs_translation": false,
+          "translation": "Arm Switch"
+        },
         "arming_disable_flag_3": {
           "english": "Bad RX Recovery",
           "max_length": 15,
@@ -3595,18 +3613,6 @@
           "max_length": 11,
           "needs_translation": false,
           "translation": "Unsupported"
-        },
-        "arming_disable_flag_26": {
-          "english": "No Filter",
-          "max_length": 10,
-          "needs_translation": false,
-          "translation": "No Filter"
-        },
-        "arming_disable_flag_27": {
-          "english": "Arm Switch",
-          "max_length": 10,
-          "needs_translation": false,
-          "translation": "Arm Switch"
         }
       },
       "filters": {
