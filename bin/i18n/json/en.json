@@ -114,6 +114,18 @@
       "needs_translation": false,
       "max_length": 67
     },
+    "msg_load_failed_title": {
+      "english": "Loading failed",
+      "translation": "Loading failed",
+      "needs_translation": false,
+      "max_length": 14
+    },
+    "msg_load_failed_body": {
+      "english": "Data could not be read from the flight controller. Please reload.",
+      "translation": "Data could not be read from the flight controller. Please reload.",
+      "needs_translation": false,
+      "max_length": 65
+    },
     "msg_save_not_commited": {
       "english": "Save not committed",
       "translation": "Save not committed",
@@ -2471,6 +2483,12 @@
           "translation": "Save error:",
           "needs_translation": false,
           "max_length": 11
+        },
+        "save_armed": {
+          "english": "Saved; written to flash on disarm",
+          "translation": "Saved; written to flash on disarm",
+          "needs_translation": false,
+          "max_length": 33
         }
       },
       "mixer": {
@@ -3732,6 +3750,12 @@
           "needs_translation": false,
           "translation": "Min Cell Voltage"
         },
+        "model_type": {
+          "english": "Power Type",
+          "max_length": 10,
+          "needs_translation": false,
+          "translation": "Power Type"
+        },
         "name": {
           "english": "Power",
           "max_length": 5,
@@ -4352,6 +4376,18 @@
           "needs_translation": false,
           "max_length": 12
         },
+        "arming_flags_active_list": {
+          "english": "Active reasons:",
+          "translation": "Active reasons:",
+          "needs_translation": false,
+          "max_length": 15
+        },
+        "arming_flags_active_fmt": {
+          "english": "%d active",
+          "translation": "%d active",
+          "needs_translation": false,
+          "max_length": 9
+        },
         "cpu_load": {
           "english": "CPU Load",
           "translation": "CPU Load",
@@ -4426,6 +4462,18 @@
           "needs_translation": false,
           "max_length": 10
         },
+        "confirm_prompt": {
+          "english": "Apply packet rate and model match changes to the RF module / Flight Controller?",
+          "translation": "Apply packet rate and model match changes to the RF module / Flight Controller?",
+          "needs_translation": false,
+          "max_length": 79
+        },
+        "confirm_title": {
+          "english": "Confirm ELRS Link Sync",
+          "translation": "Confirm ELRS Link Sync",
+          "needs_translation": false,
+          "max_length": 22
+        },
         "elrs_module": {
           "english": "ELRS Module",
           "translation": "ELRS Module",
@@ -4497,6 +4545,12 @@
           "translation": "No ELRS TX module responded",
           "needs_translation": false,
           "max_length": 27
+        },
+        "status_not_elrs": {
+          "english": "Connected module is not ExpressLRS",
+          "translation": "Connected module is not ExpressLRS",
+          "needs_translation": false,
+          "max_length": 34
         },
         "status_not_probed": {
           "english": "Not probed yet",
@@ -6745,10 +6799,10 @@
       "translation": "GPS HDOP"
     },
     "sensor_gps_heading": {
-      "english": "GPS Heading",
+      "english": "GPS Course",
       "max_length": 11,
       "needs_translation": false,
-      "translation": "GPS Heading"
+      "translation": "GPS Course"
     },
     "sensor_gps_home_dir": {
       "english": "GPS Home Dir",
@@ -7010,6 +7064,24 @@
         "max_length": 7,
         "needs_translation": false,
         "translation": "RX Batt"
+      },
+      "tbl_auto": {
+        "english": "Auto",
+        "max_length": 4,
+        "needs_translation": false,
+        "translation": "Auto"
+      },
+      "tbl_electric": {
+        "english": "Electric",
+        "max_length": 8,
+        "needs_translation": false,
+        "translation": "Electric"
+      },
+      "tbl_nitro": {
+        "english": "Nitro",
+        "max_length": 5,
+        "needs_translation": false,
+        "translation": "Nitro"
       }
     },
     "BATTERY_CONFIG": {
@@ -7314,6 +7386,12 @@
         "max_length": 29,
         "needs_translation": false,
         "translation": "Waiting for Rotorflight task."
+      },
+      "startup_invalid_device": {
+        "english": "Invalid device connected",
+        "translation": "Invalid device connected",
+        "needs_translation": false,
+        "max_length": 24
       },
       "startup_unsupported_version": {
         "english": "Unsupported firmware",
