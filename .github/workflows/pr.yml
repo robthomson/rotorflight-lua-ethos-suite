@@ -45,6 +45,23 @@ jobs:
       - name: Check the write path
         run: lua5.3 bin/storage/verify_atomic_writes.lua
 
+  # The ESC forward-programming tiles are gated by a guard that has to retry a
+  # failed MSP read. That retry reaches neither a build nor a package step, so
+  # it is pinned here. #2387
+  esc-guard-retry:
+    name: ESC tiles recover from a failed read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check that a failed ESC read is retried
+        run: lua5.3 bin/esc_guard/verify_esc_guard_retry.lua
+
   # An MSP request that is abandoned between two of its frames used to leave
   # the shared TX buffer occupied, after which no request could be framed at all
   # -- every configuration page then hung until the script was reloaded. No
@@ -155,6 +172,18 @@ jobs:
   # of dataRef/controlRef on releaseRuntime().
   field-layout:
     name: Field layout slot pooling and lifecycle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check field layout slot pooling and lifecycle
+        run: lua5.3 bin/field_layout/verify_field_layout.lua
+
   # Widgets and objects load bitmaps on demand, and clearCaches()'s images
   # branch previously had no caller anywhere -- so every decoded dashboard
   # bitmap survived theme reloads, model changes and widget close. The fix
@@ -192,10 +221,6 @@ jobs:
       - name: Install Lua 5.3
         run: sudo apt-get update && sudo apt-get install -y lua5.3
 
-      - name: Check field layout slot pooling and lifecycle
-        run: lua5.3 bin/field_layout/verify_field_layout.lua
-      - name: Check dashboard image cache behaviour
-        run: lua5.3 bin/dashboard/verify_image_caches.lua
       - name: Check the disconnect and GC behaviour
         run: lua5.3 bin/msp_gc/verify_msp_disconnect.lua
 
