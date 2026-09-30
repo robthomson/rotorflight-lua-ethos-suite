@@ -62,7 +62,6 @@
 local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("lib/require.lua"))()
 local closeKey = requireModule("app/close_key.lua")
 local header = requireModule("app/header.lua")
-local memstats = requireModule("lib/memstats.lua")
 local tileGrid = requireModule("app/tile_grid.lua")
 
 local menu_container = {}
@@ -157,7 +156,11 @@ local function openScreen(nav, menus, rootEntries, screen, setEventHandler, setW
   -- being created/retained in the first place; no amount of collecting
   -- can free a live reference. See AGENTS.md's "Memory stats printing"
   -- section for the full trace and current leading hypotheses.
-  memstats.print("menu:" .. screenKey(screen))
+  -- Loaded here rather than at module level: this function only runs while
+  -- the system tool is open, and lib/memstats.lua is 2.3 kB of permanently
+  -- loaded code on the X18RS that does nothing in a session where memory
+  -- logging is off (it checks its own enablement at lib/memstats.lua:41).
+  requireModule("lib/memstats.lua").print("menu:" .. screenKey(screen))
 
   local function goBack()
     if menuGuard and menuGuard.close then menuGuard.close() end
@@ -229,10 +232,11 @@ local function openScreen(nav, menus, rootEntries, screen, setEventHandler, setW
     end
 
     if isEntryVisible(entry) then
-      -- Keep tile labels explicit; Ethos's default font clips long
-      -- titles well before the tile's own width would require it.
+      -- Keep tile labels explicit; pre-truncate with ellipsis so long
+      -- titles never collide with or spill over the button border (Issue #2299).
+      local label = tileGrid.fitLabel(entry.title, tileW, tileFont)
       tileButtons[i] = form.addButton(nil, {x = x, y = y, w = tileW, h = tileH}, {
-        text = entry.title,
+        text = label,
         icon = entry.icon,
         options = tileFont,
         press = function()
