@@ -15,17 +15,16 @@
 --     inside a `while os_clock() < deadline` loop, so a frozen clock would spin
 --     there forever. Wall-clock jumps are made explicitly with clock.set().
 --
--- The issue names three defects that mask each other -- a poisoned TX buffer, a
--- retry counter that counts elapsed windows instead of send attempts, and a
--- multi-frame write stretched over one background task tick per frame. Once the
--- second and third are fixed, the first is much harder to see, so each defect
--- also gets a case that fails on its own:
+-- The issue names three defects -- a poisoned TX buffer, a retry counter that
+-- counts elapsed windows instead of send attempts, and a multi-frame write
+-- stretched over one background task tick per frame. Only the first two are
+-- fixed. The third is kept on purpose: draining a whole write in one tick
+-- overflowed Ethos's pushFrame() queue on hardware and broke every save, so
+-- "one frame per tick" is pinned below instead.
 --
 --   * "retiring a message hands the TX buffer back" calls _finish() with the
 --     buffer deliberately filled. It cannot be satisfied by fixing the retry
---     counter or the drain, only by clearing the buffer on the retire path.
---   * "one tick carries a whole message out" counts the frames a single
---     processQueue() produces for a 52-byte write.
+--     counter, only by clearing the buffer on the retire path.
 --   * "a stale reply cannot poison the next request" aborts a request whose
 --     reply was truncated mid-frame, then delivers the orphaned continuation.
 --
@@ -80,6 +79,7 @@ package.loaded["rfsuite.lib.require"] = function(name)
   if name == "lib/debug_log.lua" then
     return {
       print = function(msg) logLines[#logLines + 1] = tostring(msg) end,
+      mspEnabled = function() return true end,
       msp = function(direction, command, payload, note)
         logLines[#logLines + 1] = string.format("%s %s %s", tostring(direction),
           tostring(command), tostring(note))
@@ -270,15 +270,24 @@ local BIG_WRITE_BYTES = 52
 -- let the old one-frame-per-tick code satisfy this arithmetic by accident.
 local BIG_WRITE_FRAMES = math.ceil((5 + BIG_WRITE_BYTES) / 5)
 
--- One tick has to carry the whole message out. Counting the frames a single
--- processQueue() produces cannot be satisfied by a fix to the retry counter or
--- to the buffer reset.
+-- One frame per tick: Ethos's pushFrame() queue is shallow, and a burst of a
+-- whole multi-frame write overflowed it on hardware.
 do
   local rig = newRig()
   local frames = framesAfterOneTick(rig, newMessage(BIG_WRITE_CMD,
     { isWrite = true, payloadBytes = BIG_WRITE_BYTES }))
-  check("one tick carries a whole 52-byte write out", frames == BIG_WRITE_FRAMES,
-    "frames in a single tick=" .. frames .. " (12 = ceil(57/5); 1 means one frame per wakeup)")
+  check("one tick puts exactly one frame on the wire", frames == 1,
+    "frames in a single tick=" .. frames)
+  for _ = 2, BIG_WRITE_FRAMES do rig.tick() end
+  check("the rest of the write follows one frame per tick",
+    #rig.transport.sent == BIG_WRITE_FRAMES,
+    "frames after " .. BIG_WRITE_FRAMES .. " ticks=" .. #rig.transport.sent)
+end
+
+-- Ticks until a message has put all BIG_WRITE_FRAMES frames of one attempt on
+-- the wire, without letting its retry window elapse.
+local function sendWholeAttempt(rig)
+  for _ = 1, BIG_WRITE_FRAMES do rig.tick() end
 end
 
 -- A silent link, so every retry window is a real miss. Each permitted attempt
@@ -291,10 +300,13 @@ do
   local msg = newMessage(BIG_WRITE_CMD, { isWrite = true, payloadBytes = BIG_WRITE_BYTES,
     maxRetries = maxRetries })
   rig.queue:add(msg)
-  for _ = 1, 4 do
+  sendWholeAttempt(rig)
+  for _ = 1, maxRetries do
     rig.jump(1.0) -- past the 0.8s default retry delay
-    rig.tick()
+    sendWholeAttempt(rig)
   end
+  rig.jump(1.0)
+  rig.tick() -- the last attempt's window has elapsed: give up
   local expected = BIG_WRITE_FRAMES * (maxRetries + 1)
   check("every attempt puts the whole message on the wire",
     #rig.transport.sent == expected,
@@ -316,13 +328,15 @@ do
   local write = newMessage(BIG_WRITE_CMD, { isWrite = true, payloadBytes = BIG_WRITE_BYTES,
     maxRetries = 1 })
   rig.queue:add(write)
-  rig.tick()
-  -- maxRetries=1 buys two hand-offs: retryCount reaches 2, and the message is
+  -- The first attempt dies mid-send: only half its frames are out when the
+  -- retry window elapses. maxRetries=1 buys two hand-offs, and the message is
   -- only given up on the third window, where 2 > 1.
-  for _ = 1, 2 do
-    rig.jump(1.0)
-    rig.tick()
-  end
+  for _ = 1, 6 do rig.tick() end
+  rig.jump(1.0)
+  sendWholeAttempt(rig) -- finishes attempt 1 (refused re-arm), then attempt 2
+  sendWholeAttempt(rig)
+  rig.jump(1.0)
+  rig.tick()
   check("the aborted write reported an error", #write.errors >= 1,
     "errors=" .. #write.errors)
 
@@ -488,6 +502,109 @@ do
     #simMsg.errors == 1 and simMsg.errors[1] == "no_response" and rig.queue.current == nil,
     "errors=" .. #simMsg.errors .. " current=" .. tostring(rig.queue.current))
   system.getVersion = function() return { simulation = false } end
+end
+
+-- ---------------------------------------------------------------------------
+-- A reply longer than the retry window is not a timeout
+-- ---------------------------------------------------------------------------
+
+-- A 448-byte reply (e.g. a 32 x 14-byte rule pool): one start frame
+-- plus 90 continuation frames at 5 bytes each over S.Port. Streamed at one
+-- frame per 0.1s, the reply takes 9s -- far past the 0.8s retry window. The
+-- window used to count from the send alone, so a resend cut every attempt
+-- off part-way through and the page load failed on max_retries.
+local POOL_CMD = 172
+local POOL_BYTES = 448
+
+local function poolChunks()
+  local chunks, chunk = {}, nil
+  for i = 1, POOL_BYTES do
+    if not chunk or #chunk == 5 then chunk = {}; chunks[#chunks + 1] = chunk end
+    chunk[#chunk + 1] = i % 251
+  end
+  return chunks
+end
+
+do
+  local rig = newRig()
+  local msg = newMessage(POOL_CMD)
+  rig.queue:add(msg)
+  rig.tick() -- sends
+  for _, frame in ipairs(replyFrames(POOL_CMD, POOL_BYTES, poolChunks())) do
+    rig.transport.replies[#rig.transport.replies + 1] = frame
+    rig.jump(0.1)
+    rig.tick()
+  end
+  local got = msg.replies[1]
+  check("a reply still arriving past the retry window is not resent",
+    framesForCommand(rig.transport.sent, POOL_CMD) == 1,
+    "requests sent=" .. framesForCommand(rig.transport.sent, POOL_CMD))
+  check("a reply still arriving past the retry window completes",
+    #msg.replies == 1 and #msg.errors == 0 and #got == POOL_BYTES
+      and got[1] == 1 and got[POOL_BYTES] == POOL_BYTES % 251,
+    "replies=" .. #msg.replies .. " errors=" .. #msg.errors ..
+    " first error=" .. tostring(msg.errors[1]) .. " bytes=" .. (got and #got or 0))
+end
+
+-- The window still runs out when the reply stops part-way: silence, not the
+-- length of the reply, is what triggers a resend.
+do
+  local rig = newRig()
+  local msg = newMessage(POOL_CMD)
+  rig.queue:add(msg)
+  rig.tick() -- sends
+  local frames = replyFrames(POOL_CMD, POOL_BYTES, poolChunks())
+  for i = 1, 11 do
+    rig.transport.replies[#rig.transport.replies + 1] = frames[i]
+    rig.jump(0.1)
+    rig.tick()
+  end
+  rig.jump(1.0) -- the link goes quiet for longer than the window
+  rig.tick()
+  check("a reply that stops part-way is resent after the window",
+    framesForCommand(rig.transport.sent, POOL_CMD) == 2,
+    "requests sent=" .. framesForCommand(rig.transport.sent, POOL_CMD))
+end
+
+-- One frame of a long reply is lost on the link. The rest of that reply keeps
+-- arriving and is discarded, and the firmware answers a request sent into
+-- that stream with no start frame (sendMspReply()'s headerSent is only
+-- cleared when a reply finishes). So the resend has to wait until the broken
+-- reply has finished arriving, and then gets a whole reply.
+do
+  local rig = newRig()
+  local msg = newMessage(POOL_CMD)
+  rig.queue:add(msg)
+  rig.tick() -- sends
+  local frames = replyFrames(POOL_CMD, POOL_BYTES, poolChunks())
+  for i = 1, #frames do
+    if i ~= 23 then -- lost on the link, 110 bytes in
+      rig.transport.replies[#rig.transport.replies + 1] = frames[i]
+    end
+    rig.jump(0.1)
+    rig.tick()
+  end
+  check("no resend while a broken reply is still arriving",
+    framesForCommand(rig.transport.sent, POOL_CMD) == 1 and #msg.errors == 0,
+    "requests sent=" .. framesForCommand(rig.transport.sent, POOL_CMD) ..
+    " errors=" .. #msg.errors)
+
+  rig.jump(1.0) -- the broken reply has finished: silence
+  rig.tick()
+  check("the resend follows once the broken reply has finished",
+    framesForCommand(rig.transport.sent, POOL_CMD) == 2,
+    "requests sent=" .. framesForCommand(rig.transport.sent, POOL_CMD))
+
+  for i = 1, #frames do
+    rig.transport.replies[#rig.transport.replies + 1] = frames[i]
+    rig.jump(0.1)
+    rig.tick()
+  end
+  local got = msg.replies[1]
+  check("the resend's reply arrives complete",
+    #msg.replies == 1 and #msg.errors == 0 and got and #got == POOL_BYTES,
+    "replies=" .. #msg.replies .. " errors=" .. #msg.errors ..
+    " bytes=" .. (got and #got or 0))
 end
 
 -- ---------------------------------------------------------------------------

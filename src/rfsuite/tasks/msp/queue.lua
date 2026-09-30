@@ -39,9 +39,6 @@ local debugLog = requireModule("lib/debug_log.lua")
 local DEFAULT_RETRY_DELAY = 0.8
 local DEFAULT_MAX_RETRIES = 5
 local MAX_PENDING = 20
--- Backstop for the TX drain loop in processQueue(); see the comment there for
--- why it sits above the protocol's worst case (53 frames) rather than below it.
-local MAX_TX_FRAMES_PER_TICK = 64
 local EMPTY_PAYLOAD = {}
 
 local function notifyError(message, reason)
@@ -59,6 +56,9 @@ function Queue.new(common)
     current = nil,
     lastSent = nil,
     retryCount = 0,
+    rxFrames = 0,
+    rxBreaks = 0,
+    lastTickAt = nil,
   }, Queue)
 end
 
@@ -207,36 +207,59 @@ function Queue:processQueue()
       debugLog.msp("TX", msg.command, payload, "try=" .. tostring(self.retryCount + 1))
       self.lastSent = now
       self.retryCount = self.retryCount + 1
+      self.rxFrames = common.mspRxFrameCount()
     else
       debugLog.msp("TX!", msg.command, payload, "tx_busy")
     end
   end
 
-  -- Push every frame this message still owes out, not one per wakeup.
-  --
-  -- mspProcessTxQ() emits a single frame and says through its return value
-  -- that more remain -- a signal no caller read, so a 52-byte MSP_TELEMETRY_
-  -- CONFIG (5 header bytes + 52, at S.Port's 5 bytes per frame) was spread
-  -- over 12 background task ticks. Under load (LCD paint, a dataflash erase on
-  -- the FC) those ticks stretch, a 12-frame write outlasts the abort window
-  -- and dies mid-frame, and a message that dies mid-frame used to leave the
-  -- TX buffer occupied -- which is what turned one aborted write into a dead
-  -- MSP link for the rest of the session.
-  --
-  -- The guard is a runaway backstop, not a frame budget: mspProcessTxQ()
-  -- either advances mspTxIdx or empties the buffer, so the loop cannot spin.
-  -- It is sized above the worst case the protocol allows -- MSP caps a payload
-  -- at 256 bytes, and the 5-byte MSPv2 header plus those bytes at S.Port's 5
-  -- data bytes per frame is 53 frames -- so a legitimate message is never cut
-  -- short and has to be retried.
-  local frames = 0
-  while frames < MAX_TX_FRAMES_PER_TICK do
-    local more = common.mspProcessTxQ()
-    frames = frames + 1
-    if not more then break end
-  end
+  -- One frame per wakeup, deliberately. Both transports hand the frame to
+  -- Ethos's pushFrame(), and mspProcessTxQ() ignores whether it was
+  -- accepted. Draining a whole multi-frame write in one tick (#2411) broke
+  -- every save on hardware -- the burst outruns what pushFrame() will
+  -- queue, so the FC never sees a complete write. An abandoned mid-send
+  -- write no longer poisons the link either way, since _finish() hands the
+  -- TX buffer back.
+  common.mspProcessTxQ()
 
   local cmd, buf, err = common.mspPollReply()
+
+  -- Never resend while the FC is still sending. retryDelay used to count
+  -- from the send alone, so a reply longer than the window (a 448-byte
+  -- reply is ~90 S.Port frames) was cut off by a resend
+  -- part-way through, and every attempt died the same way until
+  -- max_retries failed the page load.
+  --
+  -- Frames this side discards count as well. When one reply frame is lost
+  -- on the link, the rest of that reply keeps arriving and is discarded
+  -- (it no longer follows the sequence). A request sent into that stream
+  -- gets an answer with no start frame: the firmware's sendMspReply()
+  -- (telemetry/msp_shared.c) only clears its static headerSent when a
+  -- reply finishes, not when a new request replaces it, so every
+  -- continuation frame of the new answer is discarded too. Waiting for
+  -- retryDelay of silence lets the old reply finish first, so the resend
+  -- gets a proper start frame.
+  --
+  -- A reply dropped part-way (a lost frame) then costs one full resend.
+  local rxFrames = common.mspRxFrameCount()
+  if rxFrames ~= self.rxFrames then
+    self.rxFrames = rxFrames
+    if self.lastSent then self.lastSent = now end
+  end
+
+  -- MSP-log only: a reply dropped part-way on a sequence break. got past
+  -- expected means frames were lost; gap is the time since the previous
+  -- tick, long gaps pointing at an overflowed Ethos frame queue.
+  if debugLog.mspEnabled() then
+    local breaks, expected, got, bytes, size = common.mspRxBreakInfo()
+    if breaks ~= self.rxBreaks then
+      self.rxBreaks = breaks
+      debugLog.msp("SEQ", msg.command, EMPTY_PAYLOAD, string.format(
+        "expected=%d got=%d bytes=%d/%d gap=%dms", expected, got, bytes, size,
+        math.floor(((now - (self.lastTickAt or now)) * 1000) + 0.5)))
+    end
+  end
+  self.lastTickAt = now
 
   if cmd == msg.command and not err then
     debugLog.msp("RX", cmd, buf)
