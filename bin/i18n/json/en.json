@@ -4427,8 +4427,8 @@
           "max_length": 14
         },
         "arming_disable_flag_25": {
-          "english": "Arm Switch",
-          "translation": "Arm Switch",
+          "english": "Override",
+          "translation": "Override",
           "needs_translation": false,
           "max_length": 10
         },
@@ -4491,6 +4491,24 @@
           "translation": "Unsupported",
           "needs_translation": false,
           "max_length": 11
+        },
+        "arming_disable_flag_26": {
+          "english": "No Filter",
+          "translation": "No Filter",
+          "needs_translation": false,
+          "max_length": 14
+        },
+        "arming_disable_flag_27": {
+          "english": "Backup RX",
+          "translation": "Backup RX",
+          "needs_translation": false,
+          "max_length": 14
+        },
+        "arming_disable_flag_28": {
+          "english": "Arm Switch",
+          "translation": "Arm Switch",
+          "needs_translation": false,
+          "max_length": 10
         }
       },
       "elrs_telemetry": {
