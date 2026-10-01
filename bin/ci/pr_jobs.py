@@ -243,6 +243,56 @@ Five of its cases go red on the pre-fix pages, each naming the line it
 fails on.
 '''
     ),
+    # Registered here because the job was added to pr.yml by hand, so the
+    # generator did not know about it and the drift check has been red on master
+    # since #2432 landed. Any --write dropped this job from the workflow; the
+    # text below is master's, verbatim.
+    LuaJob(
+        id='profile-anchor',
+        name="A page's data stays tagged with the profile it came from",
+        step='Check the profile anchor across a switch during a read',
+        script='bin/page_runtime/verify_profile_anchor.lua',
+        rationale=r'''A page tags its data with the profile it was read for, and the tag used to
+be taken when the read finished rather than when it started. A pilot who
+switched profile while that read was in flight therefore got the previous
+profile's values on screen, anchored to the new profile -- and because the
+anchor matched, nothing ever reloaded. Saving then writes the old profile's
+values into the new one.
+
+Only a switch landing inside an MSP round-trip reaches it, which no build and
+no package step can stage. So MSP answers are held here rather than delivered
+inline, and the session.update is delivered while a read is genuinely in
+flight. Inline delivery makes the whole file vacuous.
+
+5 of its 17 cases go red on the pre-fix page_runtime.lua.
+'''
+    ),
+    LuaJob(
+        id='wakeup-allocations',
+        name='Wakeup path allocates nothing per call',
+        step='Check the wakeup allocation paths',
+        script='bin/allocation_churn/verify_allocation_churn.lua',
+        rationale=r'''The dashboard wakeup path runs several times a second and session.update
+is published at up to 20 Hz, so a table rebuilt per call there is the
+sawtooth in the '[bgtask mem] lua=' log rather than a detail. Three such
+sites were removed: the subscriber copy in lib/bus.lua, the name table and
+its result table in getSensorStats(), and the per-call closure in
+transformValue(). #2384.
+
+No build and no package step reaches this -- it needs the collector held off
+and a loop that calls the function thousands of times, which is what the
+harness does. Every allocation assertion is paired in both directions: the
+current code has to come out under the bound and the removed code over it,
+on every run. A bound that both sides meet proves nothing, and the harness
+carries the removed implementations precisely so that can be seen. The same
+run also pins what a pooled iteration copy can get wrong -- a handler
+unsubscribed long ago must not come back through a leftover slot -- and the
+one value the change alters, an rssi box reading its own min/max instead of
+link quality's.
+
+Pass --self-test to assert only that the bounds still have teeth.
+'''
+    ),
 ]
 
 VERBATIM_JOBS = [
