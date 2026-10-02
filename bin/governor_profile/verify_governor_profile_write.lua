@@ -1,8 +1,8 @@
 -- Behaviour check for the governor-profile write guard (#2348).
 --
 -- Run it:
---     lua5.3 bin/governor_profile/verify_governor_profile_write.lua
---     lua5.3 bin/governor_profile/verify_governor_profile_write.lua --self-test
+--     lua5.4 bin/governor_profile/verify_governor_profile_write.lua
+--     lua5.4 bin/governor_profile/verify_governor_profile_write.lua --self-test
 --
 -- What it drives, and why:
 --   * The real app/page_runtime.lua with the real lib/msp_governor_profile.lua,
