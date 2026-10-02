@@ -476,11 +476,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - name: Install Lua 5.4
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
 
       - name: Check the Ethos instruction budget
-        run: lua5.3 bin/perf/verify_instruction_budget.lua
+        run: lua5.4 bin/perf/verify_instruction_budget.lua
 
   # Per-language PR builds (mirrors push.yml behavior)
   create-zip:
