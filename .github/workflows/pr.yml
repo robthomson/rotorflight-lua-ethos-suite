@@ -296,6 +296,170 @@ jobs:
       - name: Check the dialog teardown
         run: lua5.3 bin/dialog_lifecycle/verify_dialog_lifecycle.lua
 
+  # A page tags its data with the profile it was read for, and the tag used to
+  # be taken when the read finished rather than when it started. A pilot who
+  # switched profile while that read was in flight therefore got the previous
+  # profile's values on screen, anchored to the new profile -- and because the
+  # anchor matched, nothing ever reloaded. Saving then writes the old profile's
+  # values into the new one.
+  #
+  # Only a switch landing inside an MSP round-trip reaches it, which no build and
+  # no package step can stage. So MSP answers are held here rather than delivered
+  # inline, and the session.update is delivered while a read is genuinely in
+  # flight. Inline delivery makes the whole file vacuous.
+  #
+  # 5 of its 17 cases go red on the pre-fix page_runtime.lua.
+  profile-anchor:
+    name: A page's data stays tagged with the profile it came from
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check the profile anchor across a switch during a read
+        run: lua5.3 bin/page_runtime/verify_profile_anchor.lua
+
+  # The dashboard wakeup path runs several times a second and session.update
+  # is published at up to 20 Hz, so a table rebuilt per call there is the
+  # sawtooth in the '[bgtask mem] lua=' log rather than a detail. Three such
+  # sites were removed: the subscriber copy in lib/bus.lua, the name table and
+  # its result table in getSensorStats(), and the per-call closure in
+  # transformValue(). #2384.
+  #
+  # No build and no package step reaches this -- it needs the collector held off
+  # and a loop that calls the function thousands of times, which is what the
+  # harness does. Every allocation assertion is paired in both directions: the
+  # current code has to come out under the bound and the removed code over it,
+  # on every run. A bound that both sides meet proves nothing, and the harness
+  # carries the removed implementations precisely so that can be seen. The same
+  # run also pins what a pooled iteration copy can get wrong -- a handler
+  # unsubscribed long ago must not come back through a leftover slot -- and the
+  # one value the change alters, an rssi box reading its own min/max instead of
+  # link quality's.
+  #
+  # Pass --self-test to assert only that the bounds still have teeth.
+  wakeup-allocations:
+    name: Wakeup path allocates nothing per call
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check the wakeup allocation paths
+        run: lua5.3 bin/allocation_churn/verify_allocation_churn.lua
+
+  # The collector's pause decides when a cycle starts: live * pause / 100.
+  # The default is 200, so the heap may reach twice what is live before anything is
+  # reclaimed at all, while Ethos kills a script whose heap passes its limit (#2295).
+  # Lowering it is a one-line change -- but the one line has a foot-gun in it, and
+  # that is what this pins:
+  #
+  # `collectgarbage("setpause", n)` returns the PREVIOUS value, and with the
+  # argument omitted it does not read the current one, it SETS THE PAUSE TO 0.
+  # Pause 0 is "collect as constantly as possible", the opposite of the intent.
+  # Measured on the Lua 5.3.6 in this checkout, and the first case here asserts it
+  # rather than trusting it, because main.lua's own comment cites the behaviour and
+  # a future interpreter could change it.
+  #
+  # So the applied value is printed at boot instead of read back, and no file under
+  # src/ may call either setter without an explicit value. The harness also fixes
+  # where the call goes -- before background_task.init(), so the collector is on the
+  # new schedule while the subsystems allocate -- and holds the line that separates
+  # the justified forced collects from the hot path: Queue:_finish() must stay
+  # clean, Queue:clear() and the three ESC dispose paths must keep theirs.
+  #
+  # Pass --self-test to prove every one of those can go red: each check is aimed at
+  # a sabotaged copy of main.lua, at a planted bare setter, and at a queue.lua with
+  # its teardown collect cut out.
+  gc-pause:
+    name: The incremental collector is tuned, and reads no pause it did not set
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check the collector pause and the forced collects
+        run: lua5.3 bin/gc_pause/verify_gc_pause.lua
+
+  # Every screen but one installed a handler for the physical Back/Close key. The
+  # root menu installed none, on the stated assumption that Ethos's own default
+  # closes the tool on the first press. It does not -- that default takes two, the
+  # first dropping the form's input focus -- so the root menu had two ways out that
+  # disagreed with each other: the on-screen Menu button left in one press, the
+  # hardware RTN in two. Neither a build nor a package step reaches any of it.
+  #
+  # The harness drives the real tool.lua through registerSystemTool, create() and
+  # event() -- not menu_container directly, because tool.lua's forwarding is part of
+  # what is being pinned -- and asserts that RTN and EXIT reach goBack() at the root,
+  # that goBack() is the same path the back button takes, that a long ENTER, a model
+  # key and a touch event are still passed through untouched, and that RTN in a
+  # submenu pops one level without exiting.
+  #
+  # Seven of its seventeen cases go red on the pre-fix file. Pass --self-test to
+  # prove that rather than take it on trust: it re-runs the identical sequence
+  # against a copy of app/menu_container.lua with the pre-fix root branch put back
+  # and requires every one of the seven to fail.
+  root-close-key:
+    name: The physical Back key closes the suite from every screen
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check the root menu close key
+        run: lua5.3 bin/tool_ui/verify_root_close_key.lua
+
+  # lib/msp_governor_profile.lua encoded every field as `data[name] or 0`, so a
+  # table missing a key became a struct of zeros -- governor_headspeed 0,
+  # governor_max_throttle 0 -- and every one of those is a value the firmware
+  # accepts as in range. It re-runs its own validateAndFixServoConfig() on it and
+  # reports success. There is nothing in the write for a pilot to notice.
+  #
+  # What this pins is that the encoder refuses instead of inventing, and -- the half
+  # that matters -- that the refusal is not merely returned but acted upon: a codec
+  # that declines to build a message is a REFUSED write in app/page_runtime.lua, not
+  # a message with no payload. Asserting on encode() alone would pass while the
+  # runtime published the nil, so the harness drives the real page_runtime with the
+  # real codec and reads what went onto the bus.
+  #
+  # No build and no package step reaches it. The load gate that already existed --
+  # any source read failing keeps loaded == false and canSave() false -- is pinned
+  # too, so a later change cannot trade one protection for the other.
+  #
+  # Cases 2, 3 and 4 go red on the pre-fix codec. Pass --self-test to prove that
+  # rather than take it on trust: it puts a copy of the codec with the pre-fix
+  # encode() in the same seat and requires it to build a 17-byte all-zero payload
+  # from an empty table AND requires page_runtime to publish it.
+  governor-profile-write:
+    name: A governor profile is never written from an incomplete table
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check the governor profile write guard
+        run: lua5.3 bin/governor_profile/verify_governor_profile_write.lua
+
   # Per-language PR builds (mirrors push.yml behavior)
   create-zip:
     name: Build PR ZIP (${{ matrix.lang }})
@@ -445,3 +609,39 @@ jobs:
           python bin/docs/verify_documentation_rule.py \
             --base '${{ github.event.pull_request.base.sha }}' \
             --body-file pr-body.txt
+
+  # pr.yml used to be edited by hand, and every pull request that added a
+  # harness job put it in the same place in the file. Three of them were open
+  # at once on 2026-09-30, and each collision cost a resolution rather than a
+  # merge. Two of those resolutions were wrong in a way nothing caught:
+  # #2414's squash left dashboard-image-caches with a name and no runs-on, and
+  # #2416's squash did the same to field-layout, so the file stopped loading as
+  # a workflow and the run on master reported failure with zero jobs.
+  #
+  # The file is now rendered from bin/ci/pr_jobs.py. This job is the other half
+  # of that: a registry that is edited without regenerating leaves the two
+  # disagreeing, and the next pull request to add a job inherits the old file
+  # and the same collision. It also pins the shape that broke twice -- every job
+  # needs a runs-on and at least one step.
+  #
+  # The self-test proves the checks can go red: it removes a runs-on from a
+  # rendered job, edits a line of the committed file, and adds a job naming a
+  # harness that does not exist, and each of those has to be reported.
+  pr-workflow-drift:
+    name: The pull request workflow matches its registry
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prove the check can go red
+        run: python bin/ci/verify_pr_workflow.py --self-test
+
+      - name: Check pr.yml against the registry
+        run: python bin/ci/verify_pr_workflow.py
