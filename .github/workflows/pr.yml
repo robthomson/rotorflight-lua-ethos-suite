@@ -460,6 +460,28 @@ jobs:
       - name: Check the governor profile write guard
         run: lua5.4 bin/governor_profile/verify_governor_profile_write.lua
 
+  # Ethos aborts any Lua callback that runs 20000 VM instructions ("Max
+  # instructions count reached"), and nothing on the radio says how close one
+  # runs. This drives the real dashboard widget through every theme and flight
+  # state, and the real background task through boot, link up, steady CRSF with
+  # ELRS frames, an ELRS backlog and link down, counting instructions with a
+  # debug hook on desktop Lua. Any callback at or over the limit fails, so a
+  # theme with too many boxes, or a new per-tick cost, is caught here instead of
+  # as stalled frames or a dropped background tick in flight.
+  instruction-budget:
+    name: Callbacks stay under the Ethos instruction limit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Check the Ethos instruction budget
+        run: lua5.3 bin/perf/verify_instruction_budget.lua
+
   # Per-language PR builds (mirrors push.yml behavior)
   create-zip:
     name: Build PR ZIP (${{ matrix.lang }})
