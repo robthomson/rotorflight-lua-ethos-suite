@@ -413,6 +413,88 @@ exactly that before this check covered the app: its function lists cost
 ~25k instructions with 4 serial ports and ~255k with 12, in one wakeup.
 '''
     ),
+    # Appended after #2335 turned out to be already implemented in master: the
+    # gate has been in esc_forward_vendor.lua since the rewrite, so this entry
+    # adds no gate of its own. It pins the one that is there -- a defect that
+    # only appears when a pilot opens the wrong tile reaches nothing else here,
+    # and the firmware cannot cover the BLHeli_S/Bluejay pair.
+    LuaJob(
+        id='esc-signature',
+        name="An ESC editor never opens on another vendor's ESC",
+        step='Check the ESC forward-programming signature gate',
+        script='bin/esc_signature/verify_esc_signature.lua',
+        rationale=r'''AM32, BLHeli_S and Bluejay are three tiles of tool.lua's esc_forward_menu that all
+carry escProtocolId = 1, so the menu guard cannot tell them apart, and all three
+answer on MSP 217/218 behind the same two-byte header. A pilot who opens the
+wrong one gets a complete editor full of another ESC's bytes and a working Save.
+
+The gate is app/pages/esc_forward_vendor.lua:228-236. isCompatibleEsc() is called
+in the read's reply callback at :281-295, sets pendingError = {kind = "signature"}
+and never sets pendingData, so buildEditor() is never reached -- no runtime means
+no fields, no Save button and no MSP 218 anywhere. All ten ESC tiles declare a
+signature to check against, and the two BLHeli-family ones need their
+main_revision as well, because they share 0xC1 and nothing else separates them.
+
+The flight controller refuses a cross-signature write too: is4wayParamBufferValid()
+at src/main/sensors/esc_sensor.c:4591-4622 checks signature, protocol version and
+length, and escCommitParameters() turns a false into MSP_RESULT_ERROR. But it
+reports that as an ERROR RETURN, after the editor was built and the pilot had
+already pressed Save -- and fwifGetEepromAddress() at :703-729 reports every
+BLHeli-family target as ESC_SIG_BLHELI_S with length 0x70, so for BLHeli_S
+against Bluejay signature, version and length are identical and the editor gate
+is the only one there is.
+
+No build and no package step reaches any of it, so the three pages and the shared
+editor are driven for real here, each answered with another vendor's own reply
+fixture. Case 4 is the other half and matters as much: the matching page has to
+open and its Save has to put an MSP 218 on the bus, or case 6's "never sent" is
+also true of a harness whose write path was never live. Not hypothetical -- the
+first version of this harness stubbed page_runtime, never pressed Save, and had
+six write checks that stayed green with the gate removed. Its own --self-test is
+what said so.
+
+Pass --self-test to prove the rest: it re-runs every case against a copy of
+esc_forward_vendor.lua whose isCompatibleEsc() returns true unconditionally and
+requires all 30 gate checks to fail.
+'''
+    ),
+    LuaJob(
+        id='esc-parameters-yge',
+        name='YGE timing words and the flags byte',
+        step='Check the YGE forward-programming codec',
+        script='bin/esc_parameters_yge/verify_esc_parameters_yge.lua',
+        rationale=r'''lib/msp_esc_parameters_yge.lua drew its Motor Timing row from a ten-entry list of UI
+positions and handed that position to the wire unchanged in both directions. The
+ESC does not number its timing the way the page does: it spells the four automatic
+modes 16..19 and the six fixed advance angles 1..6, with 0 a second spelling of the
+first automatic mode. So every word the ESC sent landed on the wrong row, and every
+row the pilot picked landed on the wrong word -- measured: an ESC reporting 17 ("Auto
+Efficient") displayed "Auto Norm", and a pilot selecting "0 deg" wrote 17, a fixed
+advance angle commanded as an automatic mode. Neither is visible from the page,
+which shows a position in its own list rather than the ESC's word.
+
+The flight controller is a pass-through here -- msp.c reads
+escGetParamBufferLength() bytes and calls escCommitParameters() without inspecting a
+field -- so no build and no package step can see any of it. The harness drives the
+real page, the real shared editor, the real field_layout and the real page_runtime,
+and answers reads with the codec's own simulatorResponse.
+
+21 of its 38 checks go red on the pre-fix codec. Pass --self-test to prove that
+rather than take it on trust: it re-runs the file against a copy of the codec with
+the pre-fix TIMING table, no translation block and the pre-fix decode()/encode(),
+and requires every one of those 21 to fail. It also requires both passes to have
+registered the same gates, so a case that runs on one of the two trees and not the
+other is reported rather than silently compared against nothing.
+
+The file also answers the issue's other half, which does NOT reproduce: the reserved
+bits 4..7 of the flags byte survive a save here, because this page keeps the ESC's
+byte and edits single bits in place (field_layout.lua:268-272) rather than packing
+four booleans into a fresh byte the way the EdgeTX page does (edgetx
+.../yge/page.lua:113-131). Five checks pin that, plus the load gate. They are
+deliberately not gates: they pass on the pre-fix codec too, and a gate check that
+cannot go red is worse than no check.
+'''
+    ),
 ]
 
 VERBATIM_JOBS = [
