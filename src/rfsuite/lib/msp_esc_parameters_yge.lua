@@ -477,10 +477,41 @@ local msp = {
   TITLE = "YGE",
 }
 
+-- The ESC's own serial number, which the block already carries at WIRE_FIELDS
+-- ("serial_number", u32) and which nothing displayed until now. The EdgeTX suite
+-- shows it as an `S/N:` part of its subheader; this suite has one summary line
+-- per page instead, so it goes here.
+--
+-- Both decisions below were checked against the sibling suite rather than argued:
+-- rotorflight-lua-edgetx-suite .../escmfg/yge/init.lua's getEscVersion() is
+--     local sn = getUInt(buffer, {29, 30, 31, 32})
+--     return sn ~= 0 and tostring(sn) or ""
+-- which is decimal, and which prints nothing for a 0. So this matches the
+-- reference on both counts, and the reasons are kept only so a later reader does
+-- not "correct" them:
+--
+--   * A serial of 0 is left out rather than printed. An ESC that does not fill the
+--     field reports 0, and "S/N 0" reads like data while identifying nothing.
+--   * Decimal, not hexadecimal.
+--
+-- Those indices also settle the offset, which looked wrong at first glance: the
+-- sibling's {29,30,31,32} is two lower than the bytes used here, because that
+-- page carries `local mspHeaderBytes = 2` (yge/init.lua:8) and its getUInt adds it
+-- to every index. 29 + 2 = 31, which is exactly where serial_number starts here.
+local function serialLabel(data)
+  local serial = tonumber(data and data.serial_number)
+  if not serial or serial <= 0 then return nil end
+  return string.format("S/N %d", serial)
+end
+
 function msp.summaryFor(data)
-  return string.format("%s / %.5f",
+  local parts = {
     typeLabel(data and data.esc_type),
-    (tonumber(data and data.firmware_version) or 0) / 100000)
+    string.format("%.5f", (tonumber(data and data.firmware_version) or 0) / 100000),
+  }
+  local serial = serialLabel(data)
+  if serial then parts[#parts + 1] = serial end
+  return table.concat(parts, " / ")
 end
 
 -- The ceiling of the BEC Voltage field, for the page to hand to the field spec.
