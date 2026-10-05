@@ -905,6 +905,69 @@ jobs:
       - name: Check the Tune Advisor history on disarm
         run: lua5.4 bin/tune_history/verify_tune_history.lua
 
+  # The layout was chosen by a PROFILE KEY. profileKey() returned
+  # `<hardware_version>_PL_OPTO` for any OPTO model, and PROFILES carried exactly one such
+  # entry, HW1104_V100456NB_PL_OPTO -- so every OTHER OPTO model missed the lookup, fell
+  # through to PROFILES.default, and got DEFAULT_ITEMS: bec_voltage at item 5,
+  # active_freewheel at 15, where OPTO_ITEMS has no bec_voltage and puts
+  # active_freewheel at 14. An OPTO ESC has no BEC byte, so every field from item 5 up
+  # was read and written one byte off, on a page that looked entirely normal. Measured
+  # on the codec's own simulator fixture, 9 of the 15 fields on the OPTO layout read
+  # the wrong byte, plus a phantom bec_voltage row over a byte the block does not have.
+  # Six of the 15 coincide: four sit before the missing byte, and two carry equal bytes
+  # on either side of the boundary in this fixture.
+  #
+  # OPTO was also looked for in ONE of the two model strings. The block carries the
+  # model twice -- bytes 35..50 as esc_type and 51..65 as mode_name -- plus the
+  # firmware version in bytes 3..18, and which of the three a given ESC puts "OPTO" in
+  # is not something this file can know. EdgeTX concatenates both model strings for
+  # exactly that reason (esc_parameters_hw5.lua:119, :251).
+  #
+  # The VARIANT chooses the LAYOUT and the VERSION chooses the CHOICE LISTS:
+  # profileFor() looks the version up as before and then, for an OPTO model, returns
+  # that profile's tables with OPTO_ITEMS. An explicit `<version>_PL_OPTO` entry still
+  # wins where one exists, because its tables may differ -- HW1104's do not, but that is
+  # a fact about HW1104. The merged profile is built once per version rather than per
+  # call, because isFieldAvailable() reaches profileFor() once per field per page build.
+  #
+  # ON THE ISSUE'S SECOND CLAIM -- the inverted Active Freewheel boolean -- this job
+  # changes nothing, and that is the finding. Both suites say 0 = Enabled, 1 = Disabled
+  # (here msp_esc_parameters_hw5.lua:21, and EdgeTX's esc_forward_hw5 page:687-690),
+  # the codec passes the byte through untouched in both directions, and the flight
+  # controller treats the whole HW5 block as opaque and only ever memcmps it
+  # (esc_sensor.c:2387-2393). The issue itself writes "0 = Enabled vs 1 = Disabled, or
+  # vice versa depending on firmware version" -- a question, not a specification. So
+  # there is nothing here to invert. The parity check is a plain check rather than a
+  # gate, and it exists so the answer stays a fact the repository carries.
+  #
+  # Deliberately NOT in this pull request: FIELD_META declares startup_time as min 4,
+  # max 25, default 11 while decode() hands the page the raw byte, which runs 0..21, so
+  # the row violates its own range. That is a real defect, but it lives in decode() and
+  # encode() rather than in the layout, it affects every HW5 model whether OPTO or not,
+  # and EdgeTX settles it by adding 4 on the way in and taking 4 off on the way out
+  # (esc_parameters_hw5.lua:263-265, :296-298). It has its own harness and its own job.
+  #
+  # 12 of its 31 checks go red without the fix. Pass --self-test to prove that: it
+  # splices the pre-fix profile selection back into a copy of the codec and requires
+  # every one of the twelve to fail -- and verifies the splice four ways first, because
+  # a sabotage that breaks the module differently from the defect under test proves
+  # nothing. One case started out as a gate and the self-test caught it passing on the
+  # pre-fix code, which is why it is a plain check now: OPTO hardware HW1104, because
+  # that model already worked -- PROFILES carried an entry for it.
+  esc-hw5-opto:
+    name: Hobbywing V5 OPTO layout
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.4
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+
+      - name: Check the OPTO layout
+        run: lua5.4 bin/esc_hw5_opto/verify_hw5_opto.lua
+
   # Per-language PR builds (mirrors push.yml behavior)
   create-zip:
     name: Build PR ZIP (${{ matrix.lang }})
