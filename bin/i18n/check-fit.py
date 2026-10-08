@@ -1,31 +1,38 @@
 #!/usr/bin/env python3
 """
-Report i18n strings too wide for where they are shown on the smallest radio.
+Report i18n strings too wide for where they are shown on the radio.
 
 max_length (update-max-lengths.py) caps a translation at the English string's
 character count, but characters are not all the same width: a German or Polish
 label within that count can still run past its field, and an English one can be
 too long to begin with. This check measures pixels instead.
 
-Widths come from bin/i18n/fit/x18_glyph_widths.json, each character's advance in
-FONT_XS / FONT_S / FONT_STD measured on an X18S in the Ethos simulator. Ethos
-draws text as the plain sum of those advances, so the table reproduces
-lcd.getTextSize() exactly. A layout that fits the X18's 480x320 screen fits the
-larger radios too.
+Widths come from bin/i18n/fit/<radio>_glyph_widths.json, each character's
+advance in FONT_XS / FONT_S / FONT_STD measured in the Ethos simulator. Ethos
+draws text as the plain sum of those advances, so the tables reproduce
+lcd.getTextSize() exactly. Two radios are checked, because neither is the
+tightest everywhere: the X18 (480x320) for labels, titles and choices, and
+both it and the X20 (800x480) for menu tiles, whose labels the X20 draws in
+the larger FONT_S (app/tile_grid.lua) on a tile only a little wider.
+
+An X18 overflow fails the check. An X20 tile overflow is only a warning:
+app/tile_grid.lua already cuts a tile label that does not fit with "...", so
+it is a cosmetic matter, best fixed by a shorter English name where a good
+one exists.
 
 Where a key is used decides its budget. Each @i18n tag in src/ is classified
 from its source line:
 
   title  last level of a PAGE_TITLE / header.build title: app/header.lua drops
          the leading breadcrumb levels to fit, so the page's own name must fit
-         alone (178px, FONT_STD)
-  tile   a menu tile title in app/tool.lua (98px, FONT_XS: the tile is 110px,
-         less its frame padding)
-  label  a form label with a field beside it (215px, FONT_STD: the field starts
-         at x=225)
-  choice an entry in a choice list (200px, FONT_STD)
+         alone (X18: 178px, FONT_STD)
+  tile   a menu tile title in app/tool.lua: the tile less its frame padding
+         (X18: 98px, FONT_XS; X20: 108px, FONT_S)
+  label  a form label with a field beside it (X18: 215px, FONT_STD; the field
+         starts at x=225)
+  choice an entry in a choice list (X18: 200px, FONT_STD)
   note   a line with nothing beside it: a bare form.addLine(), addTextLine(),
-         an expansion panel or group heading (460px, FONT_STD)
+         an expansion panel or group heading (X18: 460px, FONT_STD)
 
 Anything else (dialog text, which wraps; formatted messages; audio) is not
 checked. A key used in several places must fit the tightest of them.
@@ -38,7 +45,8 @@ Usage:
 
 Remeasuring (a locale gained characters the table lacks, which this check
 reports): measure lcd.getTextSize("|c|") - lcd.getTextSize("||") for each
-character in each of the three fonts on the X18 simulator and update the table.
+character in each of the three fonts on that radio's simulator and update its
+table.
 
 Exit status: 0 when everything fits, 1 when anything is too wide.
 """
@@ -58,15 +66,16 @@ REPO = Path(__file__).resolve().parents[2]
 RESOLVER = REPO / ".vscode" / "scripts" / "resolve_i18n_tags.py"
 SUITE_ROOT = REPO / "src" / "rfsuite"
 JSON_ROOT = Path(__file__).resolve().parent / "json"
-GLYPHS = Path(__file__).resolve().parent / "fit" / "x18_glyph_widths.json"
+FIT_DIR = Path(__file__).resolve().parent / "fit"
+RADIOS = ("x18", "x20")
 
 FONT_INDEX = {"XS": 0, "S": 1, "STD": 2}
 BUDGETS = OrderedDict([
-    ("tile", ("XS", 98)),
-    ("title", ("STD", 178)),
-    ("choice", ("STD", 200)),
-    ("label", ("STD", 215)),
-    ("note", ("STD", 460)),
+    ("tile", [("x18", "XS", 98), ("x20", "S", 108, "warning")]),
+    ("title", [("x18", "STD", 178)]),
+    ("choice", [("x18", "STD", 200)]),
+    ("label", [("x18", "STD", 215)]),
+    ("note", [("x18", "STD", 460)]),
 ])
 SKIP_DIRS = ("widgets/", "i18n/", "sim/")
 
@@ -96,8 +105,10 @@ def load_resolver():
     return mod
 
 
-def load_glyphs(path=GLYPHS):
-    return json.loads(path.read_text(encoding="utf-8"))["glyphs"]
+def load_glyphs():
+    """{radio: {char: [XS, S, STD]}} for every radio in RADIOS."""
+    return {r: json.loads((FIT_DIR / f"{r}_glyph_widths.json").read_text(encoding="utf-8"))["glyphs"]
+            for r in RADIOS}
 
 
 def text_width(text, font, glyphs, unknown=None):
@@ -174,14 +185,17 @@ def find_overflows(uses, locales, glyphs, unknown):
                 continue
             text = node.get("translation") or node.get("english") or ""
             worst = None
+            found = {}
             for ctx, where in ctxs.items():
-                font, budget = BUDGETS[ctx]
-                px = text_width(text, font, glyphs, unknown)
-                if px > budget and (worst is None or px - budget > worst["px"] - worst["budget"]):
-                    worst = dict(lang=loc, key=key, context=ctx, px=px, budget=budget, text=text,
-                                 file=where[0][0], line=where[0][1])
-            if worst:
-                out.append(worst)
+                for radio, font, budget, *rest in BUDGETS[ctx]:
+                    severity = rest[0] if rest else "error"
+                    px = text_width(text, font, glyphs[radio], unknown)
+                    worst = found.get(severity)
+                    if px > budget and (worst is None or px - budget > worst["px"] - worst["budget"]):
+                        found[severity] = dict(lang=loc, key=key, context=ctx, radio=radio, px=px,
+                                               budget=budget, severity=severity, text=text,
+                                               file=where[0][0], line=where[0][1])
+            out.extend(found.values())
     return out
 
 
@@ -195,17 +209,24 @@ def load_locales(only):
 
 
 def self_test(resolver, glyphs):
-    """The check must flag a too-wide label and pass the same label shortened."""
-    uses = {"t.k": {"label": [("src/x.lua", 1)]}}
-    wide = {"x": {"t": {"k": {"english": "x", "translation": "W" * 40}}}}
-    narrow = {"x": {"t": {"k": {"english": "x", "translation": "OK"}}}}
+    """The check must flag a too-wide label, a tile too wide only on the X20, and
+    pass the same strings shortened."""
+    uses = {"t.k": {"label": [("src/x.lua", 1)]}, "t.t": {"tile": [("src/x.lua", 2)]}}
+    # "Accelerometer" fits an X18 tile in FONT_XS but not an X20 tile in FONT_S.
+    wide = {"x": {"t": {"k": {"english": "x", "translation": "W" * 40},
+                        "t": {"english": "x", "translation": "Accelerometer"}}}}
+    narrow = {"x": {"t": {"k": {"english": "x", "translation": "OK"},
+                          "t": {"english": "x", "translation": "Accel."}}}}
     red = find_overflows(uses, wide, glyphs, set())
     green = find_overflows(uses, narrow, glyphs, set())
+    tile_radio = [o["radio"] for o in red if o["context"] == "tile"]
     probe = classify("app/pages/x.lua", 'form.addBooleanField(form.addLine("@T@"), nil, get, set)')
     note = classify("app/pages/x.lua", '  form.addLine("@T@")')
-    ok = len(red) == 1 and not green and probe == "label" and note == "note"
-    print(f"[i18n-fit] self-test {'OK' if ok else 'FAILED'}: red={len(red)} green={len(green)} "
-          f"label={probe} note={note}")
+    severities = sorted(o["severity"] for o in red)
+    ok = (severities == ["error", "warning"] and tile_radio == ["x20"] and not green
+          and probe == "label" and note == "note")
+    print(f"[i18n-fit] self-test {'OK' if ok else 'FAILED'}: red={len(red)} tile={tile_radio} "
+          f"green={len(green)} label={probe} note={note}")
     return 0 if ok else 1
 
 
@@ -223,22 +244,29 @@ def main():
 
     uses = collect_uses(resolver)
     unknown = set()
-    overflows = find_overflows(uses, load_locales(set(args.lang or [])), glyphs, unknown)
+    found = find_overflows(uses, load_locales(set(args.lang or [])), glyphs, unknown)
+    overflows = [o for o in found if o["severity"] == "error"]
+    warnings = [o for o in found if o["severity"] == "warning"]
 
     if args.json:
-        print(json.dumps({"overflows": overflows, "unknown_chars": sorted(unknown)}, ensure_ascii=False, indent=2))
+        print(json.dumps({"overflows": overflows, "warnings": warnings, "unknown_chars": sorted(unknown)},
+                         ensure_ascii=False, indent=2))
     else:
+        for o in sorted(warnings, key=lambda o: (o["lang"], o["file"], o["line"])):
+            print(f"  warning: {o['file']}:{o['line']}: [{o['lang']}] {o['key']} ({o['context']}, "
+                  f"{o['radio'].upper()}, cut with ...) {o['px']}px > {o['budget']}px: \"{o['text']}\"")
         for o in sorted(overflows, key=lambda o: (o["lang"], o["file"], o["line"])):
-            print(f"  {o['file']}:{o['line']}: [{o['lang']}] {o['key']} ({o['context']}) "
+            print(f"  {o['file']}:{o['line']}: [{o['lang']}] {o['key']} ({o['context']}, {o['radio'].upper()}) "
                   f"{o['px']}px > {o['budget']}px: \"{o['text']}\"")
         if unknown:
-            print(f"[i18n-fit] {len(unknown)} character(s) missing from {GLYPHS.name}, counted as 'W': "
+            print(f"[i18n-fit] {len(unknown)} character(s) missing from the glyph tables, counted as 'W': "
                   + "".join(sorted(unknown)))
         if overflows:
-            print(f"[i18n-fit] {len(overflows)} string(s) too wide for the X18. Shorten them in "
+            print(f"[i18n-fit] {len(overflows)} string(s) too wide for the X18 or X20. Shorten them in "
                   "bin/i18n/json/ and regenerate (see AGENTS.md section 7).")
         else:
-            print("[i18n-fit] OK: every checked string fits the X18")
+            print("[i18n-fit] OK: every checked string fits the X18"
+                  + (f" ({len(warnings)} X20 tile label(s) cut with ..., see warnings)" if warnings else ""))
     return 1 if overflows else 0
 
 

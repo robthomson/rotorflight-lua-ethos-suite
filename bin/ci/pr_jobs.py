@@ -1728,7 +1728,7 @@ r'''  # A string too wide for where it is shown is cut off on the radio: a form 
   # translation at the English character count, which says nothing about pixels,
   # so German and Polish labels overflowed while passing it. check-fit.py measures
   # every locale's strings against the budget of the place each key is used, with
-  # character widths measured on the X18 (the smallest screen).
+  # character widths measured on the X18 and X20 (X20 tile labels warn only).
   i18n-fit:
     name: i18n strings fit the X18
     runs-on: ubuntu-latest

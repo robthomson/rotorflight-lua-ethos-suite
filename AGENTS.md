@@ -111,7 +111,10 @@ Rules:
   each string too wide; the `i18n-fit` CI job runs it). Budgets on the X18:
   menu tile 98px, page title 178px (only the page's own name: the header drops
   leading breadcrumb levels), form label 215px, choice 200px. Fix an overflow by
-  shortening the text in `bin/i18n/json/`, not by widening the layout. When you
+  shortening the text in `bin/i18n/json/`, not by widening the layout. The X20
+  draws tile labels in a larger font, so the check also warns (without failing)
+  about tile labels the X20 cuts with "..."; shorten the English one if a good
+  shorter name exists, otherwise leave it. When you
   change English, also set the same `english` in every locale file and supply a
   short translation, or `update-missing-translations.py` resets it to English.
 

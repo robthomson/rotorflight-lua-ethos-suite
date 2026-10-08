@@ -99,16 +99,21 @@ def load_check_fit():
 
 
 class FitBudgets:
-    """Pixel budgets per key (from check-fit.py's source scan) and the X18 glyph widths."""
+    """Pixel budgets per key (from check-fit.py's source scan) and the glyph widths.
+
+    Only the budgets check-fit.py fails on steer a translation; one it only
+    warns about (an X20 tile label, which the tile cuts with "...") does not.
+    """
 
     def __init__(self):
         self.fit = load_check_fit()
         self.glyphs = self.fit.load_glyphs()
         uses = self.fit.collect_uses(self.fit.load_resolver())
-        self.budgets = {key: [self.fit.BUDGETS[c] for c in ctxs] for key, ctxs in uses.items()}
+        self.budgets = {key: [b[:3] for c in ctxs for b in self.fit.BUDGETS[c] if len(b) == 3]
+                        for key, ctxs in uses.items()}
 
     def average_widths(self, data: dict) -> dict:
-        """Mean character width per font over a locale's existing translations."""
+        """Mean character width per (radio, font) over a locale's existing translations."""
         texts = []
 
         def walk(n):
@@ -121,16 +126,16 @@ class FitBudgets:
 
         walk(data)
         chars = sum(len(t) for t in texts) or 1
-        return {f: sum(self.fit.text_width(t, f, self.glyphs) for t in texts) / chars
-                for f in self.fit.FONT_INDEX}
+        return {(r, f): sum(self.fit.text_width(t, f, self.glyphs[r]) for t in texts) / chars
+                for r in self.glyphs for f in self.fit.FONT_INDEX}
 
     def char_cap(self, key: str, averages: dict) -> int | None:
-        caps = [int(px // averages[font]) for font, px in self.budgets.get(key, [])]
+        caps = [int(px // averages[(radio, font)]) for radio, font, px in self.budgets.get(key, [])]
         return min(caps) if caps else None
 
     def too_wide(self, key: str, text: str) -> bool:
-        return any(self.fit.text_width(text, font, self.glyphs) > px
-                   for font, px in self.budgets.get(key, []))
+        return any(self.fit.text_width(text, font, self.glyphs[radio]) > px
+                   for radio, font, px in self.budgets.get(key, []))
 
 
 def find_untranslated(obj: dict, path: str = "") -> list[dict]:
