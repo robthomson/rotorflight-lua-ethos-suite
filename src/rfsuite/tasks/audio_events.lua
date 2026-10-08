@@ -17,6 +17,19 @@ local initialized = false
 local adjWavs = nil
 
 local lastAlertAt = {}
+-- When the pack first read below the warning cell voltage in the current
+-- run, for the hold filter in announceVoltage(). nil while the reading is
+-- at or above the threshold (or before a first below-threshold reading).
+local lowVoltageHoldStart = nil
+-- lib/system_alerts.lua, loaded once the FC's system_status or system_config
+-- first arrives (firmware before MSP API 12.10 sends neither).
+local systemAlerts = nil
+-- lib/system_alerts.lua rule id -> {reported, pending, since}: the state last
+-- announced, and a change waiting out the rule's debounce.
+local alertState = {}
+-- Minimum gap between "control limit" callouts while the controls keep
+-- hitting their limit.
+local CONTROL_LIMIT_REPEAT_SECONDS = 3
 local craftNameAnnounced = false
 local lastSmartfuelAnnounced = nil
 -- Whether a numeric fuel reading has been evaluated yet, as opposed to merely
@@ -67,6 +80,8 @@ local AUDIO_SESSION_KEYS = {
   "batteryProfile",
   "governorMode",
   "governorState",
+  "systemStatus",
+  "systemConfig",
   "voltage",
   "batteryConfig",
   "tempEsc",
@@ -399,33 +414,67 @@ local function speakAdjValue(value, now)
 end
 
 local function announceVoltage(now)
-  if not events.voltage then return end
-  if session.connected ~= true then return end
+  if not events.voltage then
+    lastAlertAt.voltage = nil
+    lowVoltageHoldStart = nil
+    return
+  end
+  if session.connected ~= true then
+    lowVoltageHoldStart = nil
+    return
+  end
 
   local voltage = tonumber(session.voltage)
   local config = session.batteryConfig
   local cellCount = tonumber(config and config.cellCount)
   local warnCell = tonumber(config and config.vbatWarningCell)
-  if voltage == nil or cellCount == nil or cellCount <= 0 or warnCell == nil or warnCell <= 0 then return end
+  if voltage == nil or cellCount == nil or cellCount <= 0 or warnCell == nil or warnCell <= 0 then
+    lowVoltageHoldStart = nil
+    return
+  end
 
   -- Below 1V total is implausible for a connected battery (e.g. running on
   -- USB power alone with no pack attached) -- don't let a near-zero noise
   -- reading trigger the low-voltage alarm.
   if voltage < 1 then
     lastAlertAt.voltage = nil
+    lowVoltageHoldStart = nil
     return
   end
 
   local cellVoltage = voltage / cellCount
   if cellVoltage >= warnCell then
     lastAlertAt.voltage = nil
+    lowVoltageHoldStart = nil
     return
   end
+
+  -- Voltage sag: an aggressive 3D maneuver pulls the pack below the warning
+  -- cell voltage for a fraction of a second and it recovers immediately.
+  -- The alarm only fires once the reading has stayed below the threshold for
+  -- events.voltage_hold seconds, so a transient dip is not called out
+  -- (issue #2309). 0 disables the filter and fires on the first low reading.
+  local hold = tonumber(events.voltage_hold)
+  if hold == nil then hold = 2.0 end
+  if not lowVoltageHoldStart then lowVoltageHoldStart = now end
+  if (now - lowVoltageHoldStart) < hold then return end
 
   local repeatInterval = tonumber(events.voltage_repeat_interval) or 10
   if lastAlertAt.voltage and (now - lastAlertAt.voltage) < repeatInterval then return end
   lastAlertAt.voltage = now
   playAlert("lowvoltage.wav")
+
+  -- Speak the reading itself if configured (issue #2309): the pack total at
+  -- one decimal (e.g. "22.4 volts") or the average cell at two (e.g. "3.65
+  -- volts"). playNumber() takes the value scaled to the decimals it is asked
+  -- to speak, so the total is sent as tenths and the cell as hundredths.
+  -- 0 (default) keeps the old alert-only callout.
+  local callout = tonumber(events.voltage_callout) or 0
+  if callout == 1 then
+    playNumber(math.floor((voltage * 10) + 0.5), UNIT_VOLTS, 1)
+  elseif callout == 2 then
+    playNumber(math.floor((cellVoltage * 100) + 0.5), UNIT_VOLTS, 2)
+  end
 end
 
 local function announceEscTemp(now)
@@ -690,6 +739,59 @@ local function announceTimer()
   end
 end
 
+-- FC status callouts from lib/system_alerts.lua's rules. A condition already
+-- present when the word its rule reads first arrives becomes the baseline
+-- silently (the dashboard banner shows it), and a rule is left alone until
+-- that word arrives; after that each change is announced once it has held for
+-- the rule's debounce. Not armed-gated: a full Blackbox or a silent
+-- GPS matters on the bench too.
+local function announceSystemAlerts(now)
+  local status = session.systemStatus
+  local config = session.systemConfig
+  if status == nil and config == nil then return end
+  if not systemAlerts then systemAlerts = requireModule("lib/system_alerts.lua") end
+  local rules = systemAlerts.RULES
+
+  for i = 1, #rules do
+    local rule = rules[i]
+    if rule.enterSound and systemAlerts.hasWords(rule, status, config) then
+      local active = systemAlerts.isActive(rule, status, config)
+      local state = alertState[rule.id]
+      if state == nil then
+        alertState[rule.id] = {reported = active, pending = nil, since = now}
+      elseif active == state.reported then
+        state.pending = nil
+      else
+        if state.pending ~= active then
+          state.pending = active
+          state.since = now
+        end
+        if now - state.since >= (rule.debounce or 0) then
+          state.reported = active
+          state.pending = nil
+          if active and events[rule.setting] then playAlert(rule.enterSound) end
+        end
+      end
+    end
+  end
+end
+
+-- Stabilized cyclic, yaw or collective hit its mixer limit (the FC holds the
+-- flag for 500 ms). Rate-limited, and off by default: it can be chatty in 3D
+-- flight.
+local function announceControlLimit(now)
+  if not events.status_saturation then return end
+  local status = session.systemStatus
+  if not (status and status.controlSaturated) then return end
+  if lastAlertAt.control_limit and (now - lastAlertAt.control_limit) < CONTROL_LIMIT_REPEAT_SECONDS then return end
+  lastAlertAt.control_limit = now
+  playAlert("controllimit.wav")
+end
+
+local function clearAlertState()
+  for key in pairs(alertState) do alertState[key] = nil end
+end
+
 local function rememberCurrent()
   previous.connected = session.connected
   previous.isArmed = session.isArmed
@@ -712,8 +814,10 @@ function audio_events.wakeup()
     pendingAdjFunction = false
     resetTimerAudio()
     speakingUntil = 0
+    lowVoltageHoldStart = nil
     for key in pairs(rollingSamples) do rollingSamples[key] = nil end
     for key in pairs(lastAlertAt) do lastAlertAt[key] = nil end
+    clearAlertState()
     rememberCurrent()
     return
   end
@@ -734,6 +838,8 @@ function audio_events.wakeup()
   announceProfile("rateProfile", events.rate_profile, "rates.wav")
   announceBatteryProfile()
   announceGovernor()
+  announceSystemAlerts(now)
+  announceControlLimit(now)
   announceVoltage(now)
   announceEscTemp(now)
   announceBecRxVoltage(now)
@@ -749,10 +855,12 @@ function audio_events.reset()
   adjWavs = nil
   for key in pairs(previous) do previous[key] = nil end
   for key in pairs(lastAlertAt) do lastAlertAt[key] = nil end
+  clearAlertState()
   resetFuelAnnouncements()
   pendingAdjFunction = false
   resetTimerAudio()
   speakingUntil = 0
+  lowVoltageHoldStart = nil
   for key in pairs(rollingSamples) do rollingSamples[key] = nil end
 end
 

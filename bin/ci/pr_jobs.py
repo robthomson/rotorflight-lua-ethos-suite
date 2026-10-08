@@ -335,6 +335,50 @@ Five of its cases go red on the pre-fix pages, each naming the line it
 fails on.
 '''
     ),
+    LuaJob(
+        id='audio-events-categories',
+        name='Audio events - category coverage and the low-voltage alert',
+        step='Check the Audio -> Events pages and the low-voltage alert',
+        script='bin/audio_events/verify_audio_events.lua',
+        rationale=r'''#2308 split one Settings -> Audio -> Events page into six category pages,
+and #2309 added the low-voltage hold filter and the spoken reading. Both fail
+quietly. A key that stops having a toggle loses its setting, and a regression in
+tasks/audio_events.lua either sounds the alarm on a momentary 3D voltage sag or
+stops speaking the voltage -- the pilot finds out in the air, and the settings
+store still holds the keys, so nothing reports a mismatch either.
+
+So the coverage is checked against the store itself: the keys in
+lib/settings_store.lua's DEFAULTS.events, read out of that file, against the
+keys each category page actually edits. A key with no page, a key with two, and a
+page editing a key the store never had all go red.
+
+The on-demand half is measured rather than asserted: a form stub counts the
+field widgets each page builds, so the six pages have to total exactly the
+store's key count and no single page may build the set again. And the round trip
+is driven per field -- every field is set, saved, and read back through the
+page's own getter after re-opening, which is what a setter writing the wrong key
+cannot pass (two of these fields store in different units than they display, so
+reading back through the getter is also what keeps the harness from needing to
+know that).
+
+The task behaviour is driven against the real tasks/audio_events.lua with the
+bus, the settings store, system audio and os.clock stubbed: a low reading that
+has not held for voltage_hold seconds stays silent, a recovery restarts the
+hold, hold = 0 fires at once, and voltage_callout speaks the pack total, the
+average cell or nothing. A copy of the task with its hold guard stripped is then
+loaded and required to fire on the sag, so the instrument is proven able to go
+red.
+
+The instrument guards itself twice more. Case 1 counts the add* call sites in the
+page sources and fails if its own scanner missed one, so a partial read cannot
+understate coverage. Case 3 watches the snapshot table a page was handed rather
+than the settings store, because save() takes its own deep copy -- a write into a
+released snapshot is invisible from the store and only shows there. Dropping the
+disposed guard, dropping the snapshot release, dropping a field, moving a menu
+entry or restoring the old page were each run against this harness and each
+turns it red.
+'''
+    ),
     # Registered here because the job was added to pr.yml by hand, so the
     # generator did not know about it and the drift check has been red on master
     # since #2432 landed. Any --write dropped this job from the workflow; the
@@ -1446,6 +1490,82 @@ false -- the one line that arms the wait -- and requires the hold and reload
 checks to fail. The remaining checks are controls: a page with no reboot must
 finish at once, an armed save must publish no reboot, and a board that never
 returns must still end the wait on its 20 s bound.
+''',
+    ),
+    # Appended for #2307: driving a motor from the radio needs four interlocks,
+    # and three of the four are the firmware's own deadlines rather than UI state.
+    LuaJob(
+        id='motor-override-safety',
+        name='Motor override is confirmed, kept alive, armed-guarded and released',
+        step='Check the motor override interlocks against the firmware deadlines',
+        script='bin/motor_override/verify_motor_override.lua',
+        rationale=r'''Issue #2307 asks for the EdgeTX suite's motor-override safeguards on Ethos. The
+interlocks are not free choices; three of the four are the firmware's own deadlines,
+and a page that gets any of them wrong leaves a motor turning that the pilot cannot
+see or stop.
+
+THE 1-SECOND DEADLINE IS WHY THE KEEP-ALIVE EXISTS. MOTOR_OVERRIDE_TIMEOUT is 1000000
+(rotorflight-firmware src/main/flight/motors.h:27), and motors.c:301-303 resets EVERY
+override once it passes:
+
+    if (motorOverrideTimeout) {
+        if (cmp32(currentTimeUs, motorOverrideTimeout) > 0)
+            resetMotorOverride();
+    }
+
+So one write is not "the motor is on", it is "the motor turns for one more second". A
+page that writes on every wheel click looks like it works and is the most dangerous
+shape available: the motor stops whenever the pilot stops scrolling. The page
+therefore re-sends the current value at 4 Hz -- four times inside the window, which is
+also what the Configurator sends -- and keeps ONE write in flight, because a link
+slower than 4 Hz would otherwise grow the queue without bound.
+
+THE ARMED CHECK IS IN THE FIRMWARE, SO THE PAGE'S ONLY LEVER IS TO REFUSE.
+motors.c:114-120:
+
+    if (!ARMING_FLAG(ARMED) && motor < motorCount) {
+        motorOverride[motor] = value;
+        motorOverrideTimeout = timeout ? (micros() + timeout) | BIT(0) : 0;
+    }
+
+An armed craft cannot be overridden at all. The switch is therefore disabled rather
+than shown as a control that would quietly do nothing, and an override that was
+already running when the model armed is handed straight back -- with the zeros
+actually written, since the page cannot know whether its last write arrived.
+
+THE WRITE NAMES ONE MOTOR, so leaving has to name them all. msp.c:2966-2972 reads a
+u8 index and one u16 value, so a release that names only the selected motor leaves
+every other motor at whatever it had. The release names all of them, unconditionally,
+because that is the path that has to work when something has already gone wrong.
+
+One correction to the issue as filed: it asks for the same heartbeat on the servo
+override pages. There is nothing to service. servos.c:95-98 is
+
+    int16_t setServoOverride(uint8_t servo, int16_t val)
+    {
+        return servoOverride[servo] = val;
+    }
+
+-- it stores the value and nothing else. The only override deadline in the firmware is
+motorOverrideTimeout; there is no servo counterpart, so a servo override holds until
+something writes SERVO_OVERRIDE_OFF. Adding a heartbeat there would have re-sent
+OVERRIDE_CENTER every 250 ms, overwriting the value the pilot had just dialled in.
+
+`lockedWhileArmed` does not exist in this suite either -- grep-verified over
+src/rfsuite: it is an EdgeTX manifest flag, and the Ethos menu layer has no armed
+handling at all. The armed gate is the page refusing, not a menu lock.
+
+9 of the harness's 43 checks are gates, proven by --self-test: it loads spliced copies
+of the page with the keep-alive interval neutralised, the armed guard dropped from
+both places it is enforced (the disabled switch and the refusal to open the confirm),
+the every-motor release narrowed to the selected motor, and the session-driven release
+replaced by a bare flag clear -- and requires each to go red. The splices assert they
+applied, because a pattern that has moved must fail the run rather than pass silently.
+
+The remaining checks are controls, and the file says which: a page that is not
+overriding writes nothing at all over five seconds, the throttle and the motor
+selector are locked while overriding, a cancel leaves the page as it was, and a newly
+selected motor starts at zero instead of inheriting its predecessor's throttle.
 '''
     ),
     LuaJob(
@@ -1472,6 +1592,26 @@ does not -- so it is pinned here.
 5 of the harness's 12 checks are gates on the queue contents, proven by --self-test:
 it neuters the gate's condition in a copy of session.lua and requires the central
 check (no identity read before the verdict) to go red.
+'''
+    ),
+    LuaJob(
+        id='system-status',
+        name='Packed FC status sensors decode and alert correctly',
+        step='Check the System Status/Config sensors',
+        script='bin/system_status/verify_system_status.lua',
+        rationale=r'''System Status and System Config (MSP API 12.10) pack arm state, failsafe,
+governor, battery, profiles and a dozen flags into two 31-bit words. A field read
+from the wrong bit is a different but plausible state -- FALLBACK reads as
+AUTOROTATION -- so no screen shows the mistake; the decoder is pinned against the
+firmware's bit layout here.
+
+The same check pins how tasks/session.lua and lib/system_alerts.lua handle a
+missing word: a tick without a battery-profile reading keeps the last pack, a
+dropped status frame leaves the arm state alone, System Config's own alerts still
+fire when System Status is not selected, a callout waits for the word its rule
+reads before recording its starting state, and the decoder is only loaded once
+either word arrives. --self-test reverts each of the four fixes in a copy of the
+source and requires its check to go red.
 '''
     ),
 ]
@@ -1589,6 +1729,33 @@ r'''  # tasks/elrs_sensors.lua's parseFrame() stops at the first appId it has no
 
       - name: Check every broadcast appId has a decoder
         run: python bin/telemetry/verify_sensor_table.py
+'''
+    ,
+    # i18n-fit
+r'''  # A string too wide for where it is shown is cut off on the radio: a form label
+  # runs under its field, a menu tile label ends in "...". max_length caps a
+  # translation at the English character count, which says nothing about pixels,
+  # so German and Polish labels overflowed while passing it. check-fit.py measures
+  # every locale's strings against the budget of the place each key is used, with
+  # character widths measured on the X18 (the smallest screen).
+  i18n-fit:
+    name: i18n strings fit the X18
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prove the check can go red
+        run: python bin/i18n/check-fit.py --self-test
+
+      - name: Check every locale fits
+        run: python bin/i18n/check-fit.py
 '''
     ,
     # documentation-rule
