@@ -64,6 +64,14 @@
 -- using slot 2's x as the right boundary -- i.e. "start at the true left
 -- edge, end exactly where the first button begins" -- which only depends
 -- on the button slots, already confirmed correctly positioned.
+--
+-- A title wider than that rect is cut at the first button, mid-word: most
+-- page titles are "Section / Group / Page" breadcrumbs, and on a 480x320
+-- radio the leaf header leaves the title about 178px. fitTitle() below
+-- drops leading breadcrumb levels first ("... / Audio / ESC temp", then
+-- "... / ESC temp", then "ESC temp" alone), because the page's own name is
+-- the part the pilot needs; only if that still does not fit is the name
+-- itself cut with an ellipsis.
 
 -- Self-caches via package.loaded (same mechanism lib/bus.lua uses) --
 -- every page reloads this file fresh via loadfile() on every open, but
@@ -96,6 +104,35 @@ local TOOL_ICON = lcd.loadMask("app/gfx/nav/tool.png")
 local SLOT_HINT = "  WWW  "
 
 local function noop() end
+
+local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("lib/require.lua"))()
+local tileGrid = requireModule("app/tile_grid.lua")
+
+-- The static text's own font (form.addStaticText takes no font option).
+local TITLE_FONT = FONT_STD
+local ELLIPSIS = "..."
+local SEPARATOR = " / "
+
+local function textWidth(text)
+  return lcd.getTextSize(text)
+end
+
+-- See the header comment above. Runs when a header is built or its title
+-- changes, never from wakeup or paint.
+local function fitTitle(title, maxW)
+  if type(title) ~= "string" or not (lcd and lcd.getTextSize and lcd.font) then return title end
+  lcd.font(TITLE_FONT)
+  if textWidth(title) <= maxW then return title end
+  local rest = title
+  while true do
+    local cut = rest:find(SEPARATOR, 1, true)
+    if not cut then break end
+    rest = rest:sub(cut + #SEPARATOR)
+    local candidate = ELLIPSIS .. SEPARATOR .. rest
+    if textWidth(candidate) <= maxW then return candidate end
+  end
+  return tileGrid.fitText(rest, maxW, TITLE_FONT)
+end
 
 -- Non-blocking footer banner. A short message drawn over the bottom edge of
 -- the screen for a couple of seconds, in place of a modal form.openDialog()
@@ -198,10 +235,11 @@ function header.build(title, opts)
 
   if not isLeafPage then
     local slots = form.getFieldSlots(line, {0, SLOT_HINT})
-    local titleField = form.addStaticText(line, buildTitleRect(slots), title, LEFT)
+    local titleRect = buildTitleRect(slots)
+    local titleField = form.addStaticText(line, titleRect, fitTitle(title, titleRect.w), LEFT)
     local menuButton = addNavButton(line, slots[2], MENU_ICON, opts.onBack)
     return {
-      setTitle = function(newTitle) titleField:value(newTitle) end,
+      setTitle = function(newTitle) titleField:value(fitTitle(newTitle, titleRect.w)) end,
       setSaveEnabled = noop,
       setReloadEnabled = noop,
       focusMenu = function() menuButton:focus() end,
@@ -216,7 +254,8 @@ function header.build(title, opts)
 
   local slots = form.getFieldSlots(line, {0, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT})
 
-  local titleField = form.addStaticText(line, buildTitleRect(slots), title, LEFT)
+  local titleRect = buildTitleRect(slots)
+  local titleField = form.addStaticText(line, titleRect, fitTitle(title, titleRect.w), LEFT)
   local menuButton = addNavButton(line, slots[2], MENU_ICON, opts.onBack)
 
   local saveButton = addNavButton(line, slots[3], SAVE_ICON, opts.onSave or noop)
@@ -229,7 +268,7 @@ function header.build(title, opts)
   toolButton:enable(opts.onTool ~= nil)
 
   return {
-    setTitle = function(newTitle) titleField:value(newTitle) end,
+    setTitle = function(newTitle) titleField:value(fitTitle(newTitle, titleRect.w)) end,
     setSaveEnabled = function(enabled)
       saveButton:enable(opts.onSave ~= nil and enabled)
     end,
