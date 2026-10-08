@@ -591,7 +591,7 @@ sidebar_position: {order}
 
 {notes_section}## Related
 
-- [Rotorflight documentation](https://www.rotorflight.org/docs/)
+- [Rotorflight documentation](https://doc.rotorflight.org/)
 
 *Documented against RFSuite Ethos {suite_version}.*
 """
