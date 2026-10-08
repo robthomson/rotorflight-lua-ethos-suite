@@ -54,6 +54,13 @@ local DEFAULTS = {
     governor = true,
     voltage = true,
     voltage_repeat_interval = 10,
+    -- Seconds a low pack reading must hold before the alarm fires, so a
+    -- momentary 3D voltage sag is not called out (issue #2309). 0 disables
+    -- the filter; default 2.0.
+    voltage_hold = 2.0,
+    -- What the low-voltage callout speaks: 0 alert tone only, 1 total pack
+    -- voltage, 2 average cell voltage (issue #2309).
+    voltage_callout = 0,
     pid_profile = true,
     rate_profile = true,
     battery_profile = true,
@@ -183,6 +190,8 @@ local function normalizeEvents(values)
   events.governor = coerceBool(events.governor, DEFAULTS.events.governor)
   events.voltage = coerceBool(events.voltage, DEFAULTS.events.voltage)
   events.voltage_repeat_interval = clampNumber(events.voltage_repeat_interval, DEFAULTS.events.voltage_repeat_interval, 5, 120)
+  events.voltage_hold = clampNumber(events.voltage_hold, DEFAULTS.events.voltage_hold, 0, 10)
+  events.voltage_callout = clampNumber(events.voltage_callout, DEFAULTS.events.voltage_callout, 0, 2)
   events.pid_profile = coerceBool(events.pid_profile, DEFAULTS.events.pid_profile)
   events.rate_profile = coerceBool(events.rate_profile, DEFAULTS.events.rate_profile)
   events.battery_profile = coerceBool(events.battery_profile, DEFAULTS.events.battery_profile)
