@@ -395,6 +395,32 @@ entry, dropping the pack-seen or BEC guard or restoring the old page were each
 run against this harness and each turns it red.
 '''
     ),
+    LuaJob(
+        id='adj-voice-settle',
+        name='In-flight adjustments settle before they are spoken',
+        step='Check the in-flight adjustment announcement',
+        script='bin/adj_voice/verify_adj_voice.lua',
+        rationale=r'''An in-flight adjustment is announced from tasks/audio_events.lua's
+announceAdjustment(). Before #2315 it spoke the first step of a burst and dropped
+every step that landed while that announcement was still playing, so three clicks
+on a trim switch announced a value the model no longer had. Nothing in the build
+or the package step reaches it, and the failure is quiet: the pilot hears a
+plausible number.
+
+The real task is driven one wakeup at a time, every 0.25 s -- the interval
+tasks/background.lua schedules it at -- against a controllable clock. A burst of
+steps has to say one number, and it has to be the last one. Nothing is spoken
+until the value has stood still for the settle window. A function change says the
+name once and then the settled value. A step that settles while an announcement is
+still playing is spoken afterwards, not dropped. adj_v = false keeps a value-only
+change silent, function 0 says nothing, and a change still waiting when the link
+drops is not spoken later.
+
+A copy of the task with the settle guard removed is then loaded, and the first
+step of the burst has to be spoken there. If that ever stops turning red, the
+instrument has gone blind.
+'''
+    ),
     # Registered here because the job was added to pr.yml by hand, so the
     # generator did not know about it and the drift check has been red on master
     # since #2432 landed. Any --write dropped this job from the workflow; the
