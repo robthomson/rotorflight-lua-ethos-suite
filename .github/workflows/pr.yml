@@ -1909,6 +1909,20 @@ jobs:
       - name: Check the System Status/Config sensors
         run: lua5.4 bin/system_status/verify_system_status.lua
 
+  # Issue #2353: with the FC's governor mode set to None or Limit, the firmware never
+  # leaves THROTTLE_OFF (governor.c: governorUpdate() has no state change for
+  # GOV_MODE_NONE, and govUpdateLimitedThrottle() only sets throttleOutput), so the
+  # dashboard's governor tile read OFF in big letters for a whole flight. The label
+  # now comes from the mode the FC reported, once it has been read.
+  #
+  # The harness drives the real widgets/dashboard/context.lua through
+  # utils.getGovernorState(): None and Limit with state 0 read PASSTHRU, DIRECT and
+  # ELECTRIC keep their real OFF, a state other than 0 is unchanged, a disarmed craft
+  # still reads DISARMED, and a mode that was never read (the session's error fallback
+  # sets 0) reads OFF, not PASSTHRU. --self-test swaps the new condition for false and
+  # requires the None case to go red.
+  governor-state:
+    name: Stateless governor modes show PASSTHRU, not OFF
   # Issue #2323: with no flight controller connected the radio cannot say which
   # helicopters it has stored preferences for, because the per-controller store
   # (lib/model_preferences.lua, one file per MCU id) carries no name and nothing can
@@ -1955,6 +1969,8 @@ jobs:
       - name: Install Lua 5.4
         run: sudo apt-get update && sudo apt-get install -y lua5.4
 
+      - name: Check the governor label in None and Limit modes
+        run: lua5.4 bin/governor_state/verify_governor_state.lua
       - name: Check the stored craft name and the known-models listing
         run: lua5.4 bin/known_models/verify_known_models.lua
 
