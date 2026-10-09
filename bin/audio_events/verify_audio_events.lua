@@ -1,4 +1,5 @@
--- Behaviour check for the Settings -> Audio -> Events split (issue #2308).
+-- Behaviour check for the Settings -> Audio -> Events split (issue #2308) and
+-- for the audio events the split's pages switch (#2310, #2311).
 --
 -- Run it:
 --     lua5.4 bin/audio_events/verify_audio_events.lua
@@ -29,6 +30,11 @@
 --   7. a page keeps writing after it was left         -> case 3
 --   8. the old monolithic page is still reachable     -> case 5
 --   9. a menu entry points at a page that is not there -> case 5
+--
+-- and on the events those pages switch:
+--  10. a link loss while disarmed is announced        -> case 8
+--  11. a link coming back is announced without a loss -> case 8
+--  12. a link loss while armed is not announced       -> case 8
 --
 -- A check that cannot fail proves nothing about the behaviour it passes, so
 -- two of the load-bearing ones guard their own instruments:
@@ -95,19 +101,21 @@ end
 
 -- ── the categories, and the keys each one edits ─────────────────────────────
 
--- The six category pages, in the order app/tool.lua's settings_audio_events_menu
+-- The category pages, in the order app/tool.lua's settings_audio_events_menu
 -- lists them. Kept next to the file names on purpose: case 5 reads the menu back
 -- out of tool.lua and compares, so a page added there without a row here is
 -- caught there rather than silently untested.
 --
--- Six, not five: PR #2488 adds four settings.events keys for the FC status
--- callouts and gave them their own expansion panel, so they are a page here too.
+-- Seven, not five: PR #2488 adds four settings.events keys for the FC status
+-- callouts and gave them their own expansion panel, so they are a page here too,
+-- and issue #2311 adds the telemetry lost/recovered pair as its own Link page.
 local CATEGORIES = {
   {key = "voltage",      file = "settings_audio_events_voltage.lua"},
   {key = "esc",          file = "settings_audio_events_esc.lua"},
   {key = "fuel",         file = "settings_audio_events_fuel.lua"},
   {key = "state",        file = "settings_audio_events_state.lua"},
   {key = "status",       file = "settings_audio_events_status.lua"},
+  {key = "link",         file = "settings_audio_events_link.lua"},
   {key = "announcement", file = "settings_audio_events_announcement.lua"},
 }
 
@@ -687,7 +695,7 @@ do
   end
 end
 
--- ── case 5: the menu reaches six real pages ────────────────────────────────
+-- ── case 5: the menu reaches every category page ───────────────────────────
 
 out("")
 out("case 5: the menu in tool.lua reaches exactly these category pages")
@@ -748,7 +756,434 @@ do
   end
 end
 
--- ── case 7: the low-voltage hold filter and spoken callout (issue #2309) ────
+do
+-- ── case 7: the main-power alert (issue #2310) ─────────────────────────────
+--
+-- A pack that goes while the FC stays alive on a BEC or a backup battery.
+-- Nothing in the build or the package step exercises tasks/audio_events.lua's
+-- announceMainPowerLost(), and the failure is quiet: without the pack-seen
+-- latch a model whose pack is simply not measured alarms on every flight, and
+-- without the BEC guard a pack that goes on the ground does too.
+--
+-- The real task is loaded here with the bus, settings store, system audio and
+-- os.clock stubbed, and driven one wakeup at a time against a controllable
+-- clock. The pack the sound resolves from is stated to the task through an
+-- io.open shim below: every packaged sound path is "SCRIPTS:/...", which does
+-- not exist in a checkout, so a resolver that only plays files it can open
+-- would otherwise be untestable here.
+--
+-- Pinned:
+--   * a pack that has read a voltage and then goes, with a BEC still up,
+--     fires the alert, speaks the BEC voltage and buzzes;
+--   * with none of the loss sounds available, the BEC voltage and the haptic
+--     still fire;
+--   * a model whose pack is not measured at all stays silent, and so does one
+--     with no BEC reading -- the two guards that keep this quiet;
+--   * the alert repeats only after the repeat interval;
+--   * the pack coming back speaks once, and only after a loss was announced;
+--   * main_power_lost = false keeps it silent.
+--
+-- A check that cannot fail proves nothing, so the last check strips the
+-- pack-seen latch from a copy of the task and requires a never-measured pack
+-- to fire there. If that check ever stops turning red, the instrument has gone
+-- blind.
+
+local AUDIO_PATH = SUITE .. "/tasks/audio_events.lua"
+-- io.open is answered for the "SCRIPTS:" paths in `scriptFiles` and left to the
+-- real filesystem for everything else (the harness's own readFile() shares it).
+-- The globals the rigs replace are put back once the case is done, so nothing
+-- that runs after it -- today only the summary -- sees a stub.
+local realIoOpen = io.open
+local savedSystem = _G.system
+local savedOsClock = os.clock
+local savedRequire = package.loaded["rfsuite.lib.require"]
+local savedUnitVolt = _G.UNIT_VOLT
+local scriptFiles = {}
+io.open = function(path, mode)
+  if type(path) == "string" and path:sub(1, 8) == "SCRIPTS:" then
+    if scriptFiles[path] then return {close = function() end} end
+    return nil
+  end
+  return realIoOpen(path, mode)
+end
+
+-- The rig behind both event cases: the real tasks/audio_events.lua, driven one
+-- wakeup at a time against a controllable clock. `events` is the settings.events
+-- table the task reads, and `source` lets a can-fail case load a modified copy.
+local function newTaskRig(events, source)
+  local handlers = {}
+  local played, spoken, haptics = {}, {}, {}
+
+  -- The main-power fallbacks: every shipped pack carries these two, and the
+  -- dedicated main-power words ship in none yet, so these are what a pack
+  -- resolves to today. A scenario that declares mainpower.wav present overwrites
+  -- this to prove the order, and one that wants a silent pack calls noSounds().
+  scriptFiles = {
+    ["SCRIPTS:/rfsuite/audio/en/default/status/alerts/lowbat.wav"] = true,
+    ["SCRIPTS:/rfsuite/audio/en/default/events/alerts/battery.wav"] = true,
+  }
+
+  package.loaded["rfsuite.lib.require"] = function(name)
+    if name == "lib/bus.lua" then
+      return {
+        subscribe = function(topic, fn) handlers[topic] = fn end,
+        publish = function() end,
+      }
+    elseif name == "lib/settings_store.lua" then
+      return {
+        load = function() return {events = events} end,
+        audioEvents = function(s) return s.events or {} end,
+        audioTimer = function() return {} end,
+      }
+    elseif name == "lib/engine_type.lua" then
+      return {isElectric = function() return true end}
+    end
+    return loadfile(name)()
+  end
+
+  _G.UNIT_VOLT = "V"
+  _G.system = {
+    playFile = function(path) played[#played + 1] = path end,
+    playNumber = function(value, unit, decimals)
+      spoken[#spoken + 1] = {value = value, unit = unit, decimals = decimals}
+    end,
+    playHaptic = function() haptics[#haptics + 1] = true end,
+    getAudioVoice = function() return "en/default" end,
+  }
+
+  local clock = 0
+  _G.os.clock = function() return clock end
+
+  local audio = assert(load(source or readFile(AUDIO_PATH), "@" .. AUDIO_PATH))()
+
+  local rig = {spoken = spoken, haptics = haptics}
+  function rig.setClock(t) clock = t end
+  function rig.step(snapshot)
+    handlers["session.update"](snapshot)
+    handlers["settings.update"]({events = events})
+    audio.wakeup()
+  end
+  function rig.count(file)
+    local n = 0
+    for _, path in ipairs(played) do
+      if path:find(file, 1, true) then n = n + 1 end
+    end
+    return n
+  end
+  function rig.lastPlayed() return played[#played] end
+  -- For the case where a pack carries none of the loss sounds.
+  function rig.noSounds() scriptFiles = {} end
+  return rig
+end
+
+local function mainPowerChecks()
+  -- A pack that has read a voltage, then goes while the BEC stays up. The first
+  -- wakeup only initializes the task, so the pack is seen on the second.
+  do
+    local rig = newTaskRig({main_power_lost = true})
+    rig.setClock(0); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0}) -- seed
+    rig.setClock(1); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0}) -- pack seen
+    rig.setClock(2); rig.step({connected = true, voltage = 0, becVoltage = 5.0})    -- gone
+    check("a pack that goes while the BEC stays up fires the main-power alert",
+      rig.count("lowbat.wav") == 1, "lowbat.wav played " .. rig.count("lowbat.wav") .. "x")
+    check("the resolved fallback is the pack's own 'battery empty' word",
+      (rig.lastPlayed() or ""):find("status/alerts/lowbat.wav", 1, true) ~= nil,
+      tostring(rig.lastPlayed()))
+    local n = rig.spoken[#rig.spoken]
+    check("the alert speaks the BEC voltage in tenths of a volt",
+      n ~= nil and n.value == 50 and n.unit == "V" and n.decimals == 1,
+      n and string.format("%s %s %s", n.value, tostring(n.unit), tostring(n.decimals)))
+    check("the alert buzzes", #rig.haptics == 1, #rig.haptics .. " haptic(s)")
+  end
+
+  -- A pack that carries none of the loss sounds still gets the spoken BEC
+  -- voltage and the haptic; only the sound is missing. The voice is the part
+  -- that says how long is left, so it must not depend on a file resolving.
+  do
+    local rig = newTaskRig({main_power_lost = true})
+    rig.noSounds()
+    rig.setClock(0); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(1); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(2); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+    check("with no loss sound available, no file is played",
+      rig.count(".wav") == 0, rig.count(".wav") .. " file(s) played")
+    local n = rig.spoken[#rig.spoken]
+    check("with no loss sound available, the BEC voltage is still spoken",
+      n ~= nil and n.value == 50 and n.decimals == 1,
+      n and string.format("value=%s decimals=%s", tostring(n.value), tostring(n.decimals)))
+    check("with no loss sound available, the alert still buzzes",
+      #rig.haptics == 1, #rig.haptics .. " haptic(s)")
+  end
+
+  -- A dedicated mainpower.wav, once a pack carries it, is preferred over the
+  -- fallback. Proves the candidate list is ordered rather than decorative.
+  do
+    local rig = newTaskRig({main_power_lost = true})
+    scriptFiles["SCRIPTS:/rfsuite/audio/en/default/status/alerts/mainpower.wav"] = true
+    rig.setClock(0); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(1); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(2); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+    check("a pack that carries mainpower.wav plays it instead of the fallback",
+      (rig.lastPlayed() or ""):find("status/alerts/mainpower.wav", 1, true) ~= nil,
+      tostring(rig.lastPlayed()))
+  end
+
+  -- A model whose pack is never measured: a reading of 0 from the start must
+  -- not be read as a pack that has gone, or every such model alarms.
+  do
+    local rig = newTaskRig({main_power_lost = true})
+    rig.setClock(0); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+    rig.setClock(1); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+    rig.setClock(2); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+    check("a pack that has never read a voltage stays silent",
+      rig.count("lowbat.wav") == 0, "lowbat.wav played " .. rig.count("lowbat.wav") .. "x")
+  end
+
+  -- No BEC reading: there is no evidence anything is still powered.
+  do
+    local rig = newTaskRig({main_power_lost = true})
+    rig.setClock(0); rig.step({connected = true, voltage = 22.2})
+    rig.setClock(1); rig.step({connected = true, voltage = 22.2})
+    rig.setClock(2); rig.step({connected = true, voltage = 0})
+    check("a gone pack with no BEC reading stays silent",
+      rig.count("lowbat.wav") == 0, "lowbat.wav played " .. rig.count("lowbat.wav") .. "x")
+  end
+
+  -- The repeat interval still governs a pack that stays gone.
+  do
+    local rig = newTaskRig({main_power_lost = true})
+    rig.setClock(0); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(1); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(2); rig.step({connected = true, voltage = 0, becVoltage = 5.0})   -- fire
+    rig.setClock(6); rig.step({connected = true, voltage = 0, becVoltage = 5.0})   -- within 10s
+    check("a pack that stays gone is not repeated before the interval",
+      rig.count("lowbat.wav") == 1, "lowbat.wav played " .. rig.count("lowbat.wav") .. "x")
+    rig.setClock(12); rig.step({connected = true, voltage = 0, becVoltage = 5.0})  -- 10s after
+    check("a pack that stays gone repeats after the interval",
+      rig.count("lowbat.wav") == 2, "lowbat.wav played " .. rig.count("lowbat.wav") .. "x")
+  end
+
+  -- The pack comes back: one recovery callout, and none if nothing was lost.
+  do
+    local rig = newTaskRig({main_power_lost = true})
+    rig.setClock(0); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(1); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(2); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+    rig.setClock(3); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0}) -- back
+    check("the pack coming back plays one recovery callout",
+      rig.count("battery.wav") == 1, "battery.wav played " .. rig.count("battery.wav") .. "x")
+    local n = rig.spoken[#rig.spoken]
+    check("the recovery speaks the pack total in tenths of a volt",
+      n ~= nil and n.value == 222 and n.unit == "V" and n.decimals == 1,
+      n and string.format("%s %s %s", n.value, tostring(n.unit), tostring(n.decimals)))
+    rig.setClock(4); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    check("a healthy pack that was never lost speaks no recovery",
+      rig.count("battery.wav") == 1, "battery.wav played " .. rig.count("battery.wav") .. "x")
+  end
+
+  -- The setting off keeps the whole thing silent.
+  do
+    local rig = newTaskRig({main_power_lost = false})
+    rig.setClock(0); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(1); rig.step({connected = true, voltage = 22.2, becVoltage = 5.0})
+    rig.setClock(2); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+    check("main_power_lost = false keeps the alert silent",
+      rig.count("lowbat.wav") == 0, "lowbat.wav played " .. rig.count("lowbat.wav") .. "x")
+  end
+
+  -- Can-fail: strip the pack-seen latch and require a never-measured pack to
+  -- fire. If this stops turning red, the checks above prove nothing.
+  local source = readFile(AUDIO_PATH)
+  local stripped = source:gsub("if not packVoltageSeen then return false end", "", 1)
+  check("the pack-seen latch could be located in mainPowerLost()", stripped ~= source)
+  local rig = newTaskRig({main_power_lost = true}, stripped)
+  rig.setClock(0); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+  rig.setClock(1); rig.step({connected = true, voltage = 0, becVoltage = 5.0})
+  check("without the pack-seen latch a never-measured pack fires (this check can go red)",
+    rig.count("lowbat.wav") == 1, "lowbat.wav played " .. rig.count("lowbat.wav") .. "x")
+end
+
+out("")
+out("case 7: the main-power alert")
+mainPowerChecks()
+
+-- ── case 8: the telemetry link, gated by the armed state (issue #2311) ─────
+--
+-- The one announcement in this file that is gated on the state the model was in
+-- *before* the event, and the two halves are gated on each other. Nothing in the
+-- build or the package step reaches tasks/audio_events.lua's
+-- announceTelemetryLost()/announceTelemetryRecovered(), and both failure modes
+-- are quiet in the direction that costs the pilot something: drop the armed gate
+-- and every bench power-down shouts, drop the pending flag and a model that was
+-- told it lost the link is never told it got it back.
+--
+-- The same rig the main-power case uses, with no sound present by default: no
+-- pack carries the two telemetry words yet, so "haptic only until a pack gains
+-- them" is what has to be pinned, and a scenario that declares one present
+-- proves the resolution order.
+--
+-- Pinned:
+--   * a link loss while armed is announced once, with the haptic, and never
+--     again while the link stays down;
+--   * a link loss while disarmed says nothing at all -- the bench case the
+--     issue was filed about;
+--   * the link coming back is announced once, and only for a loss that was
+--     announced;
+--   * a model that answers again after the recovery window gets no recovery;
+--   * telemetry_lost = false keeps both halves silent;
+--   * nothing is announced for a link that was already down at startup.
+--
+-- The last check strips the armed gate from a copy of the task and requires a
+-- disarmed loss to fire there. If it stops turning red, the instrument has gone
+-- blind.
+
+local TELEMETRY_LOST_FILE = "SCRIPTS:/rfsuite/audio/en/default/events/alerts/telemetrylost.wav"
+local TELEMETRY_OK_FILE = "SCRIPTS:/rfsuite/audio/en/default/events/alerts/telemetryok.wav"
+
+local function newLinkRig(events, source)
+  local rig = newTaskRig(events, source)
+  -- No pack carries either word yet.
+  rig.noSounds()
+  return rig
+end
+
+local function telemetryLinkChecks()
+  -- Armed, and the link goes. The first wakeup only initializes the task, so the
+  -- loss is on the second connected tick's successor.
+  do
+    local rig = newLinkRig({telemetry_lost = true})
+    rig.setClock(0); rig.step({connected = true, isArmed = true}) -- initialize
+    rig.setClock(1); rig.step({connected = true, isArmed = true}) -- armed tick
+    rig.setClock(2); rig.step({connected = false})                -- link lost
+    check("a link loss while armed buzzes",
+      #rig.haptics == 1, #rig.haptics .. " haptic(s)")
+    check("with no telemetrylost.wav in the pack, no file is played",
+      rig.count(".wav") == 0, rig.count(".wav") .. " file(s) played")
+    rig.setClock(3); rig.step({connected = false})                -- still down
+    check("a loss that stands is not announced again",
+      #rig.haptics == 1, #rig.haptics .. " haptic(s)")
+  end
+
+  -- A pack that carries the words plays them: the dedicated file on the way
+  -- out, and its pair on the way back in.
+  do
+    local rig = newLinkRig({telemetry_lost = true})
+    scriptFiles[TELEMETRY_LOST_FILE] = true
+    scriptFiles[TELEMETRY_OK_FILE] = true
+    rig.setClock(0); rig.step({connected = true, isArmed = true})
+    rig.setClock(1); rig.step({connected = true, isArmed = true})
+    rig.setClock(2); rig.step({connected = false})
+    check("a pack that carries telemetrylost.wav plays it",
+      (rig.lastPlayed() or ""):find("telemetrylost.wav", 1, true) ~= nil,
+      tostring(rig.lastPlayed()))
+    rig.setClock(3); rig.step({connected = true, isArmed = true}) -- back
+    check("the link coming back plays telemetryok.wav",
+      rig.count("telemetryok.wav") == 1, "telemetryok.wav played " .. rig.count("telemetryok.wav") .. "x")
+    check("the recovery buzzes once",
+      #rig.haptics == 2, #rig.haptics .. " haptic(s)")
+    rig.setClock(4); rig.step({connected = true, isArmed = true})
+    check("the recovery is not announced again",
+      rig.count("telemetryok.wav") == 1, "telemetryok.wav played " .. rig.count("telemetryok.wav") .. "x")
+  end
+
+  -- The bench case from the issue: disarmed, pack unplugged. Nothing at all --
+  -- no file, no haptic -- and no recovery either, because nothing was lost.
+  do
+    local rig = newLinkRig({telemetry_lost = true})
+    rig.setClock(0); rig.step({connected = true, isArmed = false})
+    rig.setClock(1); rig.step({connected = true, isArmed = false})
+    rig.setClock(2); rig.step({connected = false})
+    check("a link loss while disarmed is silent",
+      #rig.haptics == 0 and rig.count(".wav") == 0,
+      #rig.haptics .. " haptic(s), " .. rig.count(".wav") .. " file(s)")
+    rig.setClock(3); rig.step({connected = true, isArmed = false})
+    check("a model that was never told it lost the link is not told it recovered",
+      rig.count("telemetryok.wav") == 0 and #rig.haptics == 0,
+      #rig.haptics .. " haptic(s), " .. rig.count(".wav") .. " file(s)")
+  end
+
+  -- The window: a model that answers again long after the loss is a new flight.
+  do
+    local rig = newLinkRig({telemetry_lost = true})
+    scriptFiles[TELEMETRY_LOST_FILE] = true
+    scriptFiles[TELEMETRY_OK_FILE] = true
+    rig.setClock(0); rig.step({connected = true, isArmed = true})
+    rig.setClock(1); rig.step({connected = true, isArmed = true})
+    rig.setClock(2); rig.step({connected = false})
+    rig.setClock(200); rig.step({connected = true, isArmed = true})
+    check("a link back after the recovery window gets no recovery callout",
+      rig.count("telemetryok.wav") == 0, "telemetryok.wav played " .. rig.count("telemetryok.wav") .. "x")
+  end
+
+  -- The setting off keeps both halves silent.
+  do
+    local rig = newLinkRig({telemetry_lost = false})
+    rig.setClock(0); rig.step({connected = true, isArmed = true})
+    rig.setClock(1); rig.step({connected = true, isArmed = true})
+    rig.setClock(2); rig.step({connected = false})
+    check("telemetry_lost = false keeps the loss silent",
+      #rig.haptics == 0, #rig.haptics .. " haptic(s)")
+    rig.setClock(3); rig.step({connected = true, isArmed = true})
+    check("telemetry_lost = false keeps the recovery silent",
+      #rig.haptics == 0, #rig.haptics .. " haptic(s)")
+  end
+
+  -- A task that starts on a down link has no `previous` to read an edge from.
+  do
+    local rig = newLinkRig({telemetry_lost = true})
+    rig.setClock(0); rig.step({connected = false})
+    rig.setClock(1); rig.step({connected = false})
+    check("a link that was already down at startup is not a loss",
+      #rig.haptics == 0, #rig.haptics .. " haptic(s)")
+  end
+
+  -- Can-fail: strip the armed gate and require a disarmed loss to fire. If this
+  -- stops turning red, the checks above prove nothing.
+  local source = readFile(AUDIO_PATH)
+  local stripped = source:gsub("if previous.isArmed ~= true then return end", "", 1)
+  check("the armed gate could be located in announceTelemetryLost()", stripped ~= source)
+  local rig = newTaskRig({telemetry_lost = true}, stripped)
+  rig.setClock(0); rig.step({connected = true, isArmed = false})
+  rig.setClock(1); rig.step({connected = true, isArmed = false})
+  rig.setClock(2); rig.step({connected = false})
+  check("without the armed gate a disarmed loss fires (this check can go red)",
+    #rig.haptics == 1, #rig.haptics .. " haptic(s)")
+
+  -- Can-fail the other way round: read the armed state off the session instead
+  -- of the snapshot. The session clears isArmed in the same step that clears
+  -- connected, so this copy answers with an empty value and has to stay quiet --
+  -- and it is what the real code would do if the announcement ran after
+  -- rememberCurrent() instead of before it.
+  local stale = source:gsub("if previous.isArmed ~= true then return end",
+    "if session.isArmed ~= true then return end", 1)
+  check("the armed gate could be re-pointed at the session", stale ~= source)
+  local quiet = newTaskRig({telemetry_lost = true}, stale)
+  quiet.setClock(0); quiet.step({connected = true, isArmed = true})
+  quiet.setClock(1); quiet.step({connected = true, isArmed = true})
+  quiet.setClock(2); quiet.step({connected = false})
+  check("a gate reading the session's armed state says nothing (this check can go red)",
+    #quiet.haptics == 0, #quiet.haptics .. " haptic(s)")
+end
+
+out("")
+out("case 8: the telemetry link, gated by the armed state")
+telemetryLinkChecks()
+
+-- Put the globals the rigs replaced back, so nothing after this case -- the
+-- summary today, anything added later -- runs against a stub.
+io.open = realIoOpen
+_G.system = savedSystem
+os.clock = savedOsClock
+package.loaded["rfsuite.lib.require"] = savedRequire
+_G.UNIT_VOLT = savedUnitVolt
+
+end
+
+do
+local savedSystem, savedOsClock = _G.system, os.clock
+local savedRequire = package.loaded["rfsuite.lib.require"]
+local savedUnitVolt = _G.UNIT_VOLT
+-- ── case 8: the low-voltage hold filter and spoken callout (issue #2309) ────
 --
 -- This behaviour lives in tasks/audio_events.lua's announceVoltage(), which
 -- neither the build nor the package step exercises. The failure is quiet and
@@ -796,7 +1231,7 @@ local function newVoltageRig(events, source)
     return loadfile(name)()
   end
 
-  _G.UNIT_VOLTS = "V"
+  _G.UNIT_VOLT = "V"
   _G.system = {
     playFile = function(path) played[#played + 1] = path end,
     playNumber = function(value, unit, decimals)
@@ -1002,8 +1437,14 @@ local function voltageChecks()
 end
 
 out("")
-out("case 7: the low-voltage hold filter and spoken callout")
+out("case 8: the low-voltage hold filter and spoken callout")
 voltageChecks()
+
+
+_G.system, os.clock = savedSystem, savedOsClock
+package.loaded["rfsuite.lib.require"] = savedRequire
+_G.UNIT_VOLT = savedUnitVolt
+end
 
 out("")
 out(string.rep("-", 60))

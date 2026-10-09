@@ -17,10 +17,23 @@ local initialized = false
 local adjWavs = nil
 
 local lastAlertAt = {}
+-- Whether the pack has read a real voltage at any point in the current run.
+-- The main-power test below needs it: a model whose pack is not measured at
+-- all would otherwise look exactly like one whose pack has gone.
+local packVoltageSeen = false
+-- True between a main-power alert actually playing and the pack coming back,
+-- so the recovery is only announced for an episode that was announced lost.
+local mainPowerLostActive = false
 -- When the pack first read below the warning cell voltage in the current
 -- run, for the hold filter in announceVoltage(). nil while the reading is
 -- at or above the threshold (or before a first below-threshold reading).
 local lowVoltageHoldStart = nil
+-- The moment a telemetry loss that was announced happened, or nil while nothing
+-- is outstanding. This is what gates the recovery on the *initial* loss rather
+-- than on the link being back: a model that comes back is told it recovered
+-- only if it was told it was lost, and only while that loss still belongs to
+-- this flight (issue #2311).
+local connectionLostAt = nil
 -- lib/system_alerts.lua, loaded once the FC's system_status or system_config
 -- first arrives (firmware before MSP API 12.10 sends neither).
 local systemAlerts = nil
@@ -30,6 +43,51 @@ local alertState = {}
 -- Minimum gap between "control limit" callouts while the controls keep
 -- hitting their limit.
 local CONTROL_LIMIT_REPEAT_SECONDS = 3
+-- What separates "the pack is gone" from "the pack is low". A disconnected
+-- main battery reads as no voltage at all, and the lowest a flight pack is
+-- ever taken to is far above this, so nothing a discharge can reach falls
+-- inside the window. The same number and the same test the EdgeTX suite's
+-- lib/audio.lua uses (MAIN_POWER_LOST_VOLTS, Audio.mainPowerLost).
+local MAIN_POWER_LOST_VOLTS = 1.0
+-- How often a main-power alert repeats while the pack stays gone.
+local MAIN_POWER_REPEAT_SECONDS = 10
+-- The sound each main-power announcement would like the sound packs to gain,
+-- with the files every shipped pack already carries as the fallback. The
+-- EdgeTX suite does the same, for the same reason: every shipped file names a
+-- different event, so a pack without the dedicated word says the nearest one
+-- rather than nothing. (pkg, file) in play order; resolved once per
+-- announcement by firstResolvedSound().
+local MAIN_POWER_LOST_SOUNDS = {
+  {"status", "alerts/mainpower.wav"},
+  {"status", "alerts/lowbat.wav"},
+  {"status", "alerts/lowvoltage.wav"},
+}
+local MAIN_POWER_OK_SOUNDS = {
+  {"status", "alerts/mainpowerok.wav"},
+  {"events", "alerts/battery.wav"},
+}
+-- How long a telemetry loss stays eligible for a recovery announcement. Past
+-- it the pending flag is dropped without a word: a model that answers again a
+-- quarter of an hour later is a new flight, and "telemetry recovered" belongs
+-- to the one that was interrupted. The same window and the same reasoning as
+-- the EdgeTX suite's lib/audio.lua (CONNECTION_RECOVERY_WINDOW). It is
+-- deliberately not tasks/flight_timer.lua's RECONNECT_GRACE_SECONDS, which
+-- decides whether two records are one flight and answers a different question.
+local CONNECTION_RECOVERY_WINDOW = 120
+-- The word each half of the announcement would like the sound packs to gain.
+-- No pack carries either one yet, and neither has a neighbour worth borrowing:
+-- every shipped alert names a different event, and saying a lost link in the
+-- words of an empty battery is worse than saying nothing -- the same reasoning
+-- the EdgeTX suite's lib/audio.lua gives for its own two connection sounds
+-- (CONNECTION_LOST_SOUND, CONNECTION_OK_SOUND). So the haptic in
+-- announceTelemetryLost()/announceTelemetryRecovered() is what the pilot gets
+-- today and the file is what he gets once a pack carries it.
+local TELEMETRY_LOST_SOUNDS = {
+  {"events", "alerts/telemetrylost.wav"},
+}
+local TELEMETRY_OK_SOUNDS = {
+  {"events", "alerts/telemetryok.wav"},
+}
 local craftNameAnnounced = false
 local lastSmartfuelAnnounced = nil
 -- Whether a numeric fuel reading has been evaluated yet, as opposed to merely
@@ -146,6 +204,29 @@ end
 
 local function playNumber(value, unit, decimals)
   if system.playNumber then system.playNumber(value, unit, decimals) end
+end
+
+-- The path a packaged sound would play from, in the same user -> locale ->
+-- en/default order playFile() uses, but returning nil when none of them is
+-- there. playFile() itself is left alone: it plays the en/default path for
+-- any built-in file, and every one of those ships. This is only for the
+-- main-power sounds above, which a pack may not carry yet.
+local function resolveSound(pkg, file)
+  local user = "SCRIPTS:/rfsuite.user/audio/user/" .. pkg .. "/" .. file
+  if fileExists(user) then return user end
+  local locale = "SCRIPTS:/rfsuite/audio/" .. audioVoice() .. "/" .. pkg .. "/" .. file
+  if fileExists(locale) then return locale end
+  local fallback = "SCRIPTS:/rfsuite/audio/en/default/" .. pkg .. "/" .. file
+  if fileExists(fallback) then return fallback end
+  return nil
+end
+
+local function firstResolvedSound(candidates)
+  for i = 1, #candidates do
+    local path = resolveSound(candidates[i][1], candidates[i][2])
+    if path then return path end
+  end
+  return nil
 end
 
 local function haptic()
@@ -471,10 +552,128 @@ local function announceVoltage(now)
   -- 0 (default) keeps the old alert-only callout.
   local callout = tonumber(events.voltage_callout) or 0
   if callout == 1 then
-    playNumber(math.floor((voltage * 10) + 0.5), UNIT_VOLTS, 1)
+    playNumber(math.floor((voltage * 10) + 0.5), UNIT_VOLT, 1)
   elseif callout == 2 then
-    playNumber(math.floor((cellVoltage * 100) + 0.5), UNIT_VOLTS, 2)
+    playNumber(math.floor((cellVoltage * 100) + 0.5), UNIT_VOLT, 2)
   end
+end
+
+-- The main pack is gone while the flight controller stays alive on a BEC or a
+-- backup battery. Telemetry can report this at all only because everything
+-- else keeps arriving: the receiver and the FC are on the reserve, and the
+-- pack voltage is the one sensor with nothing behind it. Nothing else in this
+-- file would notice the machine is flying on its backup.
+--
+-- Three things have to be true together, and the second is what keeps a model
+-- whose pack is not measured at all quiet: the pack reads as gone rather than
+-- merely low, it has read a real voltage at some point this connection, and a
+-- BEC voltage is there beside it -- without one there is no evidence anything
+-- is still powered. The same test as the EdgeTX suite's lib/audio.lua
+-- (Audio.mainPowerLost); decoding "gone" as total voltage rather than per
+-- cell is the other half of why this is its own function and not a branch of
+-- announceVoltage(). Not armed-gated, for the same reason it is not there:
+-- the pack-seen latch already keeps a bench setup with no pack attached quiet,
+-- and a pack that goes while the model sits on the ground is still a fault.
+local function mainPowerLost()
+  local voltage = tonumber(session.voltage)
+  if voltage == nil then return false end
+
+  if voltage > MAIN_POWER_LOST_VOLTS then
+    packVoltageSeen = true
+    return false
+  end
+
+  if not packVoltageSeen then return false end
+
+  local bec = tonumber(session.becVoltage)
+  if bec == nil or bec <= 0 then return false end
+
+  return true
+end
+
+-- Announced again every MAIN_POWER_REPEAT_SECONDS while the pack stays gone,
+-- and once more when it comes back. The BEC voltage and not the pack's is
+-- spoken on the way in: it is the reading that still means something, and it
+-- says how much is left of whatever is keeping the receiver alive.
+local function announceMainPowerLost(now)
+  if not events.main_power_lost then
+    -- Forget an episode the pilot switched the alert off in, so switching it
+    -- back on does not announce a recovery for a loss that was never spoken.
+    mainPowerLostActive = false
+    return
+  end
+  if session.connected ~= true then return end
+
+  local voltage = tonumber(session.voltage)
+  if voltage == nil then return end
+
+  if not mainPowerLost() then
+    if voltage > MAIN_POWER_LOST_VOLTS and mainPowerLostActive then
+      mainPowerLostActive = false
+      lastAlertAt.main_power = nil
+      -- The voice goes out whether or not a sound file resolves, the same as
+      -- on the way in below.
+      local path = firstResolvedSound(MAIN_POWER_OK_SOUNDS)
+      if path then system.playFile(path) end
+      playNumber(math.floor((voltage * 10) + 0.5), UNIT_VOLT, 1)
+    end
+    return
+  end
+
+  if lastAlertAt.main_power and (now - lastAlertAt.main_power) < MAIN_POWER_REPEAT_SECONDS then return end
+  -- The voice and the haptic go out whether or not a sound file resolves: a
+  -- pack that carries none of the loss sounds would otherwise get no alert at
+  -- all, and the spoken BEC voltage is the part that says how long is left.
+  local path = firstResolvedSound(MAIN_POWER_LOST_SOUNDS)
+  lastAlertAt.main_power = now
+  mainPowerLostActive = true
+  if path then system.playFile(path) end
+  local bec = tonumber(session.becVoltage)
+  if bec then playNumber(math.floor((bec * 10) + 0.5), UNIT_VOLT, 1) end
+  haptic()
+end
+
+-- The flight controller link went away. Announced once per loss, and only when
+-- the model was armed in the tick before it went: unplugging the pack on the
+-- bench, or powering down after landing, is the normal end of a session and
+-- says nothing, while the same drop with the rotors turning is the one event a
+-- pilot must not have to notice for himself (issue #2311).
+--
+-- The armed state is read from `previous`, not from `session`: the session
+-- clears isArmed in the same step that clears connected (tasks/session.lua's
+-- setConnected()), so by the time a down link is visible here the armed state
+-- is already gone -- and rememberCurrent() overwrites `previous` with that
+-- empty value at the end of the branch wakeup() calls this from, which is why
+-- this runs before it.
+local function announceTelemetryLost(now)
+  if not events.telemetry_lost then return end
+  if previous.isArmed ~= true then return end
+
+  connectionLostAt = now
+  local path = firstResolvedSound(TELEMETRY_LOST_SOUNDS)
+  if path then system.playFile(path) end
+  -- Out whether or not a file resolves, for the same reason as the main-power
+  -- alert above: a pack that carries none of the words would otherwise get no
+  -- alert at all, and a lost link while armed is not something to leave to a
+  -- file the pack happens to ship.
+  haptic()
+end
+
+-- The model answering again, once, and only for a loss that was announced.
+--
+-- The setting is not re-read here on purpose: the flag is only ever set by a
+-- loss that was announced, so a pilot who never switched the alert on hears
+-- neither half, and one who switches it off mid-episode still hears the end of
+-- the episode he was told about.
+local function announceTelemetryRecovered(now)
+  if not connectionLostAt then return end
+  local since = now - connectionLostAt
+  connectionLostAt = nil
+  if since > CONNECTION_RECOVERY_WINDOW then return end
+
+  local path = firstResolvedSound(TELEMETRY_OK_SOUNDS)
+  if path then system.playFile(path) end
+  haptic()
 end
 
 local function announceEscTemp(now)
@@ -807,6 +1006,11 @@ function audio_events.wakeup()
   ensureSettings()
   local now = os.clock()
   if session.connected ~= true then
+    -- Whether this tick is the loss itself, read before rememberCurrent()
+    -- below overwrites `previous` with the values of the down session. Both
+    -- edges the link announcement needs -- that the link went, and that the
+    -- model was armed when it did -- are only in `previous` on this one tick.
+    local linkLost = previous.connected == true
     initialized = false
     craftNameAnnounced = false
     resetFuelAnnouncements()
@@ -814,10 +1018,19 @@ function audio_events.wakeup()
     pendingAdjFunction = false
     resetTimerAudio()
     speakingUntil = 0
+    packVoltageSeen = false
+    mainPowerLostActive = false
     lowVoltageHoldStart = nil
+    -- connectionLostAt is deliberately NOT cleared here: it has to outlive the
+    -- very disconnect that set it, or the recovery has nothing left to be
+    -- gated on. announceTelemetryRecovered() drops it, by window or by the
+    -- model answering.
     for key in pairs(rollingSamples) do rollingSamples[key] = nil end
     for key in pairs(lastAlertAt) do lastAlertAt[key] = nil end
     clearAlertState()
+    -- Before rememberCurrent(): the announcement reads `previous`, and that
+    -- call is what overwrites it with the values of the down session.
+    if linkLost then announceTelemetryLost(now) end
     rememberCurrent()
     return
   end
@@ -825,6 +1038,10 @@ function audio_events.wakeup()
   if not initialized then
     initialized = true
     rememberCurrent()
+    -- The first connected tick after a link loss. Nothing else runs on it --
+    -- this is the branch that keeps the first evaluation after a connect from
+    -- carrying a sound -- so the recovery is announced from here.
+    announceTelemetryRecovered(now)
     -- No fuel seed here: announceSmartfuel() seeds the first reading it
     -- evaluates, whatever that reading is, and gating it in two places is how
     -- the zero case came to be announced at all. Skipping this branch is what
@@ -843,6 +1060,7 @@ function audio_events.wakeup()
   announceVoltage(now)
   announceEscTemp(now)
   announceBecRxVoltage(now)
+  announceMainPowerLost(now)
   announceSmartfuel(now)
   announceTimer()
   announceAdjustment(now)
@@ -860,6 +1078,9 @@ function audio_events.reset()
   pendingAdjFunction = false
   resetTimerAudio()
   speakingUntil = 0
+  packVoltageSeen = false
+  mainPowerLostActive = false
+  connectionLostAt = nil
   lowVoltageHoldStart = nil
   for key in pairs(rollingSamples) do rollingSamples[key] = nil end
 end

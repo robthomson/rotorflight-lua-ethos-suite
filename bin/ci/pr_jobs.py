@@ -337,15 +337,16 @@ fails on.
     ),
     LuaJob(
         id='audio-events-categories',
-        name='Audio events - category coverage and the low-voltage alert',
-        step='Check the Audio -> Events pages and the low-voltage alert',
+        name='Audio events reachable after the split, and what they announce',
+        step='Check the Audio -> Events pages and the audio events',
         script='bin/audio_events/verify_audio_events.lua',
-        rationale=r'''#2308 split one Settings -> Audio -> Events page into six category pages,
-and #2309 added the low-voltage hold filter and the spoken reading. Both fail
-quietly. A key that stops having a toggle loses its setting, and a regression in
-tasks/audio_events.lua either sounds the alarm on a momentary 3D voltage sag or
-stops speaking the voltage -- the pilot finds out in the air, and the settings
-store still holds the keys, so nothing reports a mismatch either.
+        rationale=r'''#2308 split one Settings -> Audio -> Events page into category pages,
+#2310 added the main-power alert to the voltage page, and #2311 added the Link
+page with the telemetry lost/recovered pair. The risk in the split is not that
+the build breaks -- it is that a key quietly stops having a toggle. Nothing in
+the build or the package step can see a setting that no page offers any more; the
+pilot finds out in the air, and the settings store still holds the key, so
+nothing reports a mismatch either.
 
 So the coverage is checked against the store itself: the keys in
 lib/settings_store.lua's DEFAULTS.events, read out of that file, against the
@@ -353,7 +354,7 @@ keys each category page actually edits. A key with no page, a key with two, and 
 page editing a key the store never had all go red.
 
 The on-demand half is measured rather than asserted: a form stub counts the
-field widgets each page builds, so the six pages have to total exactly the
+field widgets each page builds, so the pages together have to total exactly the
 store's key count and no single page may build the set again. And the round trip
 is driven per field -- every field is set, saved, and read back through the
 page's own getter after re-opening, which is what a setter writing the wrong key
@@ -362,21 +363,36 @@ reading back through the getter is also what keeps the harness from needing to
 know that).
 
 The task behaviour is driven against the real tasks/audio_events.lua with the
-bus, the settings store, system audio and os.clock stubbed: a low reading that
-has not held for voltage_hold seconds stays silent, a recovery restarts the
-hold, hold = 0 fires at once, and voltage_callout speaks the pack total, the
-average cell or nothing. A copy of the task with its hold guard stripped is then
-loaded and required to fire on the sag, so the instrument is proven able to go
-red.
+bus, the settings store, system audio, os.clock and the packaged sound paths
+stubbed: a pack that has read a voltage and then goes, with a BEC still up,
+fires the main-power alert, speaks the BEC voltage and buzzes; a pack that is
+never measured, or one with no BEC reading, stays silent; the alert repeats only
+after its interval; and the pack coming back speaks once. The link is announced
+only for a loss that happened while the model was armed, and the recovery only
+for a loss that was announced -- so a bench power-down says nothing at all, and
+a model that was told it lost the link is told it got it back.
 
-The instrument guards itself twice more. Case 1 counts the add* call sites in the
+Copies of the task with a guard or a source re-pointed are then loaded and
+required to behave differently from the real one -- a never-measured pack with
+the pack-seen latch removed has to fire, a disarmed loss with the armed gate
+removed has to fire, and a gate reading the armed state off the session instead
+of the snapshot has to stay quiet, because the session has already cleared it by
+the time a down link is visible. If those ever stop turning red, the instrument
+has gone blind.
+
+The same harness checks the low-voltage hold filter and spoken reading (#2309):
+a brief sag stays silent, recovery restarts the hold, hold = 0 fires at once,
+and the callout speaks the pack total, average cell or nothing. Stripping the
+hold guard must make a brief sag fire.
+
+The instrument guards itself twice. Case 1 counts the add* call sites in the
 page sources and fails if its own scanner missed one, so a partial read cannot
 understate coverage. Case 3 watches the snapshot table a page was handed rather
 than the settings store, because save() takes its own deep copy -- a write into a
 released snapshot is invisible from the store and only shows there. Dropping the
 disposed guard, dropping the snapshot release, dropping a field, moving a menu
-entry or restoring the old page were each run against this harness and each
-turns it red.
+entry, dropping the pack-seen or BEC guard or restoring the old page were each
+run against this harness and each turns it red.
 '''
     ),
     # Registered here because the job was added to pr.yml by hand, so the
