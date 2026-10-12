@@ -1848,6 +1848,15 @@ first clear poll, and requires that to be caught.
 '''
     ),
     LuaJob(
+        id='port-labels',
+        name='Port labels from the board design',
+        step='Check the label table and the MSP_BOARD_INFO parser',
+        script='bin/port_labels/verify_port_labels.lua',
+        rationale=r'''Port labels on the Ports page (#2359). The table is copied from the Rotorflight
+Configurator (GPL-3.0); the check pins the lookup and the MSP_BOARD_INFO parser.
+'''
+    ),
+    LuaJob(
         id='memory-bursts',
         name='Memory bursts in dashboard settings and diagnostics status',
         step='Check memory burst and churn mitigations',
