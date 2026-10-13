@@ -2259,6 +2259,24 @@ jobs:
       - name: Check the Battery tile picker
         run: lua5.4 bin/battery_picker/verify_battery_picker.lua
 
+  # Issue #2534: the bar gauge kept its last valid reading whenever the sensor
+  # dropped out, so a fuel bar stayed at 85% after the pack was unplugged on the
+  # bench. widgets/dashboard/objects/gauge/bar.lua now shows the loading dots while
+  # the flight has not started yet; once a flight is under way the last reading is
+  # held, in flight as well as in postflight, so a momentary telemetry gap cannot
+  # blank a gauge the pilot is flying on nor discard the reading it had.
+  #
+  # No build and no package step reaches this -- it is a render path through a
+  # running widget. The harness drives the real bar gauge (render.wakeup) with a fake
+  # telemetry source and the flight mode: connected shows the value, a dropout before
+  # flight must not keep it and must show the loading state, reconnect shows the new
+  # value, a dropout in flight keeps it across two consecutive wakeups, and a
+  # dropout in postflight keeps the last value. Against unpatched master the two
+  # dropout-before-flight checks fail; against the first cut of this branch, which
+  # held the reading only in postflight and discarded the cache in flight, the four
+  # flight and postflight checks fail.
+  bar-disconnect:
+    name: Battery and fuel bar shows loading after telemetry loss before flight
   # Issue #2505: two dashboard toolbar items write to the flight controller,
   # blackbox erase and battery profile, and neither their enable check nor their
   # write path looked at the arm state. A battery picker open at arming, or an erase
@@ -2298,6 +2316,8 @@ jobs:
       - name: Install Lua 5.4
         run: sudo apt-get update && sudo apt-get install -y lua5.4
 
+      - name: Check the dashboard bar after telemetry loss
+        run: lua5.4 bin/bar_disconnect/verify_bar_disconnect.lua
       - name: Check the dashboard Erase and Battery tiles while armed
         run: lua5.4 bin/toolbar_armed/verify_toolbar_armed.lua
 
