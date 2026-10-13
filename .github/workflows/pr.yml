@@ -2259,6 +2259,18 @@ jobs:
       - name: Check the Battery tile picker
         run: lua5.4 bin/battery_picker/verify_battery_picker.lua
 
+  # Issue #2502: the Battery page had one profile selector, and the cell rows followed
+  # it. To edit the cells of profile 4 the pilot had to make profile 4 active, and saving
+  # then activated it. The page now has an Edit Battery choice that only the cell rows
+  # follow; the saved profile stays on the active one.
+  #
+  # No build and no package step reaches this -- it is a save path through a running
+  # page. The harness drives the real power_battery page with the real page runtime and
+  # field layout, and answers every write the way the FC would. Against unpatched master
+  # the page has no Edit Battery choice, and saving a cell edit of profile 3 writes
+  # profile 3 as the active one.
+  battery-edit-profile:
+    name: Editing another battery profile does not activate it on save
   # Issue #2497 (findings 1 and 2): the Ports page never read the board back after a
   # save, so its rows showed what was sent; and it read MSP_RX_CONFIG on every open
   # although the value was never used, which held up the loading dialog for one round
@@ -2356,6 +2368,8 @@ jobs:
       - name: Install Lua 5.4
         run: sudo apt-get update && sudo apt-get install -y lua5.4
 
+      - name: Check the battery page edits the chosen profile without activating it
+        run: lua5.4 bin/battery_edit_profile/verify_battery_edit_profile.lua
       - name: Check the Ports page read-back and its reads
         run: lua5.4 bin/ports_readback/verify_ports_readback.lua
       - name: Check that a refused profile write is reported
