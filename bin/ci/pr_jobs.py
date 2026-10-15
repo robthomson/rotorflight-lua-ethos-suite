@@ -2055,6 +2055,23 @@ pin to go red every time, after the unmodified modules have passed.
 '''
     ),
     LuaJob(
+        id='esc-sensor-protocol',
+        name='ESC telemetry protocol list follows the API version, RECORD is 15 from 12.10',
+        step='Check the ESC telemetry protocol list per reported API version',
+        script='bin/esc_sensor_protocol/verify_esc_sensor_protocol.lua',
+        rationale=r'''Issue #2492: the ESC telemetry protocol list was a static table, RECORD fixed at 14.
+Firmware API 12.10 inserted SRXL2 at 14 and moved RECORD to 15 (rotorflight-firmware
+Changes.md, MSP Changes). A board on 12.10 therefore got RECORD written as SRXL2. The list
+now follows the API version the board reports, the way the motor protocol list already does.
+
+No build and no package step reaches this -- it is the list a pilot picks from and the
+value it writes. The harness drives the real codec for API 9, API 10 and no version, and the
+real telemetry page for the same three, with the runtime handing it the version in buildChrome()
+as the bus replay does. Against unpatched master SRXL2 is not offered and RECORD is offered as
+14 on API 10, in the codec and on the page.
+''',
+    ),
+    LuaJob(
         id='runtime-read-validator',
         name='A page refuses a reply it does not know on every read, not only the first',
         step='Check the page runtime refuses a reload whose reply fails the page validator',
