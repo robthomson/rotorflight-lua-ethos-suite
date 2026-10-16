@@ -2193,6 +2193,20 @@ locales with exactly those three keys. --self-test removes them from a copy of t
 English source and requires them to be reported.
 ''',
     ),
+    LuaJob(
+        id='blackbox-no-dataflash',
+        name='A board without dataflash shows Not supported, not a zero capacity',
+        step='Check the blackbox text object on a board without dataflash',
+        script='bin/blackbox_text/verify_blackbox_text.lua',
+        rationale=r'''Issue #2507: a board without dataflash answers total = 0, and the BLACKBOX text
+object treated that as a real capacity and drew 0.0/0.0 MB. The widget now shows the
+existing "Not supported" text for total = 0, and keeps the loading dots for "no answer yet".
+
+The harness drives the real widget through render.wakeup() with the session values the
+summary sets. Against unpatched master the no-dataflash checks fail. --self-test removes
+the new branch and requires those checks to go red.
+''',
+    ),
 ]
 
 VERBATIM_JOBS = [
