@@ -2194,6 +2194,18 @@ English source and requires them to be reported.
 ''',
     ),
     LuaJob(
+        id='logs-named-columns',
+        name='The Logs page reads CSV columns by their header name',
+        step='Check the CSV column reader behind the Logs page',
+        script='bin/log_columns/verify_log_columns.lua',
+        rationale=r'''Issue #2506: the Logs page read every column by its position and never parsed the
+header row, so a log written by another tool was plotted from the wrong columns, and an
+empty file was drawn as a flat zero line.
+
+The reader is lib/log_columns.lua, pure functions over the file text. The harness checks
+name-based lookup against a file in another column order, a missing column, a header-only
+and an empty file, CRLF line endings and non-numeric values. --self-test swaps in a
+position-based header lookup and requires the foreign-order checks to go red.
         id='blackbox-no-dataflash',
         name='A board without dataflash shows Not supported, not a zero capacity',
         step='Check the blackbox text object on a board without dataflash',
