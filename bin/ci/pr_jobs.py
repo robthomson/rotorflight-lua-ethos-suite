@@ -2290,6 +2290,25 @@ for the six names. --self-test removes the name for function 76 and requires the
 check to go red.
 ''',
     ),
+    LuaJob(
+        id='armed-warning',
+        name='Dashboard shows a red bar with an Armed label while armed',
+        step='Check the dashboard armed warning',
+        script='bin/armed_warning/verify_armed_warning.lua',
+        rationale=r'''Issue #2352 (armed part only): a model on the ground was shown on the dashboard
+with no visual warning that the rotor can spool up. The dashboard now draws a red
+bar across the top edge with an "Armed" label hanging from its centre over whatever
+theme is shown while the FC reports the armed state, and draws nothing red while
+disarmed. A widget property "Armed warning" (default on) switches it off.
+
+No build and no package step reaches this -- it is a paint path through a running
+widget. The harness drives the real widgets/dashboard.lua paint with a recording
+lcd and feeds the arm state through session.update the way the session does. It
+requires the red bar and the label while armed, no other red rectangle, and nothing
+red while disarmed or while the property is off. Against unpatched master the armed
+checks fail.
+''',
+    ),
 ]
 
 VERBATIM_JOBS = [
