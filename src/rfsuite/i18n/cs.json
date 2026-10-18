@@ -367,6 +367,7 @@
           "english": "The calibration did not finish. Try again.",
           "max_length": 46,
           "needs_translation": false,
+          "reverse_text": false,
           "translation": "Kalibrace neskončila. Zkuste to znovu."
         },
         "name": {
@@ -1337,6 +1338,13 @@
           "needs_translation": false,
           "reverse_text": false,
           "translation": "Žádná karta"
+        },
+        "no_dataflash": {
+          "english": "No dataflash",
+          "max_length": 16,
+          "needs_translation": false,
+          "reverse_text": false,
+          "translation": "Bez dataflash"
         },
         "not_supported": {
           "english": "Not supported",
@@ -4779,6 +4787,41 @@
         }
       },
       "info": {
+        "bgtask_heartbeat": {
+          "english": "Heartbeat",
+          "max_length": 9,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Heartbeat"
+        },
+        "bgtask_name": {
+          "english": "Background task",
+          "max_length": 15,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Background task"
+        },
+        "bgtask_revivals": {
+          "english": "Revivals",
+          "max_length": 8,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Revivals"
+        },
+        "bgtask_running": {
+          "english": "Running",
+          "max_length": 7,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Running"
+        },
+        "bgtask_stale": {
+          "english": "Not reporting",
+          "max_length": 13,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Not reporting"
+        },
         "ethos_version": {
           "english": "Ethos Version",
           "max_length": 13,
@@ -4850,6 +4893,13 @@
           "needs_translation": false,
           "reverse_text": false,
           "translation": "Načítání dat protokolu"
+        },
+        "msg_no_columns": {
+          "english": "No plottable columns in this file",
+          "max_length": 40,
+          "needs_translation": false,
+          "reverse_text": false,
+          "translation": "Žádné vykreslitelné sloupce"
         },
         "msg_no_logs_found": {
           "english": "NO LOG FILES FOUND",
@@ -5481,6 +5531,13 @@
         }
       },
       "pid_controller": {
+        "cyclic": {
+          "english": "Cyc",
+          "max_length": 3,
+          "needs_translation": false,
+          "reverse_text": false,
+          "translation": "Cyk"
+        },
         "error_limit": {
           "english": "Error Limit",
           "max_length": 11,
@@ -5529,6 +5586,13 @@
           "needs_translation": false,
           "reverse_text": false,
           "translation": "Limit"
+        },
+        "master_gain": {
+          "english": "Master Gain",
+          "max_length": 11,
+          "needs_translation": false,
+          "reverse_text": false,
+          "translation": "Hlavní zisk"
         },
         "name": {
           "english": "PID Controller",
@@ -5892,6 +5956,13 @@
           "needs_translation": false,
           "reverse_text": false,
           "translation": "Aktuální zdroj"
+        },
+        "edit_battery": {
+          "english": "Edit Battery",
+          "max_length": 16,
+          "needs_translation": false,
+          "reverse_text": false,
+          "translation": "Upravit baterii"
         },
         "full_cell_voltage": {
           "english": "Full Cell Voltage",
@@ -8189,6 +8260,13 @@
       "reverse_text": false,
       "translation": "Nahravam data from flight controller..."
     },
+    "msg_main_power_lost_banner": {
+      "english": "MAIN POWER LOST",
+      "max_length": 27,
+      "needs_translation": false,
+      "reverse_text": false,
+      "translation": "HLAVNÍ BATERIE ODPOJENA"
+    },
     "msg_please_disarm_to_save_warning": {
       "english": "The flight controller rejected the save while armed. Your changes are safe and will be written to flash when you disarm.",
       "max_length": 120,
@@ -8230,6 +8308,13 @@
       "needs_translation": false,
       "reverse_text": false,
       "translation": "Nastavení nebylo uloženo do FC. Zkuste znovu."
+    },
+    "msg_save_failed_local_body": {
+      "english": "Settings were not saved to the radio. Please try again.",
+      "max_length": 67,
+      "needs_translation": false,
+      "reverse_text": false,
+      "translation": "Nastavení nebylo uloženo do vysílačky. Zkuste znovu."
     },
     "msg_save_failed_title": {
       "english": "Save failed",
@@ -9170,6 +9255,13 @@
         "needs_translation": false,
         "reverse_text": false,
         "translation": "Nadmořská výška Max"
+      },
+      "armed_warning": {
+        "english": "Armed warning",
+        "max_length": 24,
+        "needs_translation": false,
+        "reverse_text": false,
+        "translation": "Varování Armed"
       },
       "battery": {
         "english": "Battery",

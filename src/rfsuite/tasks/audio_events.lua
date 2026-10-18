@@ -5,6 +5,7 @@ local bus = requireModule("lib/bus.lua")
 local batteryProfileIndex = requireModule("lib/battery_profile_index.lua")
 local engineType = requireModule("lib/engine_type.lua")
 local settingsStore = requireModule("lib/settings_store.lua")
+local mainPower = requireModule("lib/main_power.lua")
 
 local audio_events = {}
 
@@ -14,13 +15,16 @@ local timer = nil
 local session = {}
 local previous = {}
 local initialized = false
+-- True from the first disconnected tick of an outage until the next connected
+-- tick. The state reset of the falling edge runs once under it, not on every
+-- tick while the link is down.
+local disconnectApplied = false
 local adjWavs = nil
 
 local lastAlertAt = {}
 -- Whether the pack has read a real voltage at any point in the current run.
 -- The main-power test below needs it: a model whose pack is not measured at
 -- all would otherwise look exactly like one whose pack has gone.
-local packVoltageSeen = false
 -- True between a main-power alert actually playing and the pack coming back,
 -- so the recovery is only announced for an episode that was announced lost.
 local mainPowerLostActive = false
@@ -48,7 +52,7 @@ local CONTROL_LIMIT_REPEAT_SECONDS = 3
 -- ever taken to is far above this, so nothing a discharge can reach falls
 -- inside the window. The same number and the same test the EdgeTX suite's
 -- lib/audio.lua uses (MAIN_POWER_LOST_VOLTS, Audio.mainPowerLost).
-local MAIN_POWER_LOST_VOLTS = 1.0
+local MAIN_POWER_LOST_VOLTS = mainPower.THRESHOLD_VOLTS
 -- How often a main-power alert repeats while the pack stays gone.
 local MAIN_POWER_REPEAT_SECONDS = 10
 -- The sound each main-power announcement would like the sound packs to gain,
@@ -106,6 +110,15 @@ local adjChangedAt = nil
 -- window above that is what turns a burst of clicks into one announcement.
 local ADJ_SETTLE_SECONDS = 0.35
 local speakingUntil = 0
+-- State changes that had to wait for the speaking gate in the current tick.
+-- Their key is left out of `previous` by rememberCurrent(), so the same change
+-- is compared again on the next tick and spoken then (issue #2503). Cleared by
+-- rememberCurrent().
+local holdPrevious = {}
+-- The armed state as the task last saw it, not held back by holdPrevious. The
+-- telemetry-lost alert reads this, so a waiting arming announcement cannot hide an
+-- armed model from it.
+local lastSeenArmed = nil
 local rollingSamples = {}
 local timerTriggered = false
 local timerLastBeep = nil
@@ -152,6 +165,7 @@ local AUDIO_SESSION_KEYS = {
   "batteryConfig",
   "tempEsc",
   "becVoltage",
+  "mainPowerLost",
   "fuelPercent",
   "adjFunction",
   "adjValue",
@@ -377,18 +391,23 @@ local function announceCraftName()
   end
 end
 
-local function announceArmed()
+local function announceArmed(now)
   if not events.armflags then return end
   if previous.isArmed == nil or session.isArmed == nil then return end
   if previous.isArmed == session.isArmed then return end
+  if not canSpeak(now) then holdPrevious.isArmed = true; return end
+  markSpoken(now, SPEAK_WAV_SECONDS)
   playAlert(session.isArmed and "armed.wav" or "disarmed.wav")
 end
 
-local function announceProfile(key, enabled, file)
+local function announceProfile(now, key, enabled, file)
   if not enabled then return end
   local value = tonumber(session[key])
   local last = tonumber(previous[key])
   if value == nil or last == nil or value == last then return end
+  if not canSpeak(now) then holdPrevious[key] = true; return end
+  -- Marked before anything is queued: the number must not cut into its own file.
+  markSpoken(now, SPEAK_WAV_SECONDS + SPEAK_NUM_SECONDS)
   playAlert(file)
   playNumber(math.floor(value))
 end
@@ -438,7 +457,7 @@ local function batteryProfileCellCount(profile)
   return nil
 end
 
-local function announceBatteryProfile()
+local function announceBatteryProfile(now)
   if not events.battery_profile then return end
   -- session.batteryProfile and the previous.batteryProfile snapshot are both
   -- already the internal 0-based index (tasks/session.lua converts the FC's
@@ -454,6 +473,10 @@ local function announceBatteryProfile()
   if not capacity then return end
   local cells = batteryProfileCellCount(value)
 
+  if not canSpeak(now) then holdPrevious.batteryProfile = true; return end
+  local spokenFor = SPEAK_WAV_SECONDS + SPEAK_NUM_SECONDS
+  if cells then spokenFor = spokenFor + SPEAK_NUM_SECONDS + SPEAK_WAV_SECONDS end
+  markSpoken(now, spokenFor)
   playAlert("battery.wav")
   playNumber(math.floor(capacity + 0.5), UNIT_MILLIAMPERE_HOUR)
   -- Ethos has no spoken unit for cells (UNIT_CELLS is not a playNumber
@@ -464,7 +487,7 @@ local function announceBatteryProfile()
   end
 end
 
-local function announceGovernor()
+local function announceGovernor(now)
   if not events.governor then return end
   if session.connected ~= true or session.isArmed ~= true then return end
   local mode = tonumber(session.governorMode)
@@ -474,7 +497,10 @@ local function announceGovernor()
   local last = tonumber(previous.governorState)
   if value == nil or last == nil or value == last then return end
   local file = GOVERNOR_FILES[math.floor(value)]
-  if file then playGovernor(file) end
+  if not file then return end
+  if not canSpeak(now) then holdPrevious.governorState = true; return end
+  markSpoken(now, SPEAK_WAV_SECONDS)
+  playGovernor(file)
 end
 
 local function ensureAdjWavs()
@@ -582,21 +608,10 @@ end
 -- announceVoltage(). Not armed-gated, for the same reason it is not there:
 -- the pack-seen latch already keeps a bench setup with no pack attached quiet,
 -- and a pack that goes while the model sits on the ground is still a fault.
+-- The test itself is lib/main_power.lua, evaluated by tasks/session.lua on every voltage
+-- change (#2358), so the audio alert and the dashboard banner cannot disagree.
 local function mainPowerLost()
-  local voltage = tonumber(session.voltage)
-  if voltage == nil then return false end
-
-  if voltage > MAIN_POWER_LOST_VOLTS then
-    packVoltageSeen = true
-    return false
-  end
-
-  if not packVoltageSeen then return false end
-
-  local bec = tonumber(session.becVoltage)
-  if bec == nil or bec <= 0 then return false end
-
-  return true
+  return session.mainPowerLost == true
 end
 
 -- Announced again every MAIN_POWER_REPEAT_SECONDS while the pack stays gone,
@@ -647,7 +662,7 @@ end
 -- says nothing, while the same drop with the rotors turning is the one event a
 -- pilot must not have to notice for himself (issue #2311).
 --
--- The armed state is read from `previous`, not from `session`: the session
+-- The armed state is read from `lastSeenArmed`, not from `session`: the session
 -- clears isArmed in the same step that clears connected (tasks/session.lua's
 -- setConnected()), so by the time a down link is visible here the armed state
 -- is already gone -- and rememberCurrent() overwrites `previous` with that
@@ -655,7 +670,7 @@ end
 -- this runs before it.
 local function announceTelemetryLost(now)
   if not events.telemetry_lost then return end
-  if previous.isArmed ~= true then return end
+  if lastSeenArmed ~= true then return end
 
   connectionLostAt = now
   local path = firstResolvedSound(TELEMETRY_LOST_SOUNDS)
@@ -1022,19 +1037,29 @@ end
 
 local function rememberCurrent()
   previous.connected = session.connected
-  previous.isArmed = session.isArmed
-  previous.pidProfile = session.pidProfile
-  previous.rateProfile = session.rateProfile
-  previous.batteryProfile = session.batteryProfile
-  previous.governorState = session.governorState
+  lastSeenArmed = session.isArmed
+  if not holdPrevious.isArmed then previous.isArmed = session.isArmed end
+  if not holdPrevious.pidProfile then previous.pidProfile = session.pidProfile end
+  if not holdPrevious.rateProfile then previous.rateProfile = session.rateProfile end
+  if not holdPrevious.batteryProfile then previous.batteryProfile = session.batteryProfile end
+  if not holdPrevious.governorState then previous.governorState = session.governorState end
   previous.adjFunction = session.adjFunction
   previous.adjValue = session.adjValue
+  for key in pairs(holdPrevious) do holdPrevious[key] = nil end
 end
 
 function audio_events.wakeup()
   ensureSettings()
   local now = os.clock()
   if session.connected ~= true then
+    -- Nothing writes the state reset below while the link is down, so only the
+    -- first tick of an outage has anything to reset. Later ticks only keep
+    -- `previous` current, as they always did.
+    if disconnectApplied then
+      rememberCurrent()
+      return
+    end
+    disconnectApplied = true
     -- Whether this tick is the loss itself, read before rememberCurrent()
     -- below overwrites `previous` with the values of the down session. Both
     -- edges the link announcement needs -- that the link went, and that the
@@ -1048,7 +1073,6 @@ function audio_events.wakeup()
     adjChangedAt = nil
     resetTimerAudio()
     speakingUntil = 0
-    packVoltageSeen = false
     mainPowerLostActive = false
     lowVoltageHoldStart = nil
     -- connectionLostAt is deliberately NOT cleared here: it has to outlive the
@@ -1065,6 +1089,8 @@ function audio_events.wakeup()
     return
   end
 
+  disconnectApplied = false -- re-arm the falling edge
+
   if not initialized then
     initialized = true
     rememberCurrent()
@@ -1080,11 +1106,11 @@ function audio_events.wakeup()
   end
 
   announceCraftName()
-  announceArmed()
-  announceProfile("pidProfile", events.pid_profile, "profile.wav")
-  announceProfile("rateProfile", events.rate_profile, "rates.wav")
-  announceBatteryProfile()
-  announceGovernor()
+  announceArmed(now)
+  announceProfile(now, "pidProfile", events.pid_profile, "profile.wav")
+  announceProfile(now, "rateProfile", events.rate_profile, "rates.wav")
+  announceBatteryProfile(now)
+  announceGovernor(now)
   announceSystemAlerts(now)
   announceControlLimit(now)
   announceVoltage(now)
@@ -1098,10 +1124,13 @@ function audio_events.wakeup()
 end
 
 function audio_events.reset()
+  lastSeenArmed = nil
   initialized = false
+  disconnectApplied = false
   craftNameAnnounced = false
   adjWavs = nil
   for key in pairs(previous) do previous[key] = nil end
+  for key in pairs(holdPrevious) do holdPrevious[key] = nil end
   for key in pairs(lastAlertAt) do lastAlertAt[key] = nil end
   clearAlertState()
   resetFuelAnnouncements()
@@ -1109,7 +1138,6 @@ function audio_events.reset()
   adjChangedAt = nil
   resetTimerAudio()
   speakingUntil = 0
-  packVoltageSeen = false
   mainPowerLostActive = false
   connectionLostAt = nil
   lowVoltageHoldStart = nil

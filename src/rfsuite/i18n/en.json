@@ -1152,6 +1152,12 @@
           "needs_translation": false,
           "translation": "No card"
         },
+        "no_dataflash": {
+          "english": "No dataflash",
+          "max_length": 16,
+          "needs_translation": false,
+          "translation": "No dataflash"
+        },
         "not_supported": {
           "english": "Not supported",
           "max_length": 13,
@@ -4108,6 +4114,36 @@
         }
       },
       "info": {
+        "bgtask_heartbeat": {
+          "english": "Heartbeat",
+          "max_length": 9,
+          "needs_translation": false,
+          "translation": "Heartbeat"
+        },
+        "bgtask_name": {
+          "english": "Background task",
+          "max_length": 15,
+          "needs_translation": false,
+          "translation": "Background task"
+        },
+        "bgtask_revivals": {
+          "english": "Revivals",
+          "max_length": 8,
+          "needs_translation": false,
+          "translation": "Revivals"
+        },
+        "bgtask_running": {
+          "english": "Running",
+          "max_length": 7,
+          "needs_translation": false,
+          "translation": "Running"
+        },
+        "bgtask_stale": {
+          "english": "Not reporting",
+          "max_length": 13,
+          "needs_translation": false,
+          "translation": "Not reporting"
+        },
         "ethos_version": {
           "english": "Ethos Version",
           "max_length": 13,
@@ -4169,6 +4205,12 @@
           "max_length": 16,
           "needs_translation": false,
           "translation": "Loading log data"
+        },
+        "msg_no_columns": {
+          "english": "No plottable columns in this file",
+          "max_length": 40,
+          "needs_translation": false,
+          "translation": "No plottable columns in this file"
         },
         "msg_no_logs_found": {
           "english": "NO LOG FILES FOUND",
@@ -4712,6 +4754,12 @@
         }
       },
       "pid_controller": {
+        "cyclic": {
+          "english": "Cyc",
+          "max_length": 3,
+          "needs_translation": false,
+          "translation": "Cyc"
+        },
         "error_limit": {
           "english": "Error Limit",
           "max_length": 11,
@@ -4753,6 +4801,12 @@
           "max_length": 5,
           "needs_translation": false,
           "translation": "Limit"
+        },
+        "master_gain": {
+          "english": "Master Gain",
+          "max_length": 11,
+          "needs_translation": false,
+          "translation": "Master Gain"
         },
         "name": {
           "english": "PID Controller",
@@ -5065,6 +5119,12 @@
           "max_length": 14,
           "needs_translation": false,
           "translation": "Current Source"
+        },
+        "edit_battery": {
+          "english": "Edit Battery",
+          "max_length": 16,
+          "needs_translation": false,
+          "translation": "Edit Battery"
         },
         "full_cell_voltage": {
           "english": "Full Cell Voltage",
@@ -7038,6 +7098,12 @@
       "needs_translation": false,
       "translation": "Loading data from flight controller..."
     },
+    "msg_main_power_lost_banner": {
+      "english": "MAIN POWER LOST",
+      "max_length": 27,
+      "needs_translation": false,
+      "translation": "MAIN POWER LOST"
+    },
     "msg_please_disarm_to_save_warning": {
       "english": "The flight controller rejected the save while armed. Your changes are safe and will be written to flash when you disarm.",
       "max_length": 120,
@@ -7073,6 +7139,12 @@
       "max_length": 67,
       "needs_translation": false,
       "translation": "Settings were not saved to the flight controller. Please try again."
+    },
+    "msg_save_failed_local_body": {
+      "english": "Settings were not saved to the radio. Please try again.",
+      "max_length": 67,
+      "needs_translation": false,
+      "translation": "Settings were not saved to the radio. Please try again."
     },
     "msg_save_failed_title": {
       "english": "Save failed",
@@ -7880,6 +7952,12 @@
         "max_length": 12,
         "needs_translation": false,
         "translation": "Altitude Max"
+      },
+      "armed_warning": {
+        "english": "Armed warning",
+        "max_length": 24,
+        "needs_translation": false,
+        "translation": "Armed warning"
       },
       "battery": {
         "english": "Battery",

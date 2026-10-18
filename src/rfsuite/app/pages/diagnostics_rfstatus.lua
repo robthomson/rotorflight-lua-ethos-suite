@@ -29,6 +29,8 @@ local function luaMemoryText()
   return string.format("%.1f kB", collectgarbage("count"))
 end
 
+local REFRESH_INTERVAL = 1.0
+
 local function open(opts)
   common.openReadOnlyPage(opts, PAGE_TITLE, function(ctx)
     local fields = {
@@ -37,22 +39,41 @@ local function open(opts)
       rfModule = common.addValueLine("@i18n(app.modules.rfstatus.rfmodule)@", "-"),
       mspSensor = common.addValueLine("@i18n(app.modules.rfstatus.mspsensor)@", "-"),
       connected = common.addValueLine("@i18n(app.modules.rfstatus.fblconnected)@", "-"),
-      api = common.addValueLine("@i18n(app.modules.rfstatus.apiversion)@", "@i18n(app.modules.rfstatus.ok)@"),
+      api = common.addValueLine("@i18n(app.modules.rfstatus.apiversion)@", "-"),
     }
 
-    local function update(session)
+    local lastUpdate = 0
+    local lastConnected = nil
+    local lastApiSupported = nil
+
+    local function update(session, force)
+      local now = os.clock()
+      local connected = session and session.connected
+      local apiSupported = session and session.apiVersionSupported
+      if not force and (now - lastUpdate < REFRESH_INTERVAL) and (connected == lastConnected)
+        and (apiSupported == lastApiSupported) then
+        return
+      end
+      lastUpdate = now
+      lastConnected = connected
+      lastApiSupported = apiSupported
+
       common.updateField(fields.memory, memoryText())
       common.updateField(fields.luaMemory, luaMemoryText())
       common.updateStatus(fields.rfModule, moduleEnabled())
       common.updateStatus(fields.mspSensor, haveMspSensor())
-      common.updateStatus(fields.connected, session.connected)
-      common.updateStatus(fields.api, true)
+      common.updateStatus(fields.connected, connected)
+      -- The API line is OK only on a live link whose MSP API version the suite supports.
+      -- Without a connection it is unknown, not OK (issue #2582).
+      local apiOk = connected == true and apiSupported == true
+      common.updateField(fields.api, apiOk and "@i18n(app.modules.rfstatus.ok)@" or "-")
+      common.setFieldColor(fields.api, apiOk and GREEN or RED)
     end
 
-    update(ctx.session)
+    update(ctx.session, true)
     return {
-      onSession = update,
-      wakeup = function() update(ctx.session) end,
+      onSession = function(session) update(session, false) end,
+      wakeup = function() update(ctx.session, false) end,
     }
   end)
 end

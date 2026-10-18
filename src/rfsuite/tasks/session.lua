@@ -28,6 +28,10 @@ local settingsStore = requireModule("lib/settings_store.lua")
 local mspBattery = requireModule("lib/msp_battery.lua")
 local batteryProfileIndex = requireModule("lib/battery_profile_index.lua")
 local dataflashSummary = requireModule("lib/msp_dataflash_summary.lua")
+local mainPower = requireModule("lib/main_power.lua")
+-- The latch lives with the session, not in the audio task, so the dashboard and the
+-- audio alert read one flag from one place (#2358).
+local mainPowerLatch = mainPower.newLatch()
 local governorConfig = requireModule("lib/msp_governor_config.lua")
 local modelPreferences = requireModule("lib/model_preferences.lua")
 local flightStats = requireModule("lib/msp_flight_stats.lua")
@@ -74,6 +78,9 @@ local session = {
   -- true/false once lib/msp_api_version.lua's read completes; nil while
   -- still unknown (never reads as "unsupported" -- see its own isSupported()).
   apiVersionSupported = nil,
+  -- true while the flight pack is gone and the receiver runs on backup power (#2358).
+  -- Evaluated in updateMainPower(); the audio alert and the dashboard both read it.
+  mainPowerLost = false,
   mcuId = nil,
   craftName = nil,
   clockSynced = false,
@@ -126,12 +133,17 @@ local session = {
   -- armFlagsToIsArmed(): raw value 1 or 3 means armed, 0 or 2 disarmed
   -- (bit 0 of the arm-status flags), anything else (nil -- sensor not
   -- broadcasting yet) leaves isArmed at its last known value rather than
-  -- guessing. The one current consumer is app/pages/configuration.lua's
-  -- save flow, which must not trigger MSP_REBOOT while the aircraft could
-  -- be armed -- see lib/msp_reboot.lua's own comment for why this is the
-  -- only safety gate on that command (firmware's own MSP_REBOOT handler
-  -- has none).
+  -- guessing. Writes that must not happen while the aircraft could be armed
+  -- (the page save gate, the reboot after a save, the flight-stats sync) are
+  -- gated in app/page_runtime.lua and in syncStatsWithFc(). Reads keep the
+  -- strict `== true` test. See lib/msp_reboot.lua for the firmware's own gate.
   isArmed = nil,
+  -- Latch for "the model was seen armed and no fresh answer has said disarmed
+  -- since" (#2548). isArmed goes nil on every disconnect, so a reconnect that
+  -- has not yet read the arm flags looks like "not armed". Writes gate on
+  -- armedOrUnconfirmed() instead. Set only by updateArmState(), never cleared
+  -- by a disconnect; an FC that never reports arm flags never sets it.
+  armedUnconfirmed = false,
   -- Why-can't-arm bitmask, read from the FC's own "armdisableflags"
   -- telemetry sensor -- see widgets/dashboard/context.lua's
   -- armingDisableFlagsToString() for how the dashboard's governor/armflags
@@ -389,6 +401,7 @@ local function flush()
     apiVersionMajor = session.apiVersionMajor,
     apiVersionMinor = session.apiVersionMinor,
     apiVersionSupported = session.apiVersionSupported,
+    mainPowerLost = session.mainPowerLost,
     mcuId = session.mcuId,
     craftName = session.craftName,
     batteryConfig = copyBatteryConfig(session.batteryConfig),
@@ -428,6 +441,7 @@ local function flush()
     bblSize = session.bblSize,
     bblUsed = session.bblUsed,
     isArmed = session.isArmed,
+    armedUnconfirmed = session.armedUnconfirmed,
     armDisableFlags = session.armDisableFlags,
     rxMap = session.rxMap,
     handshake = copyHandshake(session.handshake),
@@ -530,9 +544,19 @@ local function writeRemoteStats(mspQueue, remote)
   end))
 end
 
+-- #2548: a nil isArmed means "not known yet", not "disarmed". After a disconnect
+-- it is nil until the arm flags are read again, so a write gated on
+-- `isArmed == true` alone would pass in that window. An armed model stays
+-- unconfirmed until a fresh answer says disarmed. An FC that never reports arm
+-- flags keeps armedUnconfirmed false and stays usable.
+local function armedOrUnconfirmed()
+  if session.isArmed == true then return true end
+  return session.isArmed == nil and session.armedUnconfirmed == true
+end
+
 local function syncStatsWithFc(mspQueue)
   if not mspQueue or statsReadInFlight or statsWriteInFlight then return end
-  if session.connected ~= true or session.isArmed == true then return end
+  if session.connected ~= true or armedOrUnconfirmed() then return end
   if not loadModelPreferences() then return end
 
   statsReadInFlight = true
@@ -947,6 +971,8 @@ local function setConnected(value, mspQueue, protocol)
     session.tempEsc = nil
     session.tempMcu = nil
     session.becVoltage = nil
+    session.mainPowerLost = false
+    mainPowerLatch.packSeen = false
     session.smartfuelMode = nil
     session.smartfuelVoltageFallPerSecond = nil
     session.smartfuelChargeDropPerSecond = nil
@@ -998,11 +1024,19 @@ local function setConnected(value, mspQueue, protocol)
   publish()
 end
 
+-- Main power lost (#2358): evaluated on every voltage change, so the latch sees each
+-- reading (the latch itself is declared with the requires, above setConnected()).
+local function updateMainPower()
+  session.mainPowerLost = mainPower.evaluate(
+    tonumber(session.voltage), tonumber(session.becVoltage), mainPowerLatch)
+end
+
 local function updateVoltage(protocol)
   if not telemetrySensors then return end
   local value = telemetrySensors.getValue(protocol, "voltage")
   if value ~= session.voltage then
     session.voltage = value
+    updateMainPower()
     publish()
   end
 end
@@ -1204,6 +1238,13 @@ local function updateArmState(protocol, mspQueue)
       isArmed = (math.floor(armFlags) & 1) == 1
     end
   end
+  -- Latch (#2548): a fresh armed answer sets it, a fresh disarmed answer clears
+  -- it, and nil leaves it alone -- that nil is the post-disconnect window.
+  if isArmed == true then
+    session.armedUnconfirmed = true
+  elseif isArmed == false then
+    session.armedUnconfirmed = false
+  end
   if isArmed ~= nil and isArmed ~= session.isArmed then
     local wasArmed = session.isArmed
     session.isArmed = isArmed
@@ -1283,6 +1324,7 @@ local function updateBecVoltage(protocol)
   local value = telemetrySensors.getValue(protocol, "bec_voltage")
   if value ~= session.becVoltage then
     session.becVoltage = value
+    updateMainPower()
     publish()
   end
 end
@@ -1485,6 +1527,8 @@ local function updateFuel(protocol)
 
   local bc = session.batteryConfig
   local percent
+  -- Set by the local estimator when a nil answer is only a re-settling, not missing data.
+  local settling
 
   if session.smartfuelMode > 0 then
     local raw = telemetrySensors.getValue(protocol, "smartfuel")
@@ -1492,7 +1536,7 @@ local function updateFuel(protocol)
       percent = smartfuelReserve.applyPercent(raw, bc.consumptionWarningPercentage)
     end
   else
-    percent = localSmartFuel:update({
+    percent, settling = localSmartFuel:update({
       voltage = telemetrySensors.getValue(protocol, "voltage"),
       consumption = telemetrySensors.getValue(protocol, "consumption"),
       cellCount = bc.cellCount,
@@ -1506,14 +1550,25 @@ local function updateFuel(protocol)
     })
   end
 
-  smartfuelSensor:set(percent, session.connected)
-
-  if percent ~= session.fuelPercent then
-    if session.fuelPercent == nil and percent ~= nil then
-      debugLog.print("[session] fuelPercent now available: " .. tostring(percent) .. "% (mode=" .. tostring(session.smartfuelMode) .. ")")
+  -- A nil while the estimator re-settles (after disarm the pack voltage rises as the
+  -- load goes away, and the estimate starts again) is not "no data". Writing it would
+  -- reset the Ethos sensor, which then shows as lost.
+  --   * settling == true  → re-push the last known value so Ethos never goes quiet
+  --     for more than STALE_REFRESH_SECONDS (2.0 s), which is well under the 4.0 s
+  --     lost-sensor threshold. Also keep session.fuelPercent so widgets keep their
+  --     last reading during the re-settle window.
+  --   * settling == nil (real missing input) → clear the sensor as before.
+  if percent == nil and settling then
+    smartfuelSensor:refresh()
+  else
+    smartfuelSensor:set(percent, session.connected)
+    if percent ~= session.fuelPercent then
+      if session.fuelPercent == nil and percent ~= nil then
+        debugLog.print("[session] fuelPercent now available: " .. tostring(percent) .. "% (mode=" .. tostring(session.smartfuelMode) .. ")")
+      end
+      session.fuelPercent = percent
+      publish()
     end
-    session.fuelPercent = percent
-    publish()
   end
 end
 

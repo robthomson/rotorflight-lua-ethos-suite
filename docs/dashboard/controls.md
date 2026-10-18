@@ -16,10 +16,29 @@ is dimmed.
 | Tile | Does | Greyed out when |
 | --- | --- | --- |
 | Reset | Resets the flight (timers and min/max stats) after a confirmation. | Never. |
-| Erase | Erases the blackbox dataflash after a confirmation. | Not connected. |
-| Battery | Opens the battery picker (below) to choose the active battery profile. | Not connected, or fewer than two battery profiles are set. |
+| Erase | Erases the blackbox dataflash after a confirmation. The dialog closes once the flash reports ready (or the board has no dataflash); if that does not happen within four minutes of awake time after the erase is acknowledged, an error is shown (a full chip erase takes up to 200 seconds). | Not connected, armed, or the armed state is currently unknown after having been armed. |
+| Battery | Opens the battery picker (below) to choose the active battery profile. | Not connected, armed or unknown-after-armed, or fewer than two battery profiles are set. |
 | Info | Opens the info panel (below). | Never. |
 | Setup | Opens the RFSuite system tool. | Ethos is older than 26.1. |
+
+Erase and Battery write to the flight controller, so both are greyed out while the
+model is armed and do nothing when tapped. Arming also closes an open battery picker.
+
+They stay greyed out while the armed state is *unknown after having been armed*. Losing
+the link in flight clears the armed state, and the reconnect is published before the
+first arm flags arrive, so for a moment the flight controller is connected and its
+armed state is missing while the rotor may still be turning. A flight controller that has
+never reported arm flags at all is not affected: these two tiles stay usable for it.
+
+## Armed warning
+
+While the model is armed, the dashboard shows a red bar across the top edge with an
+"Armed" label hanging from its centre, on every theme. It is drawn over the theme and
+moves nothing. It appears only once the FC reports the armed state, and it goes away
+when the model is disarmed.
+
+The warning can be switched off in the widget properties with **Armed warning**. It is
+on by default.
 
 ## Battery picker
 
@@ -55,7 +74,7 @@ dashboard), and updates live. The dashboard behind it is dimmed. Unlike the
 toolbar it does not time out. It closes when you:
 
 - press Exit, Return or Enter, slide up, or tap anywhere on the dashboard;
-- arm the model. You can open it again while armed.
+- arm the model. It cannot be opened while armed.
 
 When the toolbar is open, sliding down closes the toolbar first. Only one of the
 two is open at a time. Exit reaches the panel only while the dashboard widget
@@ -71,7 +90,7 @@ has focus, the same as the toolbar's keys.
 | Arming | **Ready** (green), **Blocked** (amber), or **Armed** (red). When blocked, each reason is listed at the bottom of the column. `-` until the FC reports its arming flags (or System Status). |
 | Profile | Active PID, rate and battery profile numbers. |
 | BEC Voltage | BEC voltage, when the sensor reports it. |
-| Blackbox | How full the blackbox dataflash is. |
+| Blackbox | How full the blackbox dataflash is. On a board without dataflash it shows *No dataflash* instead of a capacity. |
 
 **Right column: Battery, then GPS**
 
