@@ -4233,6 +4233,18 @@
           "reverse_text": false,
           "translation": "Boot Grace Czas"
         },
+        "arming_disable_flag_override": {
+          "english": "Override",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Override"
+        },
+        "arming_disable_flag_tail_motor": {
+          "english": "Tail Motor",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Tail Motor"
+        },
         "arming_flags": {
           "english": "Arming Flags",
           "max_length": 12,
@@ -5129,12 +5141,96 @@
           "reverse_text": false,
           "translation": "Ogon Idle Thr%"
         },
+        "tail_pin": {
+          "english": "Tail pin",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Tail pin"
+        },
+        "tail_pin_both": {
+          "english": "Own motor pin",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Own motor pin"
+        },
+        "tail_pin_motor": {
+          "english": "Motor 2",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Motor 2"
+        },
+        "tail_pin_none": {
+          "english": "No pin",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "No pin"
+        },
+        "tail_pin_refused_custom": {
+          "english": "Kept: custom pins",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Kept: custom pins"
+        },
+        "tail_pin_refused_no_dma": {
+          "english": "Kept: no DMA",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Kept: no DMA"
+        },
+        "tail_pin_refused_no_motor": {
+          "english": "Kept: no motor 1",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Kept: no motor 1"
+        },
+        "tail_pin_refused_no_timer": {
+          "english": "Kept: no timer",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Kept: no timer"
+        },
+        "tail_pin_refused_timer": {
+          "english": "Kept: timer shared",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Kept: timer shared"
+        },
+        "tail_pin_servo": {
+          "english": "Servo 4",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Servo 4"
+        },
+        "tail_pin_to_motor": {
+          "english": "Save: to motor 2",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Save: to motor 2"
+        },
+        "tail_pin_to_servo": {
+          "english": "Save: to servo 4",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Save: to servo 4"
+        },
         "tail_rotor_mode": {
           "english": "Tail Mode",
           "max_length": 9,
           "needs_translation": false,
           "reverse_text": false,
           "translation": "Ogon Mode"
+        },
+        "tail_tta_off": {
+          "english": "Also sets Tail Torque Assist to 0 in every profile.",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Also sets Tail Torque Assist to 0 in every profile."
+        },
+        "tail_tta_on": {
+          "english": "Also sets Tail Torque Assist to 100 in every profile.",
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Also sets Tail Torque Assist to 100 in every profile."
         },
         "trims": {
           "english": "Trims",

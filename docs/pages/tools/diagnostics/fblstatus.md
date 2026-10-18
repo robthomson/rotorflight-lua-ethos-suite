@@ -36,6 +36,13 @@ re-entering the page starts from a clean list.
 A flag the suite has no name for is shown as its raw mask value (`0x40000000`)
 rather than dropped, so a reason is never invisible.
 
+The firmware adds new reasons just before *Arm Switch*, which is always the last
+flag, so the top flags mean different things on different firmware. The page
+names them from the number of flags the flight controller reports: *Override*
+(a servo or mixer override is on) on MSP API 12.9 and later, and *Tail Motor*
+(the tail is motorised but motor 2 has no pin, see
+[Mixer → Tail](../../setup/mixer/tail.md)) on firmware that has it.
+
 ## Settings
 
 | Setting | What it does |
