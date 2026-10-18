@@ -253,6 +253,43 @@ local function ttaChecks(tail)
       string.format("written %d, errors %d", written, errors))
   end
 
+  print("a TTA step that fails selects the active profile again first")
+  do
+    reset()
+    local values = {supported = true, output = tail.OUTPUT.MOTOR, motorised = true, setTta = true}
+    local written, errors, reason = 0, 0, nil
+    local msg = tail.buildWriteMessage(values, function() written = written + 1 end,
+      function(why) errors = errors + 1; reason = why end)
+    reply(msg, {tail.OUTPUT.MOTOR, tail.RESULT.OK})
+
+    -- 3 profiles, profile 2 (0-based) active; the governor write of profile 1 fails.
+    local selected, guard, i = {}, 0, 1
+    while i <= #published and guard < 100 do
+      guard = guard + 1
+      local m = published[i]
+      if m.command == status.READ_COMMAND then
+        reply(m, statusBytes(2, 3))
+      elseif m.command == selectProfile.WRITE_COMMAND then
+        selected[#selected + 1] = m.payload[1]
+        reply(m, {})
+      elseif m.isWrite then
+        if selected[#selected] == 1 then
+          m.errorHandler("write failed")
+        else
+          reply(m, {})
+        end
+      else
+        reply(m, governorBytes(0))
+      end
+      i = i + 1
+    end
+    check("the loop stops and the active profile is selected again", table.concat(selected, ",") == "0,1,2",
+      "selected " .. table.concat(selected, ","))
+    check("the original reason is reported once, and the write does not finish",
+      errors == 1 and reason == "write failed" and written == 0,
+      string.format("errors %d, reason %s, written %d", errors, tostring(reason), written))
+  end
+
   print("TTA off on a change to a servo tail, on firmware without the command")
   do
     reset()

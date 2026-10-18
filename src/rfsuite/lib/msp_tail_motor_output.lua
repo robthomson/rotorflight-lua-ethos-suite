@@ -112,6 +112,14 @@ local function setTtaAllProfiles(gain, onDone, onError)
       bus.publish("msp.request", selectProfile.buildWriteMessage(active, onDone, onError))
     end
 
+    -- A step that fails midway would leave the FC on whichever profile the
+    -- loop had selected, and a later save from any page would store that.
+    -- Select the active profile again first, then report the reason.
+    local function fail(reason)
+      local function report() onError(reason) end
+      bus.publish("msp.request", selectProfile.buildWriteMessage(active, report, report))
+    end
+
     step = function(profile)
       if profile >= count then
         restore()
@@ -124,14 +132,14 @@ local function setTtaAllProfiles(gain, onDone, onError)
             return
           end
           g.governor_tta_gain = gain
-          local message = governorProfile.buildWriteMessage(g, function() step(profile + 1) end, onError)
+          local message = governorProfile.buildWriteMessage(g, function() step(profile + 1) end, fail)
           if not message then
-            onError("incomplete governor profile")
+            fail("incomplete governor profile")
             return
           end
           bus.publish("msp.request", message)
-        end, onError))
-      end, onError))
+        end, fail))
+      end, fail))
     end
 
     step(0)
