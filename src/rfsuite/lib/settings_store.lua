@@ -281,14 +281,57 @@ local function normalize(settings)
   return settings
 end
 
+-- Sections whose keys the suite's schema does not fix, so the key check below does not prune
+-- inside them: activelook decides its keys in activelook_config.withDefaults.
+local SELF_SCHEMA = {activelook = true}
+
+-- Audio switches: the schema defines which sensor keys are supported.
+-- Switch values are serialized as "category,member" source identifiers.
+local ALLOWED_SWITCH_KEYS = {
+  altitude = true,
+  bec_voltage = true,
+  consumption = true,
+  current = true,
+  rpm = true,
+  smartfuel = true,
+  temp_esc = true,
+  throttle_percent = true,
+  voltage = true,
+}
+
+-- Each dashboard theme keeps its own preferences in a section named after the theme ("dashboard.bastion"),
+-- so those sections belong to the theme and are kept whole. A section the suite no longer has is
+-- still dropped.
+local function themeSection(section)
+  return type(section) == "string" and section:match("^dashboard%.%S+$") ~= nil
+end
+
+-- Merges what was read over the schema's defaults. What the schema does not define is dropped: a
+-- section the suite no longer has, and a key an older release wrote (#2325). Saving goes through
+-- here too, so a stale key leaves the file the next time settings are saved.
 function settings_store.withDefaults(settings)
   local merged = tableClone.nested(DEFAULTS)
   settings = settings or {}
   for section, values in pairs(settings) do
-    merged[section] = merged[section] or {}
-    if type(values) == "table" then
+    if type(values) == "table" and themeSection(section) then
+      merged[section] = {}
+      for key, value in pairs(values) do merged[section][key] = value end
+    elseif section == "switches" and type(values) == "table" then
+      local sw = {}
       for key, value in pairs(values) do
-        merged[section][key] = value
+        if ALLOWED_SWITCH_KEYS[key] and type(value) == "string" and value:match("^%s*%-?%d+%s*,%s*%-?%d+%s*$") then
+          sw[key] = value:match("^%s*(.-)%s*$")
+        end
+      end
+      if next(sw) ~= nil then
+        merged.switches = sw
+      end
+    elseif DEFAULTS[section] ~= nil and type(values) == "table" then
+      merged[section] = merged[section] or {}
+      for key, value in pairs(values) do
+        if SELF_SCHEMA[section] or DEFAULTS[section][key] ~= nil then
+          merged[section][key] = value
+        end
       end
     end
   end
