@@ -29,7 +29,7 @@ Greyed out until the flight controller answers. Read-only while the model is arm
 
 ## Notes
 
-- Many flight controllers come with the tail on servo 4. A motorised tail needs that pin as motor 2. When the tail mode and the pin disagree, the page offers Save even with nothing edited, and Save moves the pin (MSP2_TAIL_MOTOR_OUTPUT) before the flight controller reboots. A pin left on servo 4 with a motorised tail blocks arming (*Tail Motor* on [FBL Status](../../tools/diagnostics/fblstatus.md)).
+- Many flight controllers come with the tail on servo 4. A motorised tail needs that pin as motor 2. When the tail mode and the pin disagree, the page offers Save even with nothing edited, and Save moves the pin (MSP2_TAIL_MOTOR_OUTPUT) before the flight controller reboots. A pin left on servo 4 with a motorised tail blocks arming (*Motor Protocol* on [FBL Status](../../tools/diagnostics/fblstatus.md)).
 - The flight controller refuses to move the pin when its timer also drives another servo or motor (*Kept: timer shared*), when motor 1 has no pin (*Kept: no motor 1*), when the pin has no timer (*Kept: no timer*), when the ESC protocol is DShot without bitbang and the pin has no DMA (*Kept: no DMA*), or when the motor and servo pins were set by hand (*Kept: custom pins*). Use the Remap FC tab of the Rotorflight Configurator in those cases.
 - Changing between a servo tail and a motor tail also sets Tail Torque Assist on every PID profile: gain 100 for a motor tail, 0 for a servo tail. The save confirmation says so. Tail Torque Assist only acts with the Electric or Direct governor.
 - Changes are written to the flight controller EEPROM upon Save.

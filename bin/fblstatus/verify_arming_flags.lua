@@ -106,7 +106,6 @@ check(
 print("the top bits, by arming_disable_flags_count")
 
 local OVERRIDE = "@i18n(app.modules.fblstatus.arming_disable_flag_override)@"
-local TAIL_MOTOR = "@i18n(app.modules.fblstatus.arming_disable_flag_tail_motor)@"
 local ARM_SWITCH = tagFor(25)
 
 local function names(mask, count)
@@ -117,8 +116,8 @@ check("26 flags: bit 25 is the arm switch, as without a count",
   names(2 ^ 25, 26) == ARM_SWITCH and names(2 ^ 25) == ARM_SWITCH, names(2 ^ 25, 26))
 check("27 flags: bit 25 is OVERRIDE and bit 26 the arm switch",
   names(2 ^ 25 + 2 ^ 26, 27) == OVERRIDE .. "," .. ARM_SWITCH, names(2 ^ 25 + 2 ^ 26, 27))
-check("28 flags: bits 25, 26 and 27 are OVERRIDE, TAIL_MOTOR and the arm switch",
-  names(2 ^ 25 + 2 ^ 26 + 2 ^ 27, 28) == OVERRIDE .. "," .. TAIL_MOTOR .. "," .. ARM_SWITCH,
+check("28 flags: the arm switch is the last bit, and a bit without a name shows its number",
+  names(2 ^ 25 + 2 ^ 26 + 2 ^ 27, 28) == OVERRIDE .. ",0x4000000," .. ARM_SWITCH,
   names(2 ^ 25 + 2 ^ 26 + 2 ^ 27, 28))
 check("a count does not rename bits 0..24", names(2 ^ 7 + 2 ^ 24, 28) == tagFor(7) .. "," .. tagFor(24),
   names(2 ^ 7 + 2 ^ 24, 28))

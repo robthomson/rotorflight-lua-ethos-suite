@@ -5525,12 +5525,6 @@
           "translation": "Override",
           "needs_translation": true,
           "reverse_text": false
-        },
-        "arming_disable_flag_tail_motor": {
-          "english": "Tail Motor",
-          "translation": "Tail Motor",
-          "needs_translation": true,
-          "reverse_text": false
         }
       },
       "elrs_telemetry": {

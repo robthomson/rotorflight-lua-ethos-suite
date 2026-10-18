@@ -64,14 +64,14 @@ local FLAG_TAGS = {
 -- sends how many there are (arming_disable_flags_count), and that count,
 -- not the API version, places them (rotorflight-firmware
 -- src/main/fc/runtime_config.h):
---   26 flags: bit 25 ARMSWITCH                       (before API 12.9)
---   27 flags: bit 25 OVERRIDE, bit 26 ARMSWITCH       (12.9, 12.10 at first)
---   28 flags: bit 25 OVERRIDE, bit 26 TAIL_MOTOR, 27 ARMSWITCH
--- Without a count the 26-flag table above is used, as before.
+--   26 flags: bit 25 ARMSWITCH                 (before API 12.9)
+--   27 flags: bit 25 OVERRIDE, bit 26 ARMSWITCH (API 12.9 and 12.10)
+-- With more, the last bit is still ARMSWITCH and a bit this table has no
+-- name for is shown by number. Without a count the 26-flag table is used,
+-- as before.
 local ARM_SWITCH_TAG = FLAG_TAGS[25]
 local LATER_TAGS = {
   [25] = "@i18n(app.modules.fblstatus.arming_disable_flag_override)@",
-  [26] = "@i18n(app.modules.fblstatus.arming_disable_flag_tail_motor)@",
 }
 
 local function tagFor(bit, count)

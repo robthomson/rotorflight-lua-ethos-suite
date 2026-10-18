@@ -4759,12 +4759,6 @@
           "max_length": 8,
           "needs_translation": false,
           "translation": "Override"
-        },
-        "arming_disable_flag_tail_motor": {
-          "english": "Tail Motor",
-          "max_length": 10,
-          "needs_translation": false,
-          "translation": "Tail Motor"
         }
       },
       "elrs_telemetry": {
