@@ -61,6 +61,7 @@ local memstats = requireModule("lib/memstats.lua")
 local settingsStore = requireModule("lib/settings_store.lua")
 local debugLog = requireModule("lib/debug_log.lua")
 local progressDialog = requireModule("app/progress_dialog.lua")
+local leaveConfirm = requireModule("app/leave_confirm.lua")
 
 -- Generic dialog/progress text, matching rotorflight-lua-ethos-suite's own
 -- actual strings (app/tasks.lua's triggerSaveDialogs()/triggerReloadDialogs(),
@@ -174,7 +175,8 @@ end
 --                               -- not the instant data arrived, since Ethos doesn't necessarily re-invoke
 --                               -- every field's getter just because loadData() re-enabled them.
 --   beforeSave,                 -- optional; called at the start of performSave(), after the pilot
---                               -- confirms but before any MSP_SET_* write is built.
+--                               -- confirms but before any MSP_SET_* write is built. Returning false
+--                               -- aborts the save (the page reports the failure itself).
 --   extraSaveMessage,           -- optional text appended to the generic save confirmation body.
 --   eepromWrite,                 -- optional; defaults true. Set false for direct targets whose original
 --                               -- page writes its own non-FC storage and does not request MSP_EEPROM_WRITE.
@@ -255,6 +257,9 @@ function PageRuntime.new(config)
   self.onSaved = config.onSaved
   self.rebootAfterSave = config.rebootAfterSave
   self.isMspPage = config.isMspPage
+  -- A page that writes every change to the flight controller as it is made has nothing to save
+  -- when Back is pressed, so it does not ask (issue #2504).
+  self.liveWrite = config.liveWrite == true
   -- #2303: true for a page whose save only writes the radio's own storage
   -- (lib/settings_store.lua) and never requests MSP_EEPROM_WRITE, so the FC
   -- armed gate in canSave() does not apply to it. Off by default -- every page
@@ -759,8 +764,10 @@ end
 function PageRuntime:performSave(focusFn)
   if self.disposed or not self:canSave() then return end
 
-  if self.beforeSave then
-    self.beforeSave(self)
+  -- Returning false from beforeSave refuses the whole save: nothing is written,
+  -- the page stays dirty, and beforeSave has already told the pilot why (#2545).
+  if self.beforeSave and self.beforeSave(self) == false then
+    return
   end
 
   self:setBusy(true)
@@ -1175,7 +1182,32 @@ end
 -- calling this same method (see buildChrome() and header.lua's onBack
 -- below) -- so it's the one place to see a "this module is exiting" RAM
 -- snapshot for any of them, without touching each page individually.
+-- Back with unsaved changes asks first (issue #2504). Stay keeps the page; Discard leaves it;
+-- Save saves and keeps it open, so a second Back leaves once the save has gone through.
+function PageRuntime:hasUnsavedChanges()
+  return not self.disposed and not self.liveWrite and self.loaded == true and self.dirty == true
+end
+
 function PageRuntime:goBack()
+  if self.busy or self.activeDialog then return end
+  if not self:hasUnsavedChanges() then
+    self:leave()
+    return
+  end
+  self:openMessageDialog(leaveConfirm.args({
+    canSave = self:canSave(),
+    armed = armedOrUnconfirmed(self),
+    save = function() self:performSave(nil) end,
+    discard = function() self:leave() end,
+    focus = function()
+      if self.headerHandle and self.headerHandle.focusSave then
+        self.headerHandle.focusSave()
+      end
+    end,
+  }))
+end
+
+function PageRuntime:leave()
   local logTag = self.logTag or "page"
   memstats.print(logTag .. " exit")
   local onBack = self.opts and self.opts.onBack

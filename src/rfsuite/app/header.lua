@@ -99,6 +99,7 @@ local MENU_ICON = lcd.loadMask("app/gfx/nav/back.png")
 local SAVE_ICON = lcd.loadMask("app/gfx/nav/save.png")
 local RELOAD_ICON = lcd.loadMask("app/gfx/nav/reload.png")
 local TOOL_ICON = lcd.loadMask("app/gfx/nav/tool.png")
+local INFO_ICON = lcd.loadMask("app/gfx/nav/info.png")
 
 -- Width hint for every icon button slot (see the header comment above).
 local SLOT_HINT = "  WWW  "
@@ -107,6 +108,7 @@ local function noop() end
 
 local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("lib/require.lua"))()
 local tileGrid = requireModule("app/tile_grid.lua")
+local connectionDetails = requireModule("app/connection_details.lua")
 
 -- The static text's own font (form.addStaticText takes no font option).
 local TITLE_FONT = FONT_STD
@@ -235,10 +237,12 @@ function header.build(title, opts)
   local isLeafPage = (opts.onSave ~= nil) or (opts.onReload ~= nil) or (opts.onTool ~= nil)
 
   if not isLeafPage then
-    local slots = form.getFieldSlots(line, {0, SLOT_HINT})
+    -- The info button sits in the same slot as on the leaf pages (#2318), so it reads the same everywhere.
+    local slots = form.getFieldSlots(line, {0, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT})
     local titleRect = buildTitleRect(slots)
     local titleField = form.addStaticText(line, titleRect, fitTitle(title, titleRect.w), LEFT)
     local menuButton = addNavButton(line, slots[2], MENU_ICON, opts.onBack)
+    addNavButton(line, slots[6], INFO_ICON, function() connectionDetails.open() end)
     return {
       setTitle = function(newTitle) titleField:value(fitTitle(newTitle, titleRect.w)) end,
       setSaveEnabled = noop,
@@ -254,7 +258,7 @@ function header.build(title, opts)
     }
   end
 
-  local slots = form.getFieldSlots(line, {0, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT})
+  local slots = form.getFieldSlots(line, {0, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT})
 
   local titleRect = buildTitleRect(slots)
   local titleField = form.addStaticText(line, titleRect, fitTitle(title, titleRect.w), LEFT)
@@ -267,6 +271,8 @@ function header.build(title, opts)
   reloadButton:enable(opts.onReload ~= nil)
 
   local toolButton = addNavButton(line, slots[5], TOOL_ICON, opts.onTool or noop)
+  -- The connection details, on every page (#2318): an icon only, opens the link's status.
+  local infoButton = addNavButton(line, slots[6], INFO_ICON, function() connectionDetails.open() end)
   toolButton:enable(opts.onTool ~= nil)
 
   return {

@@ -6,6 +6,72 @@
     "max_length": 6
   },
   "app": {
+    "connection_title": {
+      "english": "Connection",
+      "translation": "Connection",
+      "needs_translation": false,
+      "max_length": 10
+    },
+    "connection_body_fmt": {
+      "english": "Link: %s\nHandshake: %s\nCraft: %s\nFirmware: %s\nAPI: %s",
+      "translation": "Link: %s\nHandshake: %s\nCraft: %s\nFirmware: %s\nAPI: %s",
+      "needs_translation": false,
+      "max_length": 53
+    },
+    "connection_link_up": {
+      "english": "connected",
+      "translation": "connected",
+      "needs_translation": false,
+      "max_length": 9
+    },
+    "connection_link_down": {
+      "english": "not connected",
+      "translation": "not connected",
+      "needs_translation": false,
+      "max_length": 13
+    },
+    "connection_handshake_fmt": {
+      "english": "%d of %d steps",
+      "translation": "%d of %d steps",
+      "needs_translation": false,
+      "max_length": 14
+    },
+    "msg_unsaved_title": {
+      "english": "Unsaved changes",
+      "translation": "Unsaved changes",
+      "needs_translation": false,
+      "max_length": 15
+    },
+    "msg_unsaved_body": {
+      "english": "Save the changes before leaving?",
+      "translation": "Save the changes before leaving?",
+      "needs_translation": false,
+      "max_length": 32
+    },
+    "msg_unsaved_armed_body": {
+      "english": "Saving is locked while armed. Discard the changes?",
+      "translation": "Saving is locked while armed. Discard the changes?",
+      "needs_translation": false,
+      "max_length": 50
+    },
+    "btn_save": {
+      "english": "SAVE",
+      "translation": "SAVE",
+      "needs_translation": false,
+      "max_length": 4
+    },
+    "btn_discard": {
+      "english": "DISCARD",
+      "translation": "DISCARD",
+      "needs_translation": false,
+      "max_length": 7
+    },
+    "btn_stay": {
+      "english": "STAY",
+      "translation": "STAY",
+      "needs_translation": false,
+      "max_length": 4
+    },
     "navigation_menu": {
       "english": "BACK",
       "translation": "BACK",
@@ -1576,6 +1642,18 @@
         }
       },
       "settings": {
+        "alert_max_repeats": {
+          "english": "Max repeats (0 = all)",
+          "translation": "Max repeats (0 = all)",
+          "needs_translation": false,
+          "max_length": 21
+        },
+        "alert_vibrate": {
+          "english": "Vibrate",
+          "translation": "Vibrate",
+          "needs_translation": false,
+          "max_length": 7
+        },
         "name": {
           "english": "Settings",
           "translation": "Settings",
@@ -3906,6 +3984,24 @@
         }
       },
       "power": {
+        "preferences_name": {
+          "english": "Preferences",
+          "translation": "Preferences",
+          "needs_translation": false,
+          "max_length": 11
+        },
+        "esc_current_limit": {
+          "english": "ESC Current Limit",
+          "translation": "ESC Current Limit",
+          "needs_translation": false,
+          "max_length": 17
+        },
+        "save_preferences_prompt": {
+          "english": "Save power preferences?",
+          "translation": "Save power preferences?",
+          "needs_translation": false,
+          "max_length": 23
+        },
         "alert_name": {
           "english": "Alerts",
           "max_length": 6,
@@ -4302,6 +4398,18 @@
         }
       },
       "copyprofiles": {
+        "msgbox_copy_title": {
+          "english": "Copy profile?",
+          "translation": "Copy profile?",
+          "needs_translation": false,
+          "max_length": 13
+        },
+        "msgbox_copy_fmt": {
+          "english": "Copy %s Profile %d to Profile %d? This permanently overwrites Profile %d in the flight controller.",
+          "translation": "Copy %s Profile %d to Profile %d? This permanently overwrites Profile %d in the flight controller.",
+          "needs_translation": false,
+          "max_length": 98
+        },
         "dest_profile": {
           "english": "Dest. Profile",
           "max_length": 13,
@@ -7944,6 +8052,248 @@
     }
   },
   "widgets": {
+    "escstatus": {
+      "ok": {
+        "english": "OK",
+        "translation": "OK",
+        "needs_translation": false,
+        "max_length": 2
+      },
+      "restart": {
+        "english": "RESTART ESC",
+        "translation": "RESTART ESC",
+        "needs_translation": false,
+        "max_length": 11
+      },
+      "no_status": {
+        "english": "NO STATUS",
+        "translation": "NO STATUS",
+        "needs_translation": false,
+        "max_length": 9
+      },
+      "unknown": {
+        "english": "UNKNOWN ESC",
+        "translation": "UNKNOWN ESC",
+        "needs_translation": false,
+        "max_length": 11
+      },
+      "fault": {
+        "english": "FAULT",
+        "translation": "FAULT",
+        "needs_translation": false,
+        "max_length": 5
+      },
+      "undervoltage": {
+        "english": "UNDERVOLTAGE",
+        "translation": "UNDERVOLTAGE",
+        "needs_translation": false,
+        "max_length": 12
+      },
+      "overvoltage": {
+        "english": "OVERVOLTAGE",
+        "translation": "OVERVOLTAGE",
+        "needs_translation": false,
+        "max_length": 11
+      },
+      "overcurrent": {
+        "english": "OVERCURRENT",
+        "translation": "OVERCURRENT",
+        "needs_translation": false,
+        "max_length": 11
+      },
+      "current_warning": {
+        "english": "CURRENT WARNING",
+        "translation": "CURRENT WARNING",
+        "needs_translation": false,
+        "max_length": 15
+      },
+      "overheat": {
+        "english": "OVERHEAT",
+        "translation": "OVERHEAT",
+        "needs_translation": false,
+        "max_length": 8
+      },
+      "temp_warning": {
+        "english": "TEMP WARNING",
+        "translation": "TEMP WARNING",
+        "needs_translation": false,
+        "max_length": 12
+      },
+      "bec_undervoltage": {
+        "english": "BEC UNDERVOLTAGE",
+        "translation": "BEC UNDERVOLTAGE",
+        "needs_translation": false,
+        "max_length": 16
+      },
+      "bec_overvoltage": {
+        "english": "BEC OVERVOLTAGE",
+        "translation": "BEC OVERVOLTAGE",
+        "needs_translation": false,
+        "max_length": 15
+      },
+      "bec_overcurrent": {
+        "english": "BEC OVERCURRENT",
+        "translation": "BEC OVERCURRENT",
+        "needs_translation": false,
+        "max_length": 15
+      },
+      "bec_overheat": {
+        "english": "BEC OVERHEAT",
+        "translation": "BEC OVERHEAT",
+        "needs_translation": false,
+        "max_length": 12
+      },
+      "bec_voltage": {
+        "english": "BEC VOLTAGE",
+        "translation": "BEC VOLTAGE",
+        "needs_translation": false,
+        "max_length": 11
+      },
+      "motor_hot": {
+        "english": "MOTOR HOT",
+        "translation": "MOTOR HOT",
+        "needs_translation": false,
+        "max_length": 9
+      },
+      "input_voltage": {
+        "english": "INPUT VOLTAGE",
+        "translation": "INPUT VOLTAGE",
+        "needs_translation": false,
+        "max_length": 13
+      },
+      "motor_locked": {
+        "english": "MOTOR LOCKED",
+        "translation": "MOTOR LOCKED",
+        "needs_translation": false,
+        "max_length": 12
+      },
+      "throttle_at_start": {
+        "english": "THROTTLE AT START",
+        "translation": "THROTTLE AT START",
+        "needs_translation": false,
+        "max_length": 17
+      },
+      "throttle_lost": {
+        "english": "THROTTLE LOST",
+        "translation": "THROTTLE LOST",
+        "needs_translation": false,
+        "max_length": 13
+      },
+      "throttle": {
+        "english": "THROTTLE",
+        "translation": "THROTTLE",
+        "needs_translation": false,
+        "max_length": 8
+      },
+      "motor_wiring": {
+        "english": "MOTOR WIRING",
+        "translation": "MOTOR WIRING",
+        "needs_translation": false,
+        "max_length": 12
+      },
+      "startup": {
+        "english": "STARTUP FAILED",
+        "translation": "STARTUP FAILED",
+        "needs_translation": false,
+        "max_length": 14
+      },
+      "motor_saturated": {
+        "english": "MOTOR SATURATED",
+        "translation": "MOTOR SATURATED",
+        "needs_translation": false,
+        "max_length": 15
+      },
+      "consumption": {
+        "english": "CONSUMPTION",
+        "translation": "CONSUMPTION",
+        "needs_translation": false,
+        "max_length": 11
+      },
+      "capacity_limit": {
+        "english": "CAPACITY LIMIT",
+        "translation": "CAPACITY LIMIT",
+        "needs_translation": false,
+        "max_length": 14
+      },
+      "current_limit": {
+        "english": "CURRENT LIMIT",
+        "translation": "CURRENT LIMIT",
+        "needs_translation": false,
+        "max_length": 13
+      },
+      "battery_limit": {
+        "english": "BATTERY LIMIT",
+        "translation": "BATTERY LIMIT",
+        "needs_translation": false,
+        "max_length": 13
+      },
+      "esc_temp_limit": {
+        "english": "ESC TEMP LIMIT",
+        "translation": "ESC TEMP LIMIT",
+        "needs_translation": false,
+        "max_length": 14
+      },
+      "bec_temp_limit": {
+        "english": "BEC TEMP LIMIT",
+        "translation": "BEC TEMP LIMIT",
+        "needs_translation": false,
+        "max_length": 14
+      },
+      "rudder_cutoff": {
+        "english": "RUDDER CUTOFF",
+        "translation": "RUDDER CUTOFF",
+        "needs_translation": false,
+        "max_length": 13
+      },
+      "operation": {
+        "english": "OPERATION FAULT",
+        "translation": "OPERATION FAULT",
+        "needs_translation": false,
+        "max_length": 15
+      },
+      "operation_warning": {
+        "english": "OPERATION WARNING",
+        "translation": "OPERATION WARNING",
+        "needs_translation": false,
+        "max_length": 17
+      },
+      "self_test": {
+        "english": "SELF TEST",
+        "translation": "SELF TEST",
+        "needs_translation": false,
+        "max_length": 9
+      },
+      "eeprom": {
+        "english": "EEPROM",
+        "translation": "EEPROM",
+        "needs_translation": false,
+        "max_length": 6
+      },
+      "watchdog": {
+        "english": "WATCHDOG",
+        "translation": "WATCHDOG",
+        "needs_translation": false,
+        "max_length": 8
+      },
+      "programming_open": {
+        "english": "PROGRAMMING OPEN",
+        "translation": "PROGRAMMING OPEN",
+        "needs_translation": false,
+        "max_length": 16
+      },
+      "rpm_low": {
+        "english": "RPM BELOW LIMIT",
+        "translation": "RPM BELOW LIMIT",
+        "needs_translation": false,
+        "max_length": 15
+      },
+      "setpoint_noise": {
+        "english": "SETPOINT NOISE",
+        "translation": "SETPOINT NOISE",
+        "needs_translation": false,
+        "max_length": 14
+      }
+    },
     "battery": {
       "msg_battery_selected": {
         "english": "Selected battery:",
@@ -8138,12 +8488,6 @@
         "max_length": 5,
         "needs_translation": false,
         "translation": "Armed"
-      },
-      "armed_warning": {
-        "english": "Armed warning",
-        "max_length": 24,
-        "needs_translation": false,
-        "translation": "Armed warning"
       },
       "info_arming": {
         "english": "Arming",

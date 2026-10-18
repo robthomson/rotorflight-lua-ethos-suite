@@ -84,6 +84,16 @@ local DEFAULTS = {
     smartfuelcallout = 0,
     smartfuelrepeats = 1,
     smartfuelhaptic = false,
+    -- Repeats per alert episode (0 = as long as the condition holds, as before) and the vibration
+    -- of each group. The defaults keep what each group did before (#2312): ESC temperature, RX
+    -- voltage and a lost link vibrated; the voltage alarm did not.
+    voltage_repeats = 0,
+    voltage_haptic = false,
+    rx_voltage_repeats = 0,
+    rx_voltage_haptic = true,
+    temp_esc_repeats = 0,
+    temp_esc_haptic = true,
+    telemetry_lost_haptic = true,
     temp_esc = false,
     escalertvalue = 90,
     bec_voltage = false,
@@ -217,6 +227,12 @@ local function normalizeEvents(values)
   events.smartfuelcallout = clampNumber(events.smartfuelcallout, DEFAULTS.events.smartfuelcallout, 0, 50)
   events.smartfuelrepeats = clampNumber(events.smartfuelrepeats, DEFAULTS.events.smartfuelrepeats, 1, 10)
   events.smartfuelhaptic = coerceBool(events.smartfuelhaptic, DEFAULTS.events.smartfuelhaptic)
+  for _, group in ipairs({"voltage", "rx_voltage", "temp_esc"}) do
+    events[group .. "_repeats"] = clampNumber(events[group .. "_repeats"], 0, 0, 10)
+  end
+  for _, group in ipairs({"voltage", "rx_voltage", "temp_esc", "telemetry_lost"}) do
+    events[group .. "_haptic"] = coerceBool(events[group .. "_haptic"], DEFAULTS.events[group .. "_haptic"])
+  end
   events.temp_esc = coerceBool(events.temp_esc, DEFAULTS.events.temp_esc)
   events.escalertvalue = clampNumber(events.escalertvalue, DEFAULTS.events.escalertvalue, 60, 300)
   events.bec_voltage = coerceBool(events.bec_voltage, DEFAULTS.events.bec_voltage)
@@ -281,14 +297,57 @@ local function normalize(settings)
   return settings
 end
 
+-- Sections whose keys the suite's schema does not fix, so the key check below does not prune
+-- inside them: activelook decides its keys in activelook_config.withDefaults.
+local SELF_SCHEMA = {activelook = true}
+
+-- Audio switches: the schema defines which sensor keys are supported.
+-- Switch values are serialized as "category,member" source identifiers.
+local ALLOWED_SWITCH_KEYS = {
+  altitude = true,
+  bec_voltage = true,
+  consumption = true,
+  current = true,
+  rpm = true,
+  smartfuel = true,
+  temp_esc = true,
+  throttle_percent = true,
+  voltage = true,
+}
+
+-- Each dashboard theme keeps its own preferences in a section named after the theme ("dashboard.bastion"),
+-- so those sections belong to the theme and are kept whole. A section the suite no longer has is
+-- still dropped.
+local function themeSection(section)
+  return type(section) == "string" and section:match("^dashboard%.%S+$") ~= nil
+end
+
+-- Merges what was read over the schema's defaults. What the schema does not define is dropped: a
+-- section the suite no longer has, and a key an older release wrote (#2325). Saving goes through
+-- here too, so a stale key leaves the file the next time settings are saved.
 function settings_store.withDefaults(settings)
   local merged = tableClone.nested(DEFAULTS)
   settings = settings or {}
   for section, values in pairs(settings) do
-    merged[section] = merged[section] or {}
-    if type(values) == "table" then
+    if type(values) == "table" and themeSection(section) then
+      merged[section] = {}
+      for key, value in pairs(values) do merged[section][key] = value end
+    elseif section == "switches" and type(values) == "table" then
+      local sw = {}
       for key, value in pairs(values) do
-        merged[section][key] = value
+        if ALLOWED_SWITCH_KEYS[key] and type(value) == "string" and value:match("^%s*%-?%d+%s*,%s*%-?%d+%s*$") then
+          sw[key] = value:match("^%s*(.-)%s*$")
+        end
+      end
+      if next(sw) ~= nil then
+        merged.switches = sw
+      end
+    elseif DEFAULTS[section] ~= nil and type(values) == "table" then
+      merged[section] = merged[section] or {}
+      for key, value in pairs(values) do
+        if SELF_SCHEMA[section] or DEFAULTS[section][key] ~= nil then
+          merged[section][key] = value
+        end
       end
     end
   end
