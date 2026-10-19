@@ -3348,6 +3348,90 @@
           "needs_translation": false,
           "max_length": 13,
           "reverse_text": false
+        },
+        "tail_pin": {
+          "english": "Tail pin",
+          "translation": "Tail pin",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_servo": {
+          "english": "Servo 4",
+          "translation": "Servo 4",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_motor": {
+          "english": "Motor 2",
+          "translation": "Motor 2",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_both": {
+          "english": "Own motor pin",
+          "translation": "Own motor pin",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_none": {
+          "english": "No pin",
+          "translation": "No pin",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_to_motor": {
+          "english": "Save: to motor 2",
+          "translation": "Save: to motor 2",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_to_servo": {
+          "english": "Save: to servo 4",
+          "translation": "Save: to servo 4",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_refused_custom": {
+          "english": "Kept: custom pins",
+          "translation": "Kept: custom pins",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_refused_no_motor": {
+          "english": "Kept: no motor 1",
+          "translation": "Kept: no motor 1",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_refused_no_timer": {
+          "english": "Kept: no timer",
+          "translation": "Kept: no timer",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_refused_timer": {
+          "english": "Kept: timer shared",
+          "translation": "Kept: timer shared",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_pin_refused_no_dma": {
+          "english": "Kept: no DMA",
+          "translation": "Kept: no DMA",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_tta_on": {
+          "english": "Also sets Tail Torque Assist to 100 in every profile.",
+          "translation": "Also sets Tail Torque Assist to 100 in every profile.",
+          "needs_translation": true,
+          "reverse_text": false
+        },
+        "tail_tta_off": {
+          "english": "Also sets Tail Torque Assist to 0 in every profile.",
+          "translation": "Also sets Tail Torque Assist to 0 in every profile.",
+          "needs_translation": true,
+          "reverse_text": false
         }
       },
       "trim": {
@@ -5542,6 +5626,12 @@
           "translation": "Nieobsługiwane",
           "needs_translation": false,
           "max_length": 11,
+          "reverse_text": false
+        },
+        "arming_disable_flag_override": {
+          "english": "Override",
+          "translation": "Override",
+          "needs_translation": true,
           "reverse_text": false
         }
       },

@@ -3698,6 +3698,12 @@
           "needs_translation": false,
           "translation": "Boot Grace Time"
         },
+        "arming_disable_flag_override": {
+          "english": "Override",
+          "max_length": 8,
+          "needs_translation": false,
+          "translation": "Override"
+        },
         "arming_flags": {
           "english": "Arming Flags",
           "max_length": 12,
@@ -4468,11 +4474,95 @@
           "needs_translation": false,
           "translation": "Tail Idle Thr%"
         },
+        "tail_pin": {
+          "english": "Tail pin",
+          "max_length": 8,
+          "needs_translation": false,
+          "translation": "Tail pin"
+        },
+        "tail_pin_both": {
+          "english": "Own motor pin",
+          "max_length": 13,
+          "needs_translation": false,
+          "translation": "Own motor pin"
+        },
+        "tail_pin_motor": {
+          "english": "Motor 2",
+          "max_length": 7,
+          "needs_translation": false,
+          "translation": "Motor 2"
+        },
+        "tail_pin_none": {
+          "english": "No pin",
+          "max_length": 6,
+          "needs_translation": false,
+          "translation": "No pin"
+        },
+        "tail_pin_refused_custom": {
+          "english": "Kept: custom pins",
+          "max_length": 17,
+          "needs_translation": false,
+          "translation": "Kept: custom pins"
+        },
+        "tail_pin_refused_no_dma": {
+          "english": "Kept: no DMA",
+          "max_length": 12,
+          "needs_translation": false,
+          "translation": "Kept: no DMA"
+        },
+        "tail_pin_refused_no_motor": {
+          "english": "Kept: no motor 1",
+          "max_length": 16,
+          "needs_translation": false,
+          "translation": "Kept: no motor 1"
+        },
+        "tail_pin_refused_no_timer": {
+          "english": "Kept: no timer",
+          "max_length": 14,
+          "needs_translation": false,
+          "translation": "Kept: no timer"
+        },
+        "tail_pin_refused_timer": {
+          "english": "Kept: timer shared",
+          "max_length": 18,
+          "needs_translation": false,
+          "translation": "Kept: timer shared"
+        },
+        "tail_pin_servo": {
+          "english": "Servo 4",
+          "max_length": 7,
+          "needs_translation": false,
+          "translation": "Servo 4"
+        },
+        "tail_pin_to_motor": {
+          "english": "Save: to motor 2",
+          "max_length": 16,
+          "needs_translation": false,
+          "translation": "Save: to motor 2"
+        },
+        "tail_pin_to_servo": {
+          "english": "Save: to servo 4",
+          "max_length": 16,
+          "needs_translation": false,
+          "translation": "Save: to servo 4"
+        },
         "tail_rotor_mode": {
           "english": "Tail Mode",
           "max_length": 9,
           "needs_translation": false,
           "translation": "Tail Mode"
+        },
+        "tail_tta_off": {
+          "english": "Also sets Tail Torque Assist to 0 in every profile.",
+          "max_length": 51,
+          "needs_translation": false,
+          "translation": "Also sets Tail Torque Assist to 0 in every profile."
+        },
+        "tail_tta_on": {
+          "english": "Also sets Tail Torque Assist to 100 in every profile.",
+          "max_length": 53,
+          "needs_translation": false,
+          "translation": "Also sets Tail Torque Assist to 100 in every profile."
         },
         "trims": {
           "english": "Trims",

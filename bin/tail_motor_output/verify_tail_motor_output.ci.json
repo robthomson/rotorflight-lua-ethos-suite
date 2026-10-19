@@ -1,0 +1,7 @@
+{
+  "id": "tail-motor-output",
+  "name": "The tail pin and Tail Torque Assist follow the tail mode on save",
+  "step": "Check MSP2_TAIL_MOTOR_OUTPUT and the TTA writes",
+  "script": "bin/tail_motor_output/verify_tail_motor_output.lua",
+  "rationale": "Many boards come with the tail pin on SERVO 4, so a motorised tail had no MOTOR 2\nand never ran. rotorflight-firmware's MSP2_TAIL_MOTOR_OUTPUT (0x5F14, API 12.10)\nmoves the pin between SERVO 4 and MOTOR 2, and the Mixer -> Tail page now sends it on\nsave through lib/msp_tail_motor_output.lua. A change between a servo and a motor tail\nalso writes Tail Torque Assist (gain 100 or 0) on every PID profile.\n\nThe harness drives the real module with the real bus and the real status, profile\nselect and governor profile codecs, and answers every request as the firmware would.\nIt pins the request payloads (action 0, 1 or 2), that an FC without the command and a\nshort reply both read as unsupported instead of failing the page, that a refused move\nkeeps the save going with its reason recorded, that BOTH and NONE are left alone, and\nthat TTA is written on each profile where it differs before the active profile is\nselected again.\n\n--self-test re-runs the move checks against a copy of the module that never asks for a\nmove, and requires them to fail."
+}

@@ -25,8 +25,9 @@ end
 local arming_flags = {}
 
 -- Bits 0..25. The firmware's own arming-disable mask is wider than this in
--- later versions; a set bit above 25 is reported as its number rather than
--- dropped, so an unknown bit is visible instead of silently missing.
+-- later versions (see tagFor below); a set bit it has no name for is reported
+-- as its number rather than dropped, so an unknown bit is visible instead of
+-- silently missing.
 local FLAG_COUNT = 26
 
 local FLAG_TAGS = {
@@ -58,6 +59,33 @@ local FLAG_TAGS = {
   [25] = "@i18n(app.modules.fblstatus.arming_disable_flag_25)@",
 }
 
+-- The firmware adds a reason just before ARMSWITCH, which always stays the
+-- last bit, so the top bits mean different things by version. MSP_STATUS
+-- sends how many there are (arming_disable_flags_count), and that count,
+-- not the API version, places them (rotorflight-firmware
+-- src/main/fc/runtime_config.h):
+--   26 flags: bit 25 ARMSWITCH                 (before API 12.9)
+--   27 flags: bit 25 OVERRIDE, bit 26 ARMSWITCH (API 12.9 and 12.10)
+-- With more, the last bit is still ARMSWITCH and a bit this table has no
+-- name for is shown by number. Without a count the 26-flag table is used,
+-- as before.
+local ARM_SWITCH_TAG = FLAG_TAGS[25]
+local LATER_TAGS = {
+  [25] = "@i18n(app.modules.fblstatus.arming_disable_flag_override)@",
+}
+
+local function tagFor(bit, count)
+  count = tonumber(count)
+  if not count or count <= FLAG_COUNT or bit < 25 then
+    return FLAG_TAGS[bit]
+  end
+  if bit == count - 1 then return ARM_SWITCH_TAG end
+  if bit < count - 1 then return LATER_TAGS[bit] end
+  return nil
+end
+
+arming_flags.tagFor = tagFor
+
 -- The summary line's text. Bounded by construction: a count and a fixed word,
 -- never the flag names. "#2346: the value column cannot hold the names."
 local ACTIVE_FMT = "@i18n(app.modules.fblstatus.arming_flags_active_fmt)@"
@@ -79,12 +107,13 @@ end
 -- Active flags, lowest bit first -- the order the pilot clears them in.
 -- A list of display strings, never a joined string: joining is what made the
 -- original unreadable, so the join deliberately does not exist here.
-function arming_flags.active(mask)
+-- `count` is MSP_STATUS's arming_disable_flags_count (see tagFor above).
+function arming_flags.active(mask, count)
   mask = arming_flags.normalize(mask)
   local active = {}
   for bit = 0, 31 do
     if arming_flags.hasBit(mask, bit) then
-      active[#active + 1] = FLAG_TAGS[bit] or string.format("0x%X", 2 ^ bit)
+      active[#active + 1] = tagFor(bit, count) or string.format("0x%X", 2 ^ bit)
     end
   end
   if #active == 0 and mask > 0 then
