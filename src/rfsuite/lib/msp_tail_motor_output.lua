@@ -72,7 +72,9 @@ local REPLY_LENGTH = 2
 
 local function decode(buf)
   if type(buf) ~= "table" or #buf < REPLY_LENGTH then return nil, nil end
-  return mspcodec.readU8(buf), mspcodec.readU8(buf)
+  local output = mspcodec.readU8(buf)
+  local result = mspcodec.readU8(buf)
+  return output, result
 end
 
 local function buildMessage(action, onReply, onError)

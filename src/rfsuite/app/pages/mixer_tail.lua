@@ -137,8 +137,9 @@ local function open(opts)
       originalMode = mode
       runtime.extraSaveMessage = nil
       -- A motor tail whose pin is still on SERVO 4 (or the reverse): Save
-      -- fixes it, so offer Save even with nothing edited.
-      if tailOutput.movable(runtime.data.tail, isMotorizedMode(mode)) then
+      -- fixes it, so offer Save even with nothing edited. Not after the FC
+      -- refused that move: saving again would only be refused again.
+      if not lastRefused and tailOutput.movable(runtime.data.tail, isMotorizedMode(mode)) then
         runtime:markDirty()
       end
       if fields.refresh then fields.refresh() end
