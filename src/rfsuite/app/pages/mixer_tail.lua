@@ -9,8 +9,34 @@ local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("
 local pageRuntime = requireModule("app/page_runtime.lua")
 local mixerConfig = requireModule("lib/msp_mixer_config.lua")
 local mixerInputFactory = requireModule("lib/msp_mixer_input.lua")
+local tailOutput = requireModule("lib/msp_tail_motor_output.lua")
 
 local PAGE_TITLE = "@i18n(app.modules.mixer.tail)@"
+
+-- The Tail pin line: where the pin is now (OUTPUT), what Save will do, or
+-- why the FC kept it where it was (RESULT). Short values: they share the
+-- line with the label on a 480x320 radio.
+local TXT_PIN_UNKNOWN = "-"
+local TXT_PIN = {
+  [tailOutput.OUTPUT.SERVO] = "@i18n(app.modules.mixer.tail_pin_servo)@",
+  [tailOutput.OUTPUT.MOTOR] = "@i18n(app.modules.mixer.tail_pin_motor)@",
+  [tailOutput.OUTPUT.BOTH] = "@i18n(app.modules.mixer.tail_pin_both)@",
+  [tailOutput.OUTPUT.NONE] = "@i18n(app.modules.mixer.tail_pin_none)@",
+}
+local TXT_PIN_TO_MOTOR = "@i18n(app.modules.mixer.tail_pin_to_motor)@"
+local TXT_PIN_TO_SERVO = "@i18n(app.modules.mixer.tail_pin_to_servo)@"
+local TXT_PIN_REFUSED = {
+  [tailOutput.RESULT.CUSTOM] = "@i18n(app.modules.mixer.tail_pin_refused_custom)@",
+  [tailOutput.RESULT.NO_MAIN_MOTOR] = "@i18n(app.modules.mixer.tail_pin_refused_no_motor)@",
+  [tailOutput.RESULT.NO_TIMER] = "@i18n(app.modules.mixer.tail_pin_refused_no_timer)@",
+  [tailOutput.RESULT.TIMER_SHARED] = "@i18n(app.modules.mixer.tail_pin_refused_timer)@",
+  [tailOutput.RESULT.NO_DMA] = "@i18n(app.modules.mixer.tail_pin_refused_no_dma)@",
+}
+local TXT_PIN_REFUSED_OTHER = "@i18n(app.modules.mixer.tail_pin_refused_custom)@"
+
+-- Added to the save confirmation when the kind of tail changes.
+local MSG_TTA_ON = "@i18n(app.modules.mixer.tail_tta_on)@"
+local MSG_TTA_OFF = "@i18n(app.modules.mixer.tail_tta_off)@"
 
 local CHOICES_TAIL_MODE = {
   {"@i18n(api.MIXER_CONFIG.tbl_tail_variable_pitch)@", 0},
@@ -55,6 +81,17 @@ local function open(opts)
   local formData = {}
   local originalMode = nil
   local fields = {}
+  -- RESULT of the last move the FC refused. Kept across the re-read after
+  -- the save's reboot, which replaces runtime.data.tail.
+  local lastRefused = nil
+  local tailPinText = nil
+
+  -- Whether the kind of tail (servo or motor) differs from what was loaded:
+  -- the pin and Tail Torque Assist follow it on save.
+  local function kindChanged()
+    return originalMode ~= nil
+      and isMotorizedMode(formData.tail_rotor_mode) ~= isMotorizedMode(originalMode)
+  end
 
   local runtime
   runtime = pageRuntime.new({
@@ -63,15 +100,24 @@ local function open(opts)
     sources = {
       {key = "mixer", mspModule = mixerConfig},
       {key = "yaw", mspModule = mixerInputFactory.yaw()},
+      -- Last, so the pin and TTA writes land before the EEPROM write.
+      {key = "tail", mspModule = tailOutput},
     },
     opts = opts,
     profileField = "none",
-    rebootAfterSave = function()
-      return originalMode ~= nil and formData.tail_rotor_mode ~= originalMode
+    rebootAfterSave = function(rt)
+      local tail = rt.data.tail
+      return (originalMode ~= nil and formData.tail_rotor_mode ~= originalMode)
+        or (tail ~= nil and tail.moved == true)
+    end,
+    onSaved = function(rt)
+      local tail = rt.data.tail
+      lastRefused = tail and tail.refused or nil
     end,
     unloadPackageKeys = {
       "rfsuite.lib.msp_mixer_config",
       "rfsuite.lib.msp_mixer_input",
+      "rfsuite.lib.msp_tail_motor_output",
     },
     onLoaded = function()
       local mixer = runtime.data.mixer or {}
@@ -89,10 +135,27 @@ local function open(opts)
       formData.yaw_ccw_limit_fixed = round(math.abs(u16ToS16(yaw.max_stabilized_yaw)) * 24 / 100)
 
       originalMode = mode
+      runtime.extraSaveMessage = nil
+      -- A motor tail whose pin is still on SERVO 4 (or the reverse): Save
+      -- fixes it, so offer Save even with nothing edited. Not after the FC
+      -- refused that move: saving again would only be refused again.
+      if not lastRefused and tailOutput.movable(runtime.data.tail, isMotorizedMode(mode)) then
+        runtime:markDirty()
+      end
       if fields.refresh then fields.refresh() end
       if form.invalidate then form.invalidate() end
     end,
     beforeSave = function(rt)
+      local tail = rt.data.tail
+      if tail then
+        tail.motorised = isMotorizedMode(formData.tail_rotor_mode)
+        if kindChanged() then
+          tail.setTta = tail.motorised
+        else
+          tail.setTta = nil
+        end
+      end
+
       local mixer = rt.data.mixer
       if mixer then
         mixer.tail_rotor_mode = formData.tail_rotor_mode or 0
@@ -173,7 +236,25 @@ local function open(opts)
   form.clear()
   runtime:buildChrome()
 
+  local function currentTailPinText()
+    local tail = runtime.loaded and runtime.data.tail
+    if not tail or not tail.supported then return TXT_PIN_UNKNOWN end
+    if lastRefused then return TXT_PIN_REFUSED[lastRefused] or TXT_PIN_REFUSED_OTHER end
+    local motorized = isMotorizedMode(formData.tail_rotor_mode)
+    if tailOutput.movable(tail, motorized) then
+      return motorized and TXT_PIN_TO_MOTOR or TXT_PIN_TO_SERVO
+    end
+    return TXT_PIN[tail.output] or TXT_PIN_UNKNOWN
+  end
+
   fields.refresh = function()
+    -- Only touch the static text when its value changes (wakeup path).
+    local text = currentTailPinText()
+    if fields.tail_pin and text ~= tailPinText then
+      tailPinText = text
+      fields.tail_pin:value(text)
+    end
+
     local motorized = isMotorizedMode(formData.tail_rotor_mode)
     if fields.tail_motor_idle then fields.tail_motor_idle:enable(runtime.loaded and motorized) end
     if fields.tail_center_offset then fields.tail_center_offset:enable(runtime.loaded and motorized) end
@@ -184,7 +265,19 @@ local function open(opts)
     if fields.yaw_ccw_limit_fixed then fields.yaw_ccw_limit_fixed:enable(runtime.loaded and not motorized) end
   end
 
-  addChoice("@i18n(app.modules.mixer.tail_rotor_mode)@", "tail_rotor_mode", CHOICES_TAIL_MODE, fields.refresh)
+  local function onTailModeChange()
+    lastRefused = nil
+    if kindChanged() then
+      runtime.extraSaveMessage = isMotorizedMode(formData.tail_rotor_mode) and MSG_TTA_ON or MSG_TTA_OFF
+    else
+      runtime.extraSaveMessage = nil
+    end
+    fields.refresh()
+  end
+
+  addChoice("@i18n(app.modules.mixer.tail_rotor_mode)@", "tail_rotor_mode", CHOICES_TAIL_MODE, onTailModeChange)
+  fields.tail_pin = form.addStaticText(form.addLine("@i18n(app.modules.mixer.tail_pin)@"), nil, TXT_PIN_UNKNOWN)
+  tailPinText = TXT_PIN_UNKNOWN
   addChoice("@i18n(app.modules.mixer.yaw_direction)@", "yaw_direction", CHOICES_DIRECTION)
   addNumber("@i18n(app.modules.mixer.tail_motor_idle)@", "tail_motor_idle", 0, 250, "%", 1, 0)
   addNumber("@i18n(app.modules.mixer.tail_center_offset)@", "tail_center_offset", -500, 500, "%", 1, 0)

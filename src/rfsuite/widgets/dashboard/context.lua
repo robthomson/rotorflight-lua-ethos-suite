@@ -832,6 +832,7 @@ local PRESENTATION_STAT_SOURCES = {
   "bec_voltage",
   "altitude",
   "watts",
+  "esc_load",
 }
 
 local function statKey(name)
@@ -894,6 +895,14 @@ local function sensorValue(name)
     if voltage and current then return voltage * current, "W" end
     return nil, "W"
   end
+  -- Derived, not measured: the current as a percentage of the speed controller's own limit (#2355).
+  -- Nil where no limit is on file for the model, which a box draws as `--`.
+  if name == "esc_load" then
+    local limit = tonumber(widget.escCurrentLimit)
+    local current = tonumber(widget.current) or tonumber(liveSensorValue("current"))
+    if limit and limit > 0 and current then return current / limit * 100, "%" end
+    return nil, "%"
+  end
   if name == "governor" then return widget.governorState end
   if name == "pid_profile" then return widget.pidProfile end
   if name == "rate_profile" then return widget.rateProfile end
@@ -939,6 +948,7 @@ context.tasks.telemetry.sensorTable = {
   bec_voltage = {unit_string = "V"},
   altitude = {unit_string = "m"},
   watts = {unit_string = "W"},
+  esc_load = {unit_string = "%"},
 }
 
 function context.tasks.telemetry.getSensor(name, minValue, maxValue, thresholds)
@@ -2558,6 +2568,8 @@ function context.setWidget(widget)
   context.session.telemetryState = context.session.isConnected
   context.session.mcu_id = widget and widget.mcuId
   context.session.craftName = widget and widget.craftName
+  context.session.escStatusWord = widget and widget.escStatusWord
+  context.session.escSignature = widget and widget.escSignature
   context.session.apiVersion = widget and widget.rfVersion
   context.session.timer.live = widget and widget.timerLive or 0
   context.session.bblFlags = widget and widget.bblFlags

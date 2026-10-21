@@ -91,6 +91,9 @@ local session = {
   rpm = nil,
   linkQuality = nil,
   tempEsc = nil,
+  -- The speed controller's status word and signature, as published by telemetry (issue #2354).
+  escStatusWord = nil,
+  escSignature = nil,
   tempMcu = nil,
   becVoltage = nil,
   smartfuelMode = nil, -- 0 = FC not computing it (run the local fallback), 1/2/3 = mirror the FC's own value
@@ -411,6 +414,8 @@ local function flush()
     rpm = session.rpm,
     linkQuality = session.linkQuality,
     tempEsc = session.tempEsc,
+    escStatusWord = session.escStatusWord,
+    escSignature = session.escSignature,
     tempMcu = session.tempMcu,
     becVoltage = session.becVoltage,
     fuelPercent = session.fuelPercent,
@@ -436,6 +441,8 @@ local function flush()
     flightResumable = session.flightResumable,
     timerTarget = session.timerTarget,
     smartfuelModelType = session.smartfuelModelType,
+    -- The speed controller's current limit in amps, or nil where none is on file (#2355).
+    escCurrentLimit = session.escCurrentLimit,
     modelStats = copyStats(session.modelStats),
     bblFlags = session.bblFlags,
     bblSize = session.bblSize,
@@ -453,10 +460,12 @@ local function updateModelSnapshots()
     session.modelStats = modelPreferences.stats(session.modelPreferences)
     session.timerTarget = modelPreferences.timerTarget(session.modelPreferences)
     session.smartfuelModelType = modelPreferences.smartfuelModelType(session.modelPreferences)
+    session.escCurrentLimit = modelPreferences.escCurrentLimit(session.modelPreferences)
   else
     session.modelStats = nil
     session.timerTarget = 300
     session.smartfuelModelType = 0
+    session.escCurrentLimit = nil
   end
 end
 
@@ -969,6 +978,8 @@ local function setConnected(value, mspQueue, protocol)
     session.rpm = nil
     session.linkQuality = nil
     session.tempEsc = nil
+    session.escStatusWord = nil
+    session.escSignature = nil
     session.tempMcu = nil
     session.becVoltage = nil
     session.mainPowerLost = false
@@ -1299,6 +1310,17 @@ local function updateAdjustment(protocol)
   end
 end
 
+local function updateEscStatus(protocol)
+  if not telemetrySensors then return end
+  local word = telemetrySensors.getValue(protocol, "esc_status")
+  local signature = telemetrySensors.getValue(protocol, "esc_model")
+  if word ~= session.escStatusWord or signature ~= session.escSignature then
+    session.escStatusWord = word
+    session.escSignature = signature
+    publish()
+  end
+end
+
 local function updateEscTemp(protocol)
   if not telemetrySensors then return end
   local value = telemetrySensors.getValue(protocol, "temp_esc")
@@ -1431,6 +1453,22 @@ local function onModelSmartfuelTypeUpdate(payload)
 end
 
 bus.subscribe("model.smartfuel_type.update", onModelSmartfuelTypeUpdate)
+
+-- A manufacturer page that has read its ESC's limit, or the Preferences row, hands the figure
+-- here. Only a changed figure is written: a page reads the limit on every visit (#2355).
+local function onModelEscCurrentLimitUpdate(payload)
+  if type(payload) ~= "table" then return end
+  if not session.mcuId or payload.mcuId ~= session.mcuId then return end
+  loadModelPreferences()
+  local updated = modelPreferences.setEscCurrentLimit(session.modelPreferences, payload.amps)
+  if modelPreferences.escCurrentLimit(updated) == session.escCurrentLimit then return end
+  session.modelPreferences = updated
+  saveModelPreferences()
+  updateModelSnapshots()
+  publish()
+end
+
+bus.subscribe("model.esc_current_limit.update", onModelEscCurrentLimitUpdate)
 
 -- Setup > Power > Battery / SmartFuel each write straight to the FC (see
 -- app/pages/power_battery.lua and app/pages/power_smartfuel.lua's own
@@ -1644,6 +1682,7 @@ local function wakeup(mspQueue, protocol, transport, simSensors)
       updateVoltage(sensorProtocol)
       updateRfStatusTelemetry(sensorProtocol)
       updateEscTemp(sensorProtocol)
+      updateEscStatus(sensorProtocol)
       updateMcuTemp(sensorProtocol)
       updateBecVoltage(sensorProtocol)
       updateFuel(sensorProtocol)

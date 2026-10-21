@@ -136,6 +136,8 @@ local function openEditor(opts, listState, row)
 
   local runtime
   runtime = pageRuntime.new({
+    -- Edits are saved with the page's Save; liveWrite would skip Back's unsaved-changes question.
+    liveWrite = false,
     pageTitle = PAGE_TITLE .. " / " .. row.title,
     logTag = "servos_bus_editor",
     mspModule = pageMsp,

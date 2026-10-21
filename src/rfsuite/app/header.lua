@@ -99,6 +99,24 @@ local MENU_ICON = lcd.loadMask("app/gfx/nav/back.png")
 local SAVE_ICON = lcd.loadMask("app/gfx/nav/save.png")
 local RELOAD_ICON = lcd.loadMask("app/gfx/nav/reload.png")
 local TOOL_ICON = lcd.loadMask("app/gfx/nav/tool.png")
+local INFO_ICON = lcd.loadMask("app/gfx/nav/info.png")
+
+-- Pages may swap the Tool button's icon for one that says what their tool
+-- does (opts.toolIcon, a mask path). Ethos has no setter for a button's
+-- icon, so it is chosen when the header is built. Masks are cached by path
+-- for the module's lifetime, like the ones above, so reopening a page loads
+-- nothing; the cache only ever holds the few icons pages actually name.
+local toolIconCache = {}
+
+local function resolveToolIcon(path)
+  if not path then return TOOL_ICON end
+  local mask = toolIconCache[path]
+  if mask == nil then
+    mask = lcd.loadMask(path) or false
+    toolIconCache[path] = mask
+  end
+  return mask or TOOL_ICON
+end
 
 -- Width hint for every icon button slot (see the header comment above).
 local SLOT_HINT = "  WWW  "
@@ -107,6 +125,7 @@ local function noop() end
 
 local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("lib/require.lua"))()
 local tileGrid = requireModule("app/tile_grid.lua")
+local connectionDetails = requireModule("app/connection_details.lua")
 
 -- The static text's own font (form.addStaticText takes no font option).
 local TITLE_FONT = FONT_STD
@@ -212,6 +231,7 @@ end
 --   onSave = function() ... end,   -- optional; enables the "Save" button
 --   onReload = function() ... end, -- optional; enables the "Reload" button
 --   onTool = function() ... end,   -- optional; enables the "Tool" button
+--   toolIcon = "app/gfx/nav/x.png", -- optional; Tool button icon (default tool.png)
 -- }
 -- Returns {setTitle = fn(text), setSaveEnabled = fn(enabled),
 -- setReloadEnabled = fn(enabled), setToolEnabled = fn(enabled),
@@ -235,10 +255,12 @@ function header.build(title, opts)
   local isLeafPage = (opts.onSave ~= nil) or (opts.onReload ~= nil) or (opts.onTool ~= nil)
 
   if not isLeafPage then
-    local slots = form.getFieldSlots(line, {0, SLOT_HINT})
+    -- The info button sits in the same slot as on the leaf pages (#2318), so it reads the same everywhere.
+    local slots = form.getFieldSlots(line, {0, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT})
     local titleRect = buildTitleRect(slots)
     local titleField = form.addStaticText(line, titleRect, fitTitle(title, titleRect.w), LEFT)
     local menuButton = addNavButton(line, slots[2], MENU_ICON, opts.onBack)
+    addNavButton(line, slots[6], INFO_ICON, function() connectionDetails.open() end)
     return {
       setTitle = function(newTitle) titleField:value(fitTitle(newTitle, titleRect.w)) end,
       setSaveEnabled = noop,
@@ -254,7 +276,7 @@ function header.build(title, opts)
     }
   end
 
-  local slots = form.getFieldSlots(line, {0, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT})
+  local slots = form.getFieldSlots(line, {0, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT, SLOT_HINT})
 
   local titleRect = buildTitleRect(slots)
   local titleField = form.addStaticText(line, titleRect, fitTitle(title, titleRect.w), LEFT)
@@ -266,7 +288,9 @@ function header.build(title, opts)
   local reloadButton = addNavButton(line, slots[4], RELOAD_ICON, opts.onReload or noop)
   reloadButton:enable(opts.onReload ~= nil)
 
-  local toolButton = addNavButton(line, slots[5], TOOL_ICON, opts.onTool or noop)
+  local toolButton = addNavButton(line, slots[5], resolveToolIcon(opts.toolIcon), opts.onTool or noop)
+  -- The connection details, on every page (#2318): an icon only, opens the link's status.
+  local infoButton = addNavButton(line, slots[6], INFO_ICON, function() connectionDetails.open() end)
   toolButton:enable(opts.onTool ~= nil)
 
   return {

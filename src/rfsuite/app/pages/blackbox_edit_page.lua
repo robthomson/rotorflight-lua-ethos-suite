@@ -14,6 +14,7 @@ local blackboxConfig = requireModule("lib/msp_blackbox_config.lua")
 local dataflashSummary = requireModule("lib/msp_dataflash_summary.lua")
 local sdcardSummary = requireModule("lib/msp_sdcard_summary.lua")
 local featureConfig = requireModule("lib/msp_feature_config.lua")
+local leaveConfirm = requireModule("app/leave_confirm.lua")
 
 local BTN_OK = "@i18n(app.btn_ok)@"
 local BTN_CANCEL = "@i18n(app.btn_cancel)@"
@@ -102,6 +103,8 @@ function blackbox_edit_page.new(pageConfig)
     local renderPage = nil
     local needsRender = false
     local renderFocus = "menu"
+    local isArmed = nil
+    local sessionHandler = nil
 
     local function closeDialog(focusFn)
       if not dialog then return end
@@ -162,10 +165,12 @@ function blackbox_edit_page.new(pageConfig)
       updateEnabled()
     end
 
-    local function goBack()
+    local function leave()
+      if disposed then return end
       disposed = true
       if opts.setWakeupHandler then opts.setWakeupHandler(nil) end
       if opts.setCleanupHandler then opts.setCleanupHandler(nil) end
+      if sessionHandler then bus.unsubscribe("session.update", sessionHandler) end
       closeDialog()
       if opts.onBack then opts.onBack() end
     end
@@ -281,6 +286,39 @@ function blackbox_edit_page.new(pageConfig)
       })
     end
 
+    -- Back with unsaved changes asks first (issue #2504): Save saves and keeps the page,
+    -- Discard leaves it, Stay keeps it.
+    local function hasUnsavedChanges()
+      return not disposed and loaded == true and canEdit() and not blackboxConfig.same(current, original)
+    end
+
+    local function canSaveNow()
+      return hasUnsavedChanges() and not busy and dialog == nil and isArmed ~= true
+    end
+
+    local function goBack()
+      if busy or dialog ~= nil then return end
+      if not hasUnsavedChanges() then
+        leave()
+        return
+      end
+      dialog = leaveConfirm.open(leaveConfirm.args({
+        canSave = canSaveNow(),
+        armed = isArmed == true,
+        save = function()
+          saveData(headerHandle and headerHandle.focusSave)
+        end,
+        discard = function()
+          leave()
+        end,
+        focus = function()
+          if headerHandle and headerHandle.focusSave then
+            headerHandle.focusSave()
+          end
+        end,
+      }), function() dialog = nil end)
+    end
+
     renderPage = function()
       fields = {}
       controlFields = {}
@@ -392,6 +430,12 @@ function blackbox_edit_page.new(pageConfig)
       updateEnabled()
     end
 
+    sessionHandler = function(update)
+      if disposed then return end
+      isArmed = update and update.isArmed
+    end
+    bus.subscribe("session.update", sessionHandler)
+
     if opts.setEventHandler then
       opts.setEventHandler(function(category, value)
         if closeKey.shouldHandleClose(category, value) then
@@ -404,6 +448,7 @@ function blackbox_edit_page.new(pageConfig)
     if opts.setCleanupHandler then
       opts.setCleanupHandler(function()
         disposed = true
+        if sessionHandler then bus.unsubscribe("session.update", sessionHandler) end
         closeDialog()
       end)
     end
