@@ -57,6 +57,19 @@ local paletteCache = {}
 local themeStateCache = {}
 local themePaletteCache = {}
 local systemThemeSupport = nil
+-- drawImageInRect()'s per-draw memo: imageCache[fallback][path]. It runs on
+-- paint, so a hit has to allocate nothing -- going through loadImage() every
+-- frame re-normalised the path (several gsub passes) and built a table per
+-- call. Two lookups instead, and no string or table is built.
+--
+-- It must not pin bitmaps either: each inner table holds the imageBitmapCache
+-- *record*, not the bitmap, and its values are weak, so once the LRU below
+-- evicts a record nothing here keeps it (or its bitmap) alive. `false` marks
+-- a path that resolved to nothing; that is a boolean, never collected, and
+-- goes on clearCaches({images = true}) with the rest. The outer table has one
+-- key per distinct fallback logo (a handful), so it stays strong.
+local imageCache = {}
+local WEAK_VALUES = {__mode = "v"}
 local imagePathCache = {}
 -- imageBitmapCache holds decoded bitmaps, so unlike imagePathCache above it
 -- is bounded rather than merely cleared. Its key space is open-ended: every
@@ -78,6 +91,9 @@ local imagePathCache = {}
 local IMAGE_BITMAP_CACHE_MAX = 32
 local imageBitmapCache = {}
 local imageBitmapClock = 0
+-- Assigned next to context.utils.loadImage() below; declared here because
+-- drawImageInRect() sits earlier in the file.
+local loadImageEntry
 local liveSourceCache = {}
 local liveMissRetryAt = {}
 local liveMissCount = {}
@@ -117,6 +133,11 @@ local DASHBOARD_THEME_WIDTHS = {800, 784, 640, 630, 480, 472}
 local ETHOS_THEME_MIN_VERSION = {26, 1, 0}
 local LOGO_DARK_FALLBACK = "widgets/dashboard/gfx/logo-dark.png"
 local LOGO_LIGHT_FALLBACK = "widgets/dashboard/gfx/logo-light.png"
+-- The logo's pre-rendered sizes, filled in by drawImageInRect() on the first
+-- logo draw (see there). Not built here: this file loads on the dashboard's
+-- first wakeup, which some themes run within a few dozen instructions of the
+-- Ethos limit.
+local logoW, logoH, logoVariants
 local FONT_LISTS_BY_RESOLUTION = {
   ["800x480"] = {value_default = {FONT_XXS, FONT_XS, FONT_S, FONT_STD, FONT_L, FONT_XL, FONT_XXL, FONT_XXXXL}, value_reduced = {FONT_XXS, FONT_XS, FONT_S, FONT_STD, FONT_L}, value_title = {FONT_XXS, FONT_XS, FONT_S, FONT_STD}},
   ["480x320"] = {value_default = {FONT_XXS, FONT_XS, FONT_S, FONT_STD, FONT_L, FONT_XL}, value_reduced = {FONT_XXS, FONT_XS, FONT_S, FONT_STD, FONT_L}, value_title = {FONT_XXS, FONT_XS, FONT_S}},
@@ -1587,6 +1608,7 @@ function context.widgets.dashboard.clearCaches(options)
     systemThemeSupport = nil
   end
   if options.images then
+    clearTable(imageCache)
     clearTable(imagePathCache)
     clearTable(imageBitmapCache)
     -- rfsuite.session IS context.session here: object modules get this very
@@ -1840,17 +1862,69 @@ function utils.boxContentRect(x, y, w, h, bgcolor)
   return boxContentRect(x, y, w, h, bgcolor)
 end
 
--- Draws `image` (a path string, resolved+cached through loadImage(), or an
+-- Draws `image` (a path string, resolved+cached through imageCache, or an
 -- already-loaded bitmap handle) fitted/aligned inside the given rect.
 -- Extracted from utils.box()'s own image branch so title-only callers
 -- (objects/image/{image,model}.lua) can draw their image against
 -- utils.prepareTextLayout()'s cached content region without going through
 -- utils.box()'s (uncached) title-measurement path a second time.
+--
+-- imageCache holds the imageBitmapCache record weakly (see its declaration),
+-- so the bitmap stays bounded by the LRU. A hit re-stamps the record: an image
+-- drawn every frame is the most recently used one, not a candidate for
+-- eviction just because the draw path never went back through loadImage().
 local function drawImageInRect(regionX, regionY, regionW, regionH, image, imagewidth, imageheight, imagealign, bgcolor)
   local bitmap = nil
+  -- The logo comes pre-rendered at several sizes (widest first) and is drawn
+  -- at the largest that fits, unscaled: Ethos scales bitmaps by dropping or
+  -- repeating whole pixel columns, which makes the lettering wobble.
+  if (image == LOGO_DARK_FALLBACK or image == LOGO_LIGHT_FALLBACK) and not imagewidth and not imageheight then
+    if not logoVariants then
+      logoW = {400, 370, 340, 310, 280, 250, 220, 190, 160, 130, 100}
+      logoH = {69, 64, 59, 54, 49, 44, 39, 34, 29, 24, 19}
+      logoVariants = {
+        [LOGO_DARK_FALLBACK] = {
+          LOGO_DARK_FALLBACK,
+          "widgets/dashboard/gfx/logo/dark-370.png", "widgets/dashboard/gfx/logo/dark-340.png",
+          "widgets/dashboard/gfx/logo/dark-310.png", "widgets/dashboard/gfx/logo/dark-280.png",
+          "widgets/dashboard/gfx/logo/dark-250.png", "widgets/dashboard/gfx/logo/dark-220.png",
+          "widgets/dashboard/gfx/logo/dark-190.png", "widgets/dashboard/gfx/logo/dark-160.png",
+          "widgets/dashboard/gfx/logo/dark-130.png", "widgets/dashboard/gfx/logo/dark-100.png",
+        },
+        [LOGO_LIGHT_FALLBACK] = {
+          LOGO_LIGHT_FALLBACK,
+          "widgets/dashboard/gfx/logo/light-370.png", "widgets/dashboard/gfx/logo/light-340.png",
+          "widgets/dashboard/gfx/logo/light-310.png", "widgets/dashboard/gfx/logo/light-280.png",
+          "widgets/dashboard/gfx/logo/light-250.png", "widgets/dashboard/gfx/logo/light-220.png",
+          "widgets/dashboard/gfx/logo/light-190.png", "widgets/dashboard/gfx/logo/light-160.png",
+          "widgets/dashboard/gfx/logo/light-130.png", "widgets/dashboard/gfx/logo/light-100.png",
+        },
+      }
+    end
+    local logoPaths = logoVariants[image]
+    for i = 1, #logoW do
+      if logoW[i] <= regionW and logoH[i] <= regionH then
+        image, imagewidth, imageheight = logoPaths[i], logoW[i], logoH[i]
+        break
+      end
+    end
+  end
   if type(image) == "string" then
     local fallbackLogo = utils.getLogoFallbackForBackground and utils.getLogoFallbackForBackground(bgcolor)
-    bitmap = context.utils.loadImage(image, nil, fallbackLogo)
+    local byFallback = imageCache[fallbackLogo or ""]
+    if not byFallback then
+      byFallback = setmetatable({}, WEAK_VALUES)
+      imageCache[fallbackLogo or ""] = byFallback
+    end
+    local entry = byFallback[image]
+    if entry == nil then
+      entry = loadImageEntry(image, nil, fallbackLogo) or false
+      byFallback[image] = entry
+    elseif entry then
+      imageBitmapClock = imageBitmapClock + 1
+      entry.used = imageBitmapClock
+    end
+    if entry then bitmap = entry.bitmap end
   else
     bitmap = image
   end
@@ -2412,45 +2486,53 @@ end
 
 local function cacheImageBitmap(key, bitmap)
   imageBitmapClock = imageBitmapClock + 1
-  imageBitmapCache[key] = {bitmap = bitmap, used = imageBitmapClock}
+  local entry = {bitmap = bitmap, used = imageBitmapClock}
+  imageBitmapCache[key] = entry
   trimImageBitmapCache()
+  return entry
+end
+
+-- One candidate path -> its imageBitmapCache record, decoding on a miss.
+local function loadImageEntryFor(rawImage)
+  local image = normalizeImagePath(rawImage)
+  if not image then return nil end
+
+  local entry = imageBitmapCache[image]
+  if entry then
+    imageBitmapClock = imageBitmapClock + 1
+    entry.used = imageBitmapClock
+    return entry
+  end
+
+  local path = imagePathCache[image]
+  if path == nil then
+    for _, candidate in ipairs(imageCandidates(image)) do
+      if fileExists(candidate) then
+        path = normalizeImagePath(candidate)
+        break
+      end
+    end
+    imagePathCache[image] = path or false
+  elseif path == false then
+    path = nil
+  end
+
+  if path then
+    local bitmap = loadBitmap(path)
+    if bitmap then return cacheImageBitmap(image, bitmap) end
+  end
+  return nil
+end
+
+-- First of up to three candidates that resolves. An `or` chain rather than a
+-- loop over {image1, image2, image3}: that table was one allocation per call.
+loadImageEntry = function(image1, image2, image3)
+  return loadImageEntryFor(image1) or loadImageEntryFor(image2) or loadImageEntryFor(image3)
 end
 
 function context.utils.loadImage(image1, image2, image3)
-  local images = {image1, image2, image3}
-  for i = 1, 3 do
-    local image = normalizeImagePath(images[i])
-    if image then
-      local entry = imageBitmapCache[image]
-      if entry then
-        imageBitmapClock = imageBitmapClock + 1
-        entry.used = imageBitmapClock
-        return entry.bitmap
-      end
-
-      local path = imagePathCache[image]
-      if path == nil then
-        for _, candidate in ipairs(imageCandidates(image)) do
-          if fileExists(candidate) then
-            path = normalizeImagePath(candidate)
-            break
-          end
-        end
-        imagePathCache[image] = path or false
-      elseif path == false then
-        path = nil
-      end
-
-      if path then
-        local bitmap = loadBitmap(path)
-        if bitmap then
-          cacheImageBitmap(image, bitmap)
-          return bitmap
-        end
-      end
-    end
-  end
-
+  local entry = loadImageEntry(image1, image2, image3)
+  if entry then return entry.bitmap end
   return nil
 end
 
