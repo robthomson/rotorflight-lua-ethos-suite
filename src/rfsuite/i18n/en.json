@@ -5915,10 +5915,10 @@
           "translation": "Up"
         },
         "name": {
-          "english": "Serial Rx (Backup)",
-          "max_length": 19,
+          "english": "Backup RX",
+          "max_length": 9,
           "needs_translation": false,
-          "translation": "Serial Rx (Backup)"
+          "translation": "Backup RX"
         },
         "not_configured": {
           "english": "Not Configured",

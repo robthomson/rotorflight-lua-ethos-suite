@@ -1,4 +1,4 @@
--- Tools -> Diagnostics -> Serial Rx (Backup) page.
+-- Tools -> Diagnostics -> Backup RX page.
 --
 -- Live link/channel readout for the backup-RX input (see app/pages/ports.lua's
 -- RX_INPUT_BACKUP function and lib/msp_rx_input_backup_status.lua), for
