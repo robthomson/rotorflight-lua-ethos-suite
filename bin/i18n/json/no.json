@@ -5633,6 +5633,20 @@
           "translation": "Override",
           "needs_translation": true,
           "reverse_text": false
+        },
+        "arming_disable_flag_26": {
+          "english": "No Filter",
+          "max_length": 10,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "No Filter"
+        },
+        "arming_disable_flag_27": {
+          "english": "Backup RX",
+          "max_length": 10,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Backup RX"
         }
       },
       "elrs_telemetry": {
