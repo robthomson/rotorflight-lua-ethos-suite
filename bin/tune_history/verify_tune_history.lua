@@ -75,7 +75,7 @@ os.clock = function() return clock end
 local MCU = "abc123"
 local HISTORY = "LOGS:/rfsuite/tune/" .. MCU .. "/history.csv"
 
-local handlers, requests, saved, states
+local handlers, requests, saved, states, task
 local function load()
   handlers, requests, saved, states = {}, {}, {}, {}
   for k in pairs(files) do files[k] = nil end
@@ -90,7 +90,7 @@ local function load()
   }
   -- The module takes lib/bus.lua from the require cache
   cache["lib/bus.lua"] = bus
-  assert(loadfile(ROOT .. "tasks/tune_history.lua"))()
+  task = assert(loadfile(ROOT .. "tasks/tune_history.lua"))()
 end
 
 local function update(fields)
@@ -292,6 +292,68 @@ do
     asked == "roll,roll,roll,roll,roll,roll,pitch,yaw,clear", asked)
 end
 
+-- The session publishes only when its snapshot changes. The capture's waits
+-- must run out on the background task's own clock.
+do
+  load()
+  update({isArmed = true})
+  update({isArmed = false})
+  local asked = {}
+  for _ = 1, 60 do
+    clock = clock + 0.5
+    task.wakeup()
+    while requests[1] do
+      local msg = table.remove(requests, 1)
+      asked[#asked + 1] = msg.command == tuneAdvisor.CLEAR_COMMAND and "clear" or NAMES[msg.payload[1] + 1]
+      msg.processReply(msg, msg.simulatorResponse)
+    end
+  end
+  asked = table.concat(asked, ",")
+  check("a quiet session still captures, on the task's clock", asked == "roll,pitch,yaw,clear"
+    and #lines() == 4, asked .. " / " .. #lines() .. " lines")
+end
+
+-- An FC that restarted between two reads answers with another flight
+do
+  load()
+  reply.seconds = 147
+  disarmAndWait()
+  local roll = table.remove(requests, 1)
+  roll.processReply(roll, roll.simulatorResponse)
+  reply.seconds = 0
+  local asked = pump()
+  check("axes from two flights are not saved as one", asked == "pitch,yaw,roll,pitch,yaw"
+    and files[HISTORY] == nil, asked .. " / " .. tostring(files[HISTORY]))
+  reply.seconds = 147
+end
+
+do
+  load()
+  disarmAndWait()
+  local roll = table.remove(requests, 1)
+  roll.processReply(roll, roll.simulatorResponse)
+  local asked = pump({pitch = {n = 1, reason = "cleared"}})
+  check("a cleared queue drops the axes already read", asked == "pitch,roll,pitch,yaw,clear"
+    and #lines() == 4, asked .. " / " .. #lines() .. " lines")
+end
+
+do
+  load()
+  local realSave, saves = tuneHistory.save, 0
+  tuneHistory.save = function(...)
+    saves = saves + 1
+    if saves <= 4 then return false end
+    return realSave(...)
+  end
+  update({isArmed = true})
+  update({isArmed = false})
+  local asked = pump(nil, nil, 60)
+  tuneHistory.save = realSave
+  check("a failed write is tried again without reading again, past the link-error limit",
+    asked == "roll,pitch,yaw,clear" and saves == 5 and #lines() == 4,
+    asked .. " / " .. saves .. " saves / " .. #lines() .. " lines")
+end
+
 do
   local msg = tuneAdvisor.buildReadMessage(1, function() end)
   check("a tune read gives up after three sends", msg.maxRetries == 2, tostring(msg.maxRetries))
@@ -304,6 +366,24 @@ do
   drop()
   check("firmware without the tune advisor leaves the page idle", states[#states] == "idle",
     table.concat(states, ","))
+end
+
+-- A flight is saved and its clear fails, so a clear stays outstanding. The next flight is
+-- refused. The clear must not go out now: it would erase the refused flight on the FC.
+do
+  load()
+  clock = 300
+  update({isArmed = true})
+  update({isArmed = false})
+  local asked = pump({clear = {n = 1, reason = "timeout"}}, 4)
+  check("flight one is saved before its clear fails", asked == "roll,pitch,yaw,clear" and #lines() == 4,
+    asked .. " / " .. #lines() .. " lines")
+  disarmAndWait()
+  requests[1].errorHandler("tune advisor payload version 2, expected 1", true)
+  drop()
+  asked = pump()
+  check("a clear is not sent over a refused flight on the FC", asked == "", asked)
+  check("the refused flight is not saved", #lines() == 4, #lines() .. " lines")
 end
 
 -- The page's aggregate
