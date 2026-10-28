@@ -75,9 +75,9 @@ os.clock = function() return clock end
 local MCU = "abc123"
 local HISTORY = "LOGS:/rfsuite/tune/" .. MCU .. "/history.csv"
 
-local handlers, requests, saved
+local handlers, requests, saved, states
 local function load()
-  handlers, requests, saved = {}, {}, {}
+  handlers, requests, saved, states = {}, {}, {}, {}
   for k in pairs(files) do files[k] = nil end
   for i = #iniWrites, 1, -1 do iniWrites[i] = nil end
   local bus = {
@@ -85,6 +85,7 @@ local function load()
     publish = function(topic, message)
       if topic == "msp.request" then requests[#requests + 1] = message end
       if topic == "tune_history.saved" then saved[#saved + 1] = message end
+      if topic == "tune_history.state" then states[#states + 1] = message end
     end,
   }
   -- The module takes lib/bus.lua from the require cache
@@ -183,6 +184,8 @@ do
 
   asked = pump()
   check("a disarm is captured once", asked == "", asked)
+  check("the page is told reading from the disarm until the clear, then idle",
+    table.concat(states, ",") == "idle,reading,idle", table.concat(states, ","))
 
   local asked0 = fly(0)
   check("a flight with no rate flight saves nothing and clears nothing", asked0 == "roll,pitch,yaw"
@@ -272,6 +275,9 @@ do
   update({isArmed = false})
   asked = pump({roll = {n = 99, reason = "max_retries"}}, nil, 120)
   check("three link errors, then nothing until the next disarm", asked == "roll,roll,roll", asked)
+  check("the page is told the flight was not read", states[#states] == "failed", table.concat(states, ","))
+  update({isArmed = true})
+  check("arming ends the failed note", states[#states] == "idle", table.concat(states, ","))
   asked = fly(200)
   check("the next disarm reads again", asked == "roll,pitch,yaw,clear" and #lines() == 7,
     asked .. " / " .. #lines() .. " lines")
@@ -289,6 +295,15 @@ end
 do
   local msg = tuneAdvisor.buildReadMessage(1, function() end)
   check("a tune read gives up after three sends", msg.maxRetries == 2, tostring(msg.maxRetries))
+end
+
+do
+  load()
+  disarmAndWait()
+  requests[1].errorHandler(true)
+  drop()
+  check("firmware without the tune advisor leaves the page idle", states[#states] == "idle",
+    table.concat(states, ","))
 end
 
 -- The page's aggregate

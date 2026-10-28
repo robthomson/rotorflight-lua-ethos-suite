@@ -23,6 +23,12 @@
 -- first), each later request waits GAP_SECONDS, a failed axis is asked again
 -- on its own, and after MAX_FAILURES link errors the capture waits for the
 -- next disarm. The FC keeps the numbers, so that disarm still saves them.
+--
+-- Publishes "tune_history.state" (retained, see lib/bus.lua) whenever it
+-- changes, so the Tune Advisor page can hold its advice until the flight is in:
+--   "reading"  disarmed with this flight not saved yet, or its clear still to go
+--   "failed"   gave up after MAX_FAILURES; the next disarm reads it
+--   "idle"     anything else
 local requireModule = package.loaded["rfsuite.lib.require"] or assert(loadfile("lib/require.lua"))()
 local bus = requireModule("lib/bus.lua")
 local tuneAdvisor = requireModule("lib/msp_tune_advisor.lua")
@@ -41,6 +47,24 @@ local nextAt = 0                  -- no request before this os.clock()
 local failures = 0                -- link errors since the last disarm
 local capture = {mcuId = nil, modelName = nil, replies = {}}
 local lastSeconds = {}            -- by mcuId: flight_seconds of the last flight saved
+local state = nil                 -- last "tune_history.state" published
+
+local function publishState()
+  local now
+  if lastArmed ~= false then
+    now = "idle"
+  elseif pending then
+    now = nextAt == math.huge and "failed" or "reading"
+  elseif clearPending and nextAt ~= math.huge then
+    now = "reading"
+  else
+    now = "idle"
+  end
+  if now ~= state then
+    state = now
+    bus.publish("tune_history.state", now)
+  end
+end
 
 local function snapshotModelName(snapshot)
   if snapshot.craftName and snapshot.craftName ~= "" then return snapshot.craftName end
@@ -75,6 +99,7 @@ end
 local function onCleared()
   waitFor(0)
   clearPending = false
+  publishState()
 end
 
 -- Four answers, and only the last is worth repeating.
@@ -95,7 +120,7 @@ end
 --                   this request's fault, so not counted against MAX_FAILURES.
 --   anything else   the link. Asked again shortly, from the axis that failed; the axes
 --                   already read are kept.
-local function onError(reason, refused)
+local function handleError(reason, refused)
   if reason == true then
     clearReplies()
     busy = false
@@ -115,6 +140,11 @@ local function onError(reason, refused)
     return
   end
   failed()
+end
+
+local function onError(reason, refused)
+  handleError(reason, refused)
+  publishState()
 end
 
 local function sendClear()
@@ -145,6 +175,7 @@ onData = function(data)
       print("[tune_history] cannot write " .. tuneHistory.path(mcuId))
       clearReplies()
       failed()
+      publishState()
       return
     end
     lastSeconds[mcuId] = seconds
@@ -154,10 +185,10 @@ onData = function(data)
   pending = false
   if seconds > 0 then clearPending = true end
   waitFor(GAP_SECONDS)
+  publishState()
 end
 
-local function onSessionUpdate(snapshot)
-  if not snapshot then return end
+local function step(snapshot)
   local armed = snapshot.isArmed
   if armed == true then
     pending = false               -- the next disarm captures this flight too
@@ -195,6 +226,12 @@ local function onSessionUpdate(snapshot)
   else
     sendClear()
   end
+end
+
+local function onSessionUpdate(snapshot)
+  if not snapshot then return end
+  step(snapshot)
+  publishState()
 end
 
 bus.subscribe("session.update", onSessionUpdate)
