@@ -8312,6 +8312,13 @@
           "reverse_text": false,
           "translation": "Needs more stops (%d/%d)"
         },
+        "stops_shake_fmt": {
+          "english": "Shaking %d deg/s",
+          "max_length": 16,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Shaking %d deg/s"
+        },
         "stops_value_fmt": {
           "english": "%d%% bounce-back",
           "max_length": 16,
@@ -8409,6 +8416,13 @@
           "needs_translation": true,
           "reverse_text": false,
           "translation": "After a stop, the I-term pushes the heli back."
+        },
+        "why_shake_fmt": {
+          "english": "Shakes %d deg/s at centre stick. Less P calms it.",
+          "max_length": 49,
+          "needs_translation": true,
+          "reverse_text": false,
+          "translation": "Shakes %d deg/s at centre stick. Less P calms it."
         },
         "why_slow": {
           "english": "The heli turns slower than the stick asks for.",

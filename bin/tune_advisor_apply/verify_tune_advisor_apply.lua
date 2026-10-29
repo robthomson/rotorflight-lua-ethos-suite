@@ -92,6 +92,7 @@ local EEPROM = 250
 -- tune is the other codecs' fixtures (Actual rates). Roll: F 120 -> 96, and
 -- center sensitivity 18 -> 23 and max rate 24 -> 30.
 local flightRatesType = nil       -- overrides the fixture's rates_type when set
+local flightRollShake = nil       -- overrides roll's shake (deg/s) when set
 local function fixtureFlights()
   local axes = {}
   for axis = 1, 3 do
@@ -101,6 +102,7 @@ local function fixtureFlights()
     m.processReply(nil, buf)
     if flightRatesType then axes[axis].ratesType = flightRatesType end
   end
+  if flightRollShake then axes[1].shakeRms = flightRollShake end
   return {{date = "d", seconds = 147, axes = axes}}
 end
 tuneHistory.read = function() return fixtureFlights() end
@@ -352,6 +354,32 @@ do
   pump()
   check("nothing to apply when the rates can only be a percentage", saveEnabled == false)
   flightRatesType = nil
+end
+
+-- Issue #2633: a heli oscillating with the stick centred also reads as
+-- bounce-back after every stop, and the stop rule asked for more P.
+print("A shaking axis gets less P and nothing else")
+do
+  resetFc()
+  flightRollShake = 49            -- the issue log's roll
+  logged = {}
+  openPage()
+  pump()
+  local before = snapshot()
+  local _, confirm = applyNow()
+  local lines = 0
+  for _ in confirm.message:gmatch("[^\n]+") do lines = lines + 1 end
+  check("the confirm dialog lists P alone", lines == 2, confirm.message)
+  check("roll P goes down one step", fc[112].roll_p == 58, "P " .. tostring(fc[112].roll_p))
+  check("F and the rates are left for after the shake", changedFields(before) == "roll_p", changedFields(before))
+  flightRollShake = 14            -- below the shake limit: F and its rates as before
+  openPage()
+  pump()
+  _, confirm = applyNow()
+  lines = 0
+  for _ in confirm.message:gmatch("[^\n]+") do lines = lines + 1 end
+  check("a calm axis gets its usual advice", lines == 4, confirm.message)
+  flightRollShake = nil
 end
 
 print()
