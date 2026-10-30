@@ -1988,6 +1988,97 @@
           "reverse_text": false,
           "max_length": 12
         },
+        "activelook_alerts": {
+          "english": "Alerts",
+          "translation": "Warnungen",
+          "needs_translation": false,
+          "max_length": 6,
+          "reverse_text": false
+        },
+        "activelook_esc_temp_warning": {
+          "english": "ESC temp warning",
+          "translation": "ESC-Temp.-Warnung",
+          "needs_translation": false,
+          "max_length": 16,
+          "reverse_text": false
+        },
+        "activelook_use_audio_limit": {
+          "english": "Use audio limits & repeats",
+          "translation": "Audio-Grenze & Wiederh.",
+          "needs_translation": false,
+          "max_length": 26,
+          "reverse_text": false
+        },
+        "activelook_esc_temp_limit": {
+          "english": "ESC temp limit",
+          "translation": "ESC-Temp.-Grenze",
+          "needs_translation": false,
+          "max_length": 14,
+          "reverse_text": false
+        },
+        "activelook_governor_lost": {
+          "english": "Lost headspeed",
+          "translation": "Drehzahlverlust",
+          "needs_translation": false,
+          "max_length": 14,
+          "reverse_text": false
+        },
+        "activelook_governor_status": {
+          "english": "Governor status",
+          "translation": "Governor-Status",
+          "needs_translation": false,
+          "max_length": 15,
+          "reverse_text": false
+        },
+        "activelook_status_duration": {
+          "english": "Status duration",
+          "translation": "Statusdauer",
+          "needs_translation": false,
+          "max_length": 15,
+          "reverse_text": false
+        },
+        "activelook_low_fuel": {
+          "english": "Smart Fuel",
+          "translation": "Smart Fuel",
+          "needs_translation": false,
+          "reverse_text": false,
+          "max_length": 10
+        },
+        "activelook_low_fuel_warning": {
+          "english": "Smart Fuel warning",
+          "translation": "Smart-Fuel-Warnung",
+          "needs_translation": false,
+          "reverse_text": false,
+          "max_length": 18
+        },
+        "activelook_low_fuel_repeats": {
+          "english": "Repeats",
+          "translation": "Wiederholungen",
+          "needs_translation": false,
+          "reverse_text": false,
+          "max_length": 7
+        },
+        "activelook_low_fuel_icon": {
+          "english": "Icon",
+          "translation": "Icon",
+          "needs_translation": false,
+          "reverse_text": false,
+          "max_length": 4
+        },
+        "activelook_low_fuel_seconds": {
+          "english": "Warning Duration",
+          "translation": "Dauer Warnung",
+          "needs_translation": false,
+          "reverse_text": false,
+          "max_length": 16
+        },
+        "activelook_inflight_fuel_icon": {
+          "english": "Smart Fuel icon",
+          "translation": "Smart-Fuel-Icon",
+          "needs_translation": false,
+          "max_length": 15,
+          "reverse_text": false
+        },
         "activelook_inflight": {
           "english": "Inflight",
           "translation": "Flug",
@@ -2716,11 +2807,53 @@
           "reverse_text": false,
           "max_length": 16
         },
+        "activelook_rf_link_warning": {
+          "english": "RF link warning",
+          "translation": "RF-Link-Warnung",
+          "needs_translation": false,
+          "max_length": 15,
+          "reverse_text": false
+        },
+        "activelook_rf_link_limit": {
+          "english": "RSSI limit",
+          "translation": "RSSI-Grenzwert",
+          "needs_translation": false,
+          "max_length": 10,
+          "reverse_text": false
+        },
+        "activelook_rf_link_percent_limit": {
+          "english": "VFR/LQ limit",
+          "translation": "VFR/LQ-Grenze",
+          "needs_translation": false,
+          "max_length": 12,
+          "reverse_text": false
+        },
+        "activelook_use_audio_repeats": {
+          "english": "Use audio repeats",
+          "translation": "Audio-Wiederh. nutzen",
+          "needs_translation": false,
+          "max_length": 17,
+          "reverse_text": false
+        },
+        "activelook_smartfuel_min": {
+          "english": "Min Smart Fuel",
+          "translation": "Min. Smart Fuel",
+          "needs_translation": false,
+          "max_length": 14,
+          "reverse_text": false
+        },
+        "activelook_smartfuel_max": {
+          "english": "Max Smart Fuel",
+          "translation": "Max. Smart Fuel",
+          "needs_translation": false,
+          "max_length": 14,
+          "reverse_text": false
+        },
         "armed_warning": {
           "english": "Dashboard armed warning",
-          "max_length": 28,
-          "needs_translation": false,
           "translation": "Dashboard Armed-Warnung",
+          "needs_translation": false,
+          "max_length": 28,
           "reverse_text": false
         }
       },
@@ -10241,6 +10374,13 @@
         "needs_translation": false,
         "reverse_text": false,
         "max_length": 9
+      },
+      "battery_remaining": {
+        "english": "Battery Remaining",
+        "translation": "Verbleibender Akku",
+        "needs_translation": false,
+        "max_length": 17,
+        "reverse_text": false
       }
     },
     "governor": {
@@ -10299,6 +10439,78 @@
         "needs_translation": false,
         "reverse_text": false,
         "max_length": 7
+      }
+    },
+    "activelook": {
+      "alert_battery_empty": {
+        "english": "BATTERY EMPTY",
+        "translation": "AKKU LEER",
+        "needs_translation": false,
+        "max_length": 13,
+        "reverse_text": false
+      },
+      "alert_fuel_low": {
+        "english": "LOW FUEL",
+        "translation": "KRAFTSTOFF NIEDRIG",
+        "needs_translation": false,
+        "max_length": 8,
+        "reverse_text": false
+      },
+      "alert_esc_temp_high": {
+        "english": "ESC TEMP HIGH",
+        "translation": "ESC TEMP HOCH",
+        "needs_translation": false,
+        "max_length": 13,
+        "reverse_text": false
+      },
+      "alert_rf_link_low": {
+        "english": "RF LINK LOW",
+        "translation": "RF LINK SCHWACH",
+        "needs_translation": false,
+        "max_length": 11,
+        "reverse_text": false
+      },
+      "alert_warning": {
+        "english": "WARNING!",
+        "translation": "WARNUNG!",
+        "needs_translation": false,
+        "max_length": 8,
+        "reverse_text": false
+      },
+      "alert_headspeed_lost": {
+        "english": "HEADSPEED LOST",
+        "translation": "DREHZAHL VERLOREN",
+        "needs_translation": false,
+        "max_length": 14,
+        "reverse_text": false
+      },
+      "alert_governor": {
+        "english": "GOVERNOR",
+        "translation": "GOVERNOR",
+        "needs_translation": false,
+        "max_length": 8,
+        "reverse_text": false
+      },
+      "alert_autorotation": {
+        "english": "AUTOROTATION",
+        "translation": "AUTOROTATION",
+        "needs_translation": false,
+        "max_length": 12,
+        "reverse_text": false
+      },
+      "alert_bailout": {
+        "english": "BAILOUT",
+        "translation": "BAILOUT",
+        "needs_translation": false,
+        "max_length": 7,
+        "reverse_text": false
+      },
+      "alert_limit": {
+        "english": "LIMIT",
+        "translation": "GRENZE",
+        "needs_translation": false,
+        "max_length": 5,
+        "reverse_text": false
       }
     }
   }
