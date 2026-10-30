@@ -53,6 +53,7 @@ for _, f in ipairs({
   {"releases", "releases", "%d"}, {"big_rebounds", "bigRebounds", "%d"},
   {"mean_rebound", "meanRebound", "%.3f"}, {"mean_overshoot", "meanOvershoot", "%.3f"},
   {"mean_counter", "meanCounter", "%.3f"}, {"mean_iterm", "meanIterm", "%.3f"},
+  {"shake_count", "shakeCount", "%d"}, {"shake_rms", "shakeRms", "%.1f"},
 }) do FIELDS[#FIELDS + 1] = f end
 
 -- The tune a flight was measured with: flights are only combined when these match
@@ -144,7 +145,9 @@ function tuneHistory.save(mcuId, modelName, replies)
 end
 
 -- The Tune Advisor's Apply record, beside the history: one row per setting
--- changed, with the value it replaced, so a change can be undone by hand.
+-- changed, with the value it replaced, so a change can be undone by hand,
+-- and so the page can tell how far its own changes have moved a setting
+-- (pilotValue()).
 -- Appended, never trimmed, and kept by erase(): it is the pilot's record.
 local CHANGES_HEADER = "date,axis,setting,from,to"
 
@@ -161,6 +164,43 @@ function tuneHistory.logChanges(mcuId, axis, changes)
   end
   file:close()
   return true
+end
+
+-- The Apply record, oldest first: {axis, key, from, to} per row. Every row
+-- that parses is read, whatever the header says: logChanges() appends to the
+-- file as it is, so a header check would lose every later record. A missing
+-- file, or one with no such rows, reads as no changes.
+function tuneHistory.readChanges(mcuId)
+  local changes = {}
+  local text = ini.load_file_as_string(BASE_DIR .. "/" .. mcuId .. "/changes.csv")
+  if not text then return changes end
+  local lines = splitLines(text)
+  for i = 1, #lines do
+    local axisName, key, from, to = lines[i]:match("^[^,]*,([^,]*),([^,]*),(%-?%d+),(%-?%d+)$")
+    local axis = nil
+    for n = 1, AXIS_COUNT do
+      if AXIS_NAMES[n] == axisName then axis = n end
+    end
+    if axis then
+      changes[#changes + 1] = {axis = axis, key = key, from = tonumber(from), to = tonumber(to)}
+    end
+  end
+  return changes
+end
+
+-- The value the pilot last set by hand for one setting (a TUNE_KEYS name):
+-- from the current value, follows the Apply record back while each change
+-- ended at the value the next one started from. A change made by hand breaks
+-- that chain, so the value it set counts as the pilot's.
+function tuneHistory.pilotValue(changes, axis, key, value)
+  for i = #changes, 1, -1 do
+    local c = changes[i]
+    if c.axis == axis and c.key == key then
+      if c.to ~= value then break end
+      value = c.from
+    end
+  end
+  return value
 end
 
 function tuneHistory.erase(mcuId)
@@ -229,7 +269,7 @@ function tuneHistory.aggregate(flights, axis)
   if not newest then return out, 0, 0 end
   for _, k in ipairs(TUNE_KEYS) do out[k] = newest[k] end
 
-  local used, seconds = 0, 0
+  local used, seconds, shakeSq = 0, 0, 0
   for i = #flights, math.max(1, #flights - MAX_FLIGHTS + 1), -1 do
     local a = flights[i].axes[axis]
     if not a or not sameTune(a, newest) then break end
@@ -254,7 +294,12 @@ function tuneHistory.aggregate(flights, axis)
     addMean(out, "meanOvershoot", a.meanOvershoot, a.releases, out.releases)
     addMean(out, "meanCounter", a.meanCounter, a.releases, out.releases)
     addMean(out, "meanIterm", a.meanIterm, a.releases, out.releases)
+
+    -- RMS combines exactly: the mean of the squares, weighted by count
+    out.shakeCount = out.shakeCount + a.shakeCount
+    shakeSq = shakeSq + (a.shakeRms * a.shakeRms - shakeSq) * (out.shakeCount > 0 and a.shakeCount / out.shakeCount or 0)
   end
+  out.shakeRms = math.sqrt(shakeSq)
   out.ffLagMs = math.floor(out.ffLagMs + 0.5)
   return out, used, seconds
 end

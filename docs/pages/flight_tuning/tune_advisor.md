@@ -51,7 +51,7 @@ version is known, nothing is sent.
 | Changes / Why | Only on 480-pixel-wide radios (X18, X18R, X10 and similar), beside Axis. *Changes* shows the suggested changes and as many reasons as fit, ending in "More under Why" when some are left out; *Why* shows all the reasons. Larger radios show everything. |
 | Flight data | Minutes and seconds of acro flight in the flights combined, and how many of the last 5 that is, for example "2m 12s, 3/5 flights". |
 | Response | How fast the heli turns compared with the rate the stick asks for, for example "53% faster than asked". "Needs more flying" shows how much data is still needed; "Too uneven to judge" means the response varies too much. |
-| Stops | How much the heli bounces back after you centre the stick, as a share of the turn rate. Needs 10 stops. |
+| Stops | How much the heli bounces back after you centre the stick, as a share of the turn rate. Needs 10 stops. "Shaking 49 deg/s" instead means the heli oscillates with the stick centred (see the rules below). |
 | Suggested changes | Up to three changes, each named by the page and setting to change and in the units that page shows, for example *PIDs > Roll > F: 100 -> 80* and *Rates > Roll > Rate: 720 -> 900*. When there is something *Save* can write, a last line says so. After they are written, this shows "Changes saved to the flight controller" until the next flight is saved. |
 | Why | The reason for each change, and a fact worth knowing when there is room (for example how much faster the heli turns at high collective). |
 | Save button | Writes the suggested changes for the shown axis to the flight controller. Enabled only while connected, disarmed and with a change it can write. See *Applying the changes* below. |
@@ -59,15 +59,24 @@ version is known, nothing is sent.
 
 The suggestions follow these rules:
 
+- **Shakes with the stick centred** (15 deg/s or more, measured over at least 5 s of centred stick): lower P by
+  one step (P / 1.2), and nothing else for that axis until it is calm. An oscillation also reads as bounce-back
+  after every stop and spoils the response figure, so the other rules would be misled. If lowering P does not
+  calm it, check D and the linkages. Needs firmware that reports shake; older firmware never shows it.
 - **Turns faster or slower than asked** (more than 15% off): change F and the rates by the same amount in
   opposite directions, so the stick feel stays the same but the heli flies the rate you ask for. One step
   changes F by at most 20%. With Actual, Quick and Rotorflight rates the page gives the exact rate values;
   with the other rate types it gives a percentage. An axis with F set to 0 (often the tail) gets no F advice.
 - **Full stick asks for more rate than the heli reaches** (roll and pitch), with the cyclic at its limit: lower
-  the rates to what the heli reaches.
+  the rates toward what the heli reaches, by at most 20% per step.
 - **Stops bounce back 12% or more**: if the I-term pushes back, lower *Advanced > PID Controller > Iterm Relax
-  Cutoff* by 20%. If F does not match yet, fix F first. Otherwise the controller is barely braking the stop:
-  raise P by 20% (or add B).
+  Cutoff* by 20%. If F does not match yet, fix F first. Otherwise raise P by 20% (or add B).
+  The page raises P to at most 50% above your own P, which allows two steps. Your own P is the last one you
+  set by hand: the page works it out from `changes.csv` (see below), and setting P by hand starts the count again. If stops still bounce back after that, the reasons say "P is already ...% above your
+  setting. Check the mechanics." More P will not fix it.
+- **A change would go past a setting's limit**: the page does not suggest it, or any change that goes with it
+  (F is never suggested without its rates). Instead, the reasons say "The change needed goes past a setting's
+  limit." Look for the cause outside the tune, for example the mechanics or the head speed.
 
 ## Applying the changes
 
