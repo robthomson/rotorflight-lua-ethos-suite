@@ -7048,6 +7048,12 @@
           "needs_translation": false,
           "max_length": 16
         },
+        "stops_shake_fmt": {
+          "english": "Shaking %d deg/s",
+          "translation": "Shaking %d deg/s",
+          "needs_translation": false,
+          "max_length": 16
+        },
         "act_fly_roll": {
           "english": "Fly rolls in acro mode, centre the stick after each",
           "translation": "Fly rolls in acro mode, centre the stick after each",
@@ -7179,6 +7185,12 @@
           "translation": "Stops bounce back %d%%. More P brakes them (or add B).",
           "needs_translation": false,
           "max_length": 54
+        },
+        "why_shake_fmt": {
+          "english": "Shakes %d deg/s at centre stick. Less P calms it.",
+          "translation": "Shakes %d deg/s at centre stick. Less P calms it.",
+          "needs_translation": false,
+          "max_length": 49
         },
         "why_ok": {
           "english": "The heli answers the stick as asked.",

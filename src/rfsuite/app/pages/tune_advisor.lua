@@ -26,9 +26,13 @@
 -- - Full stick (roll and pitch): cyclic saturated and the rate reached well
 --   below the rate asked, so the rate is suggested at what the heli reaches.
 -- - |Collective| spread is shown as a fact, last, when there is room.
+-- - Shake: the heli oscillates with the stick centred, usually P too high.
+--   Less P, and nothing else on that axis: an oscillation also reads as
+--   bounce-back after every stop and spoils the F match, so the rules below
+--   would otherwise ask for more P and make it worse.
 -- - Stick releases: the rebound after a stop. I-term pushing back points at
 --   a lower Iterm Relax Cutoff; with F still off, F comes first; otherwise
---   the controller is barely braking, so more P (or B).
+--   more P (or B).
 --
 -- Clear (header Tool button) erases the saved flights and resets the FC's
 -- statistics.
@@ -92,6 +96,7 @@ local T = {
   respOk = "@i18n(app.modules.tune_advisor.resp_ok)@",
   stopsMoreFmt = "@i18n(app.modules.tune_advisor.stops_more_fmt)@",
   stopsValueFmt = "@i18n(app.modules.tune_advisor.stops_value_fmt)@",
+  stopsShakeFmt = "@i18n(app.modules.tune_advisor.stops_shake_fmt)@",
 
   actFlyRoll = "@i18n(app.modules.tune_advisor.act_fly_roll)@",
   actFlyPitch = "@i18n(app.modules.tune_advisor.act_fly_pitch)@",
@@ -118,6 +123,7 @@ local T = {
   whyRelax = "@i18n(app.modules.tune_advisor.why_relax)@",
   whyFixFFmt = "@i18n(app.modules.tune_advisor.why_fix_f_fmt)@",
   whyBrakeFmt = "@i18n(app.modules.tune_advisor.why_brake_fmt)@",
+  whyShakeFmt = "@i18n(app.modules.tune_advisor.why_shake_fmt)@",
   whyOk = "@i18n(app.modules.tune_advisor.why_ok)@",
 
   applyHint = "@i18n(app.modules.tune_advisor.apply_hint)@",
@@ -186,6 +192,12 @@ local ITERM_PUSH = 0.03         -- I at release, output units
 local P_STEP = 1.2
 local CUTOFF_STEP = 0.8         -- lower Iterm Relax Cutoff = more relax, less bounce-back
 local CUTOFF_MIN = 1
+
+-- Shake with the stick centred (firmware payload version 2). A tuned heli
+-- holds a few deg/s there; an oscillating loop tens, and its swings also read
+-- as bounce-back after every stop.
+local SHAKE_MIN_COUNT = 500     -- 5 s of centred stick
+local SHAKE_RMS = 15            -- deg/s
 
 local MAX_ACTIONS = 3
 local MAX_WHYS = 3
@@ -297,6 +309,8 @@ local function advise(a, axis, name, actions, whys, changes)
     if from ~= to then changes[#changes + 1] = {key = key, from = from, to = to, text = text} end
   end
 
+  local shaking = a.shakeCount >= SHAKE_MIN_COUNT and a.shakeRms >= SHAKE_RMS
+
   -- Response: feed-forward match
   local response
   if a.ffCount < FF_MIN_COUNT then
@@ -310,7 +324,9 @@ local function advise(a, axis, name, actions, whys, changes)
     local g = a.ffGain
     local hot = g > FF_HOT
     response = string.format(hot and T.respFastFmt or T.respSlowFmt, round(math.abs(g - 1) * 100))
-    if a.F > 0 then
+    if shaking then
+      -- The shake comes first: see Stops
+    elseif a.F > 0 then
       local newF = clamp(round(a.F * clamp(1 / g, 1 - FF_STEP_MAX, 1 + FF_STEP_MAX)), 1, GAIN_MAX)
       -- Keep the stick feel: F x rate is what the pilot feels. F is applied
       -- only with its rates, so a percentage-only rates_type applies neither.
@@ -325,7 +341,7 @@ local function advise(a, axis, name, actions, whys, changes)
   else
     response = T.respOk
     local asked = maxRateAsked(a)
-    if axis ~= AXIS_YAW and asked and a.fullCount >= FULL_MIN_COUNT
+    if not shaking and axis ~= AXIS_YAW and asked and a.fullCount >= FULL_MIN_COUNT
         and a.fullSatCount >= FULL_SAT_SHARE * a.fullCount
         and a.fullMaxRate < FULL_REACH * asked and room(rateActionCount(a)) then
       rateActions(a, name, a.fullMaxRate / asked, act, change)
@@ -335,7 +351,15 @@ local function advise(a, axis, name, actions, whys, changes)
 
   -- Stops: rebound after a release
   local stops
-  if a.releases < STOPS_MIN then
+  if shaking then
+    local rms = round(a.shakeRms)
+    stops = string.format(T.stopsShakeFmt, rms)
+    if a.P > 1 and room(1) then
+      local newP = clamp(round(a.P / P_STEP), 1, a.P - 1)
+      change(string.format(T.actPFmt, name, a.P, newP), "P", a.P, newP)
+      why(string.format(T.whyShakeFmt, rms))
+    end
+  elseif a.releases < STOPS_MIN then
     stops = string.format(T.stopsMoreFmt, a.releases, STOPS_MIN)
   else
     local rebound = round(a.meanRebound * 100)
