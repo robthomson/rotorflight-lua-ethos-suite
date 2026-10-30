@@ -6,7 +6,7 @@
 --
 -- What it drives: the real src/rfsuite/lib/msp_tune_advisor.lua, through the message
 -- its read builder returns, so the reply goes through processReply exactly as the
--- transport hands it over. The replies are the simulator's own 52-byte reply (payload
+-- transport hands it over. The replies are the simulator's own 51-byte reply (payload
 -- version 3), one packed here with string.pack from the firmware's layout (msp.c,
 -- MSP2_GET_TUNE_ADVISOR) so the codec is checked against the firmware's byte order and
 -- not against itself, and variants of them.
@@ -85,7 +85,7 @@ local function deliver(buf)
   return got
 end
 
--- The simulator reply for axis 1: the firmware's 52-byte layout, version 3.
+-- The simulator reply for axis 1: the firmware's 51-byte layout, version 3.
 local sim = tuneAdvisor.buildReadMessage(1, function() end, function() end).simulatorResponse
 
 local function bytes(packed)
@@ -102,14 +102,14 @@ local LAYOUT = "<" ..
   "BH BH BH" ..       -- setpoint bands: gain x64, count
   "BH BH BH" ..       -- collective bands
   "H H B B" ..        -- fullCount, fullSatCount, fullRatio x100, fullMaxRate / 10
-  "H H B B B h" ..    -- releases, bigRebounds, meanRebound x100, meanOvershoot x64, meanCounter x100, meanIterm x1000
+  "H B B B B h" ..    -- releases, bigRebounds, meanRebound x100, meanOvershoot x64, meanCounter x100, meanIterm x1000
   "H B"               -- shakeCount, shakeRms x4
 
-print("the firmware's 52-byte reply, payload version 3")
+print("the firmware's 51-byte reply, payload version 3")
 do
-  check("the layout is 52 bytes, one CRSF frame after the MSP header", string.packsize(LAYOUT) == 52,
+  check("the layout is 51 bytes, one CRSF frame", string.packsize(LAYOUT) == 51,
     "packsize " .. string.packsize(LAYOUT))
-  check("the simulator reply is 52 bytes", #sim == 52, "length " .. #sim)
+  check("the simulator reply is 51 bytes", #sim == 51, "length " .. #sim)
   local got = deliver(copy(sim))
   check("it decodes and reaches onData", got.data ~= nil and got.errors == 0,
     "errors " .. got.errors .. ", reason " .. tostring(got.reason))
@@ -186,7 +186,7 @@ do
   checkRefused("version 4", got)
 end
 
-print("a truncated reply (51 bytes)")
+print("a truncated reply (50 bytes)")
 do
   local short = copy(sim)
   short[#short] = nil
@@ -198,7 +198,7 @@ do
   checkRefused("truncated", got)
 end
 
-print("a longer reply (53 bytes)")
+print("a longer reply (52 bytes, the layout before bigRebounds was one byte)")
 do
   local long = copy(sim)
   long[#long + 1] = 0

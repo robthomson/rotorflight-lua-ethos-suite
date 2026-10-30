@@ -5,8 +5,9 @@
 -- an error, which the page reports as "needs newer firmware".
 --
 -- One axis per request: the request payload is U8 axis (0 roll, 1 pitch,
--- 2 yaw). The reply is 52 bytes, the most one CRSF frame carries after the
--- MSP header, and 12 S.Port/FBUS frames.
+-- 2 yaw). The reply is 51 bytes, the most one CRSF frame carries (the
+-- firmware sends a reply that exactly fills a frame as two), and 12
+-- S.Port/FBUS frames.
 --
 -- Wire layout verified against rotorflight-firmware's own serializer
 -- (src/main/msp/msp.c, MSP2_GET_TUNE_ADVISOR case), payload version 3:
@@ -19,11 +20,11 @@
 --     3 x {U8 gain x64, U16 count}  by |collective| <25%, 25-50%, 50%+
 --     U16 fullCount, U16 fullSatCount, U8 fullRatio x100,
 --     U8 fullMaxRate in 10 deg/s
---     U16 releases, U16 bigRebounds, U8 meanRebound x100,
+--     U16 releases, U8 bigRebounds, U8 meanRebound x100,
 --     U8 meanOvershoot x64, U8 meanCounter x100, S16 meanIterm x1000
 --     U16 shakeCount, U8 shakeRms x4 (deg/s)
 -- Scaled values are decoded to plain numbers here; the firmware saturates
--- each at its byte's range. Counts saturate at 65535. Versions 1 and 2 (67
+-- each, and bigRebounds, at its byte's range. Counts saturate at 65535. Versions 1 and 2 (67
 -- and 71 bytes, every ratio 16-bit) were never in a firmware release and are
 -- refused like any other. See src/main/flight/tune_advisor.c for what each
 -- value measures.
@@ -69,7 +70,7 @@ local RATES_TYPE_ACTUAL = 4
 -- Payload version 3 (firmware msp.c, MSP2_GET_TUNE_ADVISOR): its length,
 -- and its one-byte values as value x scale
 local PAYLOAD_VERSION = 3
-local REPLY_LENGTH = 52
+local REPLY_LENGTH = 51
 local GAIN_SCALE = 64        -- ffGain, band gains, meanOvershoot: U8, 0..3.98
 local CORR_SCALE = 100       -- ffCorr: S8, -1.27..1.27
 local FRACTION_SCALE = 100   -- fullRatio, meanRebound, meanCounter: U8, 0..2.55
@@ -107,7 +108,7 @@ local function buildSimulatorResponse(axis)
   u8(a.full[3], FRACTION_SCALE)
   u8(a.full[4], 1 / RATE_STEP)
   mspcodec.writeU16(buf, a.rel[1])
-  mspcodec.writeU16(buf, a.rel[2])
+  mspcodec.writeU8(buf, math.min(a.rel[2], 255))
   u8(a.rel[3], FRACTION_SCALE)
   u8(a.rel[4], GAIN_SCALE)
   u8(a.rel[5], FRACTION_SCALE)
@@ -180,7 +181,7 @@ function msp_tune_advisor.decode(buf)
   a.fullRatio = readScaled(buf, FRACTION_SCALE)
   a.fullMaxRate = (mspcodec.readU8(buf) or 0) * RATE_STEP
   a.releases = mspcodec.readU16(buf) or 0
-  a.bigRebounds = mspcodec.readU16(buf) or 0
+  a.bigRebounds = mspcodec.readU8(buf) or 0
   a.meanRebound = readScaled(buf, FRACTION_SCALE)
   a.meanOvershoot = readScaled(buf, GAIN_SCALE)
   a.meanCounter = readScaled(buf, FRACTION_SCALE)
